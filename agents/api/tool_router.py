@@ -8,6 +8,7 @@ from agents.services import tool_service
 
 router = APIRouter()
 
+
 @router.post("/tools/create")
 async def create_tool(tool: ToolCreate, session: AsyncSession = Depends(get_db)):
     """
@@ -19,6 +20,7 @@ async def create_tool(tool: ToolCreate, session: AsyncSession = Depends(get_db))
     """
     tool = await tool_service.create_tool(tool.app_id, tool.name, tool.type, tool.content, session)
     return RestResponse(data=tool)
+
 
 @router.put("/tools/{tool_id}")
 async def update_tool(tool_id: int, tool: ToolUpdate, session: AsyncSession = Depends(get_db)):
@@ -32,6 +34,7 @@ async def update_tool(tool_id: int, tool: ToolUpdate, session: AsyncSession = De
     tool = await tool_service.update_tool(tool_id, tool.name, tool.type, tool.content, session)
     return RestResponse(data=tool)
 
+
 @router.delete("/tools/{tool_id}")
 async def delete_tool(tool_id: int, session: AsyncSession = Depends(get_db)):
     """
@@ -41,6 +44,7 @@ async def delete_tool(tool_id: int, session: AsyncSession = Depends(get_db)):
     """
     await tool_service.delete_tool(tool_id, session)
     return RestResponse(data="ok")
+
 
 @router.get("/tools/{tool_id}")
 async def get_tool(tool_id: int, session: AsyncSession = Depends(get_db)):

@@ -8,6 +8,7 @@ from agents.common.config import SETTINGS
 API_KEY_NAME = "X-API-Key"
 API_KEY = SETTINGS.API_KEY
 
+
 class APIKeyMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):

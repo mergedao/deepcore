@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
+
 class App(Base):
     __tablename__ = 'app'
 
@@ -19,6 +20,7 @@ class App(Base):
     update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
 
+
 class Tool(Base):
     __tablename__ = 'tools'
 
@@ -31,6 +33,7 @@ class Tool(Base):
     tenant_id = Column(String(255), comment="Tenant ID")
     update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
+
 
 class FileStorage(Base):
     __tablename__ = 'file_storage'

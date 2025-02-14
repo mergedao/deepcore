@@ -1,6 +1,5 @@
 from typing import Optional
 
-from pydantic import Field
 from pydantic.v1 import BaseSettings
 
 
@@ -21,6 +20,7 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8080
     OPENAI_API_KEY: str = ""
+    OPENAI_BASE_URL: str = ""
     MODEL_NAME: str = "gpt-4-turbo"
     COIN_HOST: str = ""
     COIN_HOST_V2: str = ""
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     API_KEY: str = ""
     AI_SEARCH_HOST: str = ""
     AI_SEARCH_KEY: str = ""
-    REDIS_HOST:str = "localhost"
+    REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = None
     REDIS_DB: int = 0
@@ -41,5 +41,6 @@ class Settings(BaseSettings):
     MYSQL_DB: str = "mydatabase"
 
     OPENAPI_FITTER_FIELDS: list[str] = []
+
 
 SETTINGS = Settings()

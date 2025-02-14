@@ -1,56 +1,98 @@
+import json
 import logging
-import time
-from typing import Optional, AsyncIterator, List, Callable
+import uuid
+from typing import Optional, AsyncIterator, List, Callable, Any
 
 import yaml
 from langchain_core.messages import BaseMessageChunk
 
-from agents.agent.core import exists, concat_strings, BaseDeepcoreAgent
+from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.memory.memory import MemoryObject
+from agents.agent.memory.short_memory import ShortMemory
+from agents.agent.prompts.tool_prompts import tool_prompt
+from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
+from agents.agent.tools import BaseTool
 from agents.agent.tools.tool_executor import async_execute
+from agents.utils.common import dict_to_csv, exists, concat_strings
+from agents.utils.parser import parse_and_execute_json
 
 logger = logging.getLogger(__name__)
 
 
-class AsyncAgent(BaseDeepcoreAgent):
+def gen_agent_executor_id() -> str:
+    return uuid.uuid4().hex
+
+
+class DeepAgentExecutor(object):
 
     def __init__(
             self,
+            name: str,
+            user_name: Optional[str] = "User",
+            llm: Optional[Any] = None,
+            system_prompt: Optional[str] = "You are a helpful assistant.",
+            tool_system_prompt: str = tool_prompt(),
             tools: Optional[List[Callable]] = None,
             async_tools: Optional[List[Callable]] = None,
-            should_send_node: Optional[bool] = False,
+            node_massage_enabled: Optional[bool] = False,
+            output_type: str = "str",
+            output_detail_enabled: Optional[bool] = False,
+            max_loops: Optional[int] = 1,
+            retry: Optional[int] = 3,
+            stop_func: Optional[Callable[[str], bool]] = None,
+            tokenizer: Optional[Any] = TikToken(),
+            long_term_memory: Optional[Any] = None,
             *args,
             **kwargs,
     ):
-        """
-        Initialize AsyncAgent with both synchronous and asynchronous tools.
-
-        Args:
-            tools: List of synchronous tool functions
-            async_tools: List of asynchronous tool functions
-            should_send_node: Whether to send node information to the agent. Defaults to True.
-            *args: Additional positional arguments for parent class
-            **kwargs: Additional keyword arguments for parent class
-        """
-        super().__init__(tools=None, *args, **kwargs)
-
+        self.agent_name = name
+        self.llm = llm
+        self.tool_system_prompt = tool_system_prompt
+        self.user_name = user_name
+        self.output_type = output_type
+        self.return_step_meta = output_detail_enabled
+        self.max_loops = max_loops
+        self.retry_attempts = retry
+        self.stop_func = stop_func
         self.tools = tools or []
         self.async_tools = async_tools or []
+        self.should_send_node = node_massage_enabled
+        self.tokenizer = tokenizer
+        self.long_term_memory = long_term_memory
+
+        self.agent_executor_id = gen_agent_executor_id()
+
+        self.short_memory = ShortMemory(
+            system_prompt=system_prompt,
+            user_name=user_name,
+            *args,
+            **kwargs,
+        )
+
+        self.agent_output = DeepAgentExecutorOutput(
+            agent_id=self.agent_executor_id,
+            agent_name=self.agent_name,
+            task="",
+            max_loops=self.max_loops,
+            steps=self.short_memory.to_dict(),
+            full_history=self.short_memory.get_str(),
+            total_tokens=self.tokenizer.count_tokens(
+                self.short_memory.get_str()
+            ),
+        )
+
         self._initialize_tools()
-        self.should_send_node = should_send_node
 
     def _initialize_tools(self) -> None:
-        """Initialize tool structure and function mappings."""
         all_tools = self.tools + self.async_tools
 
-        if not (exists(all_tools) or exists(self.list_base_models) or exists(self.tool_schema)):
+        if not exists(all_tools):
             return
 
         self.tool_struct = BaseTool(
             tools=all_tools,
-            base_models=self.list_base_models,
             tool_system_prompt=self.tool_system_prompt,
         )
 
@@ -67,45 +109,20 @@ class AsyncAgent(BaseDeepcoreAgent):
 
             self.function_map = {tool.__name__: tool for tool in all_tools}
 
-    async def acompletion(
+    async def stream(
             self,
             task: Optional[str] = None,
             img: Optional[str] = None,
-            is_last: Optional[bool] = False,
             *args,
             **kwargs,
     ) -> AsyncIterator[str]:
-        """
-        run the agent
-
-        Args:
-            task (str): The task to be performed.
-            img (str): The image to be processed.
-            is_last (bool): Indicates if this is the last task.
-
-        Returns:
-            Any: The output of the agent.
-            (string, list, json, dict, yaml)
-
-        Examples:
-            agent(task="What is the capital of France?")
-            agent(task="What is the capital of France?", img="path/to/image.jpg")
-            agent(task="What is the capital of France?", img="path/to/image.jpg", is_last=True)
-        """
         try:
             async for data in self.send_node_message("task understanding"): yield data
-
-            self.check_if_no_prompt_then_autogenerate(task)
 
             self.agent_output.task = task
 
             # Add task to memory
             self.short_memory.add(role=self.user_name, content=task)
-
-            # Plan
-            if self.plan_enabled is True:
-                async for data in self.send_node_message("task plan"): yield data
-                self.plan(task)
 
             # Set the loop count
             loop_count = 0
@@ -118,25 +135,15 @@ class AsyncAgent(BaseDeepcoreAgent):
                 async for data in self.send_node_message("load past context"): yield data
                 self.memory_query(task)
 
-            # Print the user's request
-
-            if self.autosave:
-                self.save()
-
             while (
                     self.max_loops == "auto"
                     or loop_count < self.max_loops
             ):
                 loop_count += 1
-                self.loop_count_print(loop_count, self.max_loops)
-
-                # Dynamic temperature
-                if self.dynamic_temperature_enabled is True:
-                    self.dynamic_temperature()
 
                 # Task prompt
                 task_prompt = (
-                    self.short_memory.return_history_as_string()
+                    self.short_memory.get_history_as_string()
                 )
 
                 # Parameters
@@ -145,10 +152,7 @@ class AsyncAgent(BaseDeepcoreAgent):
                 should_stop = False
                 while attempt < self.retry_attempts and not success:
                     try:
-                        if (
-                                self.long_term_memory is not None
-                                and self.rag_every_loop is True
-                        ):
+                        if self.long_term_memory is not None:
                             logger.info(
                                 "Querying RAG database for context..."
                             )
@@ -165,7 +169,7 @@ class AsyncAgent(BaseDeepcoreAgent):
                         logger.info(
                             f"Generating response with LLM... :{response_args}"
                         )
-                        async for data in self.call_llm_in_stream(
+                        async for data in self.llm_astream(
                                 *response_args, **kwargs
                         ):
                             if isinstance(data, str):
@@ -179,15 +183,14 @@ class AsyncAgent(BaseDeepcoreAgent):
                                     f"Unexpected response format: {type(data)}"
                                 )
 
-                            if (self.stopping_condition is not None
-                                    and self._check_stopping_condition(response)):
-                                async for data in self.send_node_message("generate response"): yield data
+                            if self.stop_func is not None and self._check_stopping_condition(response):
+                                async for data in self.send_node_message("generate response"):
+                                    yield data
 
                             if should_stop or (
-                                    self.stopping_condition is not None
+                                    self.stop_func is not None
                                     and self._check_stopping_condition(response)
                             ):
-                                logger.info("Stopping condition met.")
                                 should_stop = True
                                 yield response
                                 response = ""
@@ -199,13 +202,8 @@ class AsyncAgent(BaseDeepcoreAgent):
                         response = self.llm_output_parser(response)
 
                         # Check if response is a dictionary and has 'choices' key
-                        if (
-                                isinstance(response, dict)
-                                and "choices" in response
-                        ):
-                            response = response["choices"][0][
-                                "message"
-                            ]["content"]
+                        if isinstance(response, dict) and "choices" in response:
+                            response = response["choices"][0]["message"]["content"]
                         elif isinstance(response, str):
                             # If response is already a string, use it as is
                             pass
@@ -218,7 +216,7 @@ class AsyncAgent(BaseDeepcoreAgent):
                         if not should_stop:
                             is_finished = False
                             if self.async_tools is not None:
-                                async for resp in self.async_parse_and_execute_tools(response, direct_output=True):
+                                async for resp in self.execute_tools_astream(response, direct_output=True):
                                     yield ToolOutput(resp)
                                     is_finished = True
                                 if is_finished:
@@ -243,30 +241,9 @@ class AsyncAgent(BaseDeepcoreAgent):
 
                         # # TODO: Implement reliability check
 
-                        if self.evaluator:
-                            logger.info("Evaluating response...")
-                            evaluated_response = self.evaluator(
-                                response
-                            )
-                            print(
-                                "Evaluated Response:"
-                                f" {evaluated_response}"
-                            )
-                            self.short_memory.add(
-                                role="Evaluator",
-                                content=evaluated_response,
-                            )
-
-                        # Sentiment analysis
-                        if self.sentiment_analyzer:
-                            logger.info("Analyzing sentiment...")
-                            self.sentiment_analysis_handler(response)
-
                         success = True  # Mark as successful to exit the retry loop
 
                     except Exception as e:
-                        if self.autosave is True:
-                            self.save()
 
                         logger.error(
                             f"Attempt {attempt + 1}: Error generating"
@@ -275,15 +252,11 @@ class AsyncAgent(BaseDeepcoreAgent):
                         attempt += 1
 
                 if not success:
-
-                    if self.autosave is True:
-                        self.save()
-
                     logger.error(
                         "Failed to generate a valid response after"
                         " retry attempts."
                     )
-                    break  # Exit the loop if all retry attempts fail
+                    break
                 if should_stop:
                     logger.warning(
                         "Stopping due to user input or other external"
@@ -291,61 +264,11 @@ class AsyncAgent(BaseDeepcoreAgent):
                     )
                     break
 
-                # Check stopping conditions
                 if (
-                        self.stopping_condition is not None
+                        self.stop_func is not None
                         and self._check_stopping_condition(response)
                 ):
-                    logger.info("Stopping condition met.")
                     break
-                elif (
-                        self.stopping_func is not None
-                        and self.stopping_func(response)
-                ):
-                    logger.info("Stopping function met.")
-                    break
-
-                if self.interactive:
-                    logger.info("Interactive mode enabled.")
-                    user_input = input("You: ")
-
-                    # User-defined exit command
-                    if (
-                            user_input.lower()
-                            == self.custom_exit_command.lower()
-                    ):
-                        print("Exiting as per user request.")
-                        break
-
-                    self.short_memory.add(
-                        role=self.user_name, content=user_input
-                    )
-
-                if self.loop_interval:
-                    logger.info(
-                        f"Sleeping for {self.loop_interval} seconds"
-                    )
-                    time.sleep(self.loop_interval)
-
-            if self.autosave is True:
-
-                if self.autosave is True:
-                    self.save()
-
-            # Apply the cleaner function to the response
-            if self.output_cleaner is not None:
-                logger.info("Applying output cleaner to response.")
-                response = self.output_cleaner(response)
-                logger.info(
-                    f"Response after output cleaner: {response}"
-                )
-                self.short_memory.add(
-                    role="Output Cleaner",
-                    content=response,
-                )
-
-            if self.agent_ops_on is True and is_last is True:
-                self.check_end_session_agentops()
 
             # Merge all responses
             all_responses = [
@@ -365,16 +288,6 @@ class AsyncAgent(BaseDeepcoreAgent):
             )
 
             # Handle artifacts
-            if self.artifacts_on is True:
-                self.handle_artifacts(
-                    concat_strings(all_responses),
-                    self.artifacts_output_path,
-                    self.artifacts_file_extension,
-                )
-
-            if self.autosave is True:
-                self.save()
-
             # More flexible output types
             if (
                     self.output_type == "string"
@@ -389,7 +302,7 @@ class AsyncAgent(BaseDeepcoreAgent):
             ):
                 yield self.agent_output.model_dump_json(indent=4)
             elif self.output_type == "csv":
-                yield self.dict_to_csv(
+                yield dict_to_csv(
                     self.agent_output.model_dump()
                 )
             elif self.output_type == "dict":
@@ -398,10 +311,6 @@ class AsyncAgent(BaseDeepcoreAgent):
                 yield yaml.safe_dump(
                     self.agent_output.model_dump(), sort_keys=False
                 )
-            elif self.return_history is True:
-                history = self.short_memory.get_str()
-                logger.info(f"{self.agent_name} History: {history}")
-                yield history
             else:
                 raise ValueError(
                     f"Invalid output type: {self.output_type}"
@@ -413,45 +322,29 @@ class AsyncAgent(BaseDeepcoreAgent):
         except KeyboardInterrupt as error:
             self._handle_run_error(error)
 
-    async def call_llm_in_stream(self, task: str, *args, **kwargs) -> AsyncIterator[str]:
-        """
-        Calls the appropriate method on the `llm` object based on the given task.
+    async def llm_astream(self, input: str, *args, **kwargs) -> AsyncIterator[str]:
+        if not isinstance(input, str):
+            raise TypeError("Input must be a string")
 
-        Args:
-            task (str): The task to be performed by the `llm` object.
-            *args: Variable length argument list.
-            **kwargs: Arbitrary keyword arguments.
-
-        Returns:
-            str: The result of the method call on the `llm` object.
-
-        Raises:
-            AttributeError: If no suitable method is found in the llm object.
-            TypeError: If task is not a string or llm object is None.
-            ValueError: If task is empty.
-        """
-        if not isinstance(task, str):
-            raise TypeError("Task must be a string")
-
-        if not task.strip():
-            raise ValueError("Task cannot be empty")
+        if not input.strip():
+            raise ValueError("Input cannot be empty")
 
         if self.llm is None:
             raise TypeError("LLM object cannot be None")
 
         try:
-            async for out in self.llm.astream(task, *args, **kwargs):
+            async for out in self.llm.astream(input, *args, **kwargs):
                 if isinstance(out, str):
                     yield out
                 elif isinstance(out, BaseMessageChunk):
                     yield out.content
         except AttributeError as e:
             logger.error(
-                f"Error calling LLM: {e} You need a class with a run(task: str) method"
+                f"Error calling LLM: {e} You need a class with a run(input: str) method"
             )
             raise e
 
-    async def async_parse_and_execute_tools(self, response: str, *args, **kwargs):
+    async def execute_tools_astream(self, response: str, *args, **kwargs):
         try:
             logger.info("Executing async tool...")
             direct_output = kwargs.get("direct_output", True)
@@ -493,3 +386,95 @@ class AsyncAgent(BaseDeepcoreAgent):
             role="History data",
             content=f"user: {memory.input}\n\nassistant: {memory.output}",
         )
+
+    def _handle_run_error(self, error: any):
+        logger.info(
+            f"Error detected running your agent {self.agent_name} \n Error {error} \n) "
+        )
+        raise error
+
+    def _check_stopping_condition(self, response: str) -> bool:
+        """Check if the stopping condition is met."""
+        try:
+            if self.stop_func:
+                return self.stop_func(response)
+            return False
+        except Exception as error:
+            logger.error(
+                f"Error checking stopping condition: {error}"
+            )
+
+    def memory_query(self, task: str = None, *args, **kwargs) -> None:
+        try:
+            # Query the long term memory
+            if self.long_term_memory is not None:
+                logger.info(f"Querying RAG for: {task}")
+
+                memory_retrieval = self.long_term_memory.query(
+                    task, *args, **kwargs
+                )
+
+                memory_retrieval = (
+                    f"Documents Available: {str(memory_retrieval)}"
+                )
+
+                self.short_memory.add(
+                    role="Database",
+                    content=memory_retrieval,
+                )
+
+                return None
+        except Exception as e:
+            logger.error(f"An error occurred: {e}")
+            raise e
+
+    def llm_output_parser(self, response: Any) -> str:
+        """Parse the output from the LLM"""
+        try:
+            if isinstance(response, dict):
+                if "choices" in response:
+                    return response["choices"][0]["message"][
+                        "content"
+                    ]
+                else:
+                    return json.dumps(
+                        response
+                    )  # Convert dict to string
+            elif isinstance(response, str):
+                return response
+            else:
+                return str(
+                    response
+                )  # Convert any other type to string
+        except Exception as e:
+            logger.error(f"Error parsing LLM output: {e}")
+            return str(
+                response
+            )  # Return string representation as fallback
+
+    def parse_and_execute_tools(self, response: str, *args, **kwargs):
+        try:
+            logger.info("Executing tool...")
+
+            # try to Execute the tool and return a string
+            out = parse_and_execute_json(
+                functions=self.tools,
+                json_string=response,
+                parse_md=True,
+                *args,
+                **kwargs,
+            )
+
+            out = str(out)
+
+            logger.info(f"Tool Output: {out}")
+
+            # Add the output to the memory
+            self.short_memory.add(
+                role="Tool Executor",
+                content=out,
+            )
+
+        except Exception as error:
+            logger.error(f"Error executing tool: {error}")
+            raise error

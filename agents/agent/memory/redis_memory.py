@@ -1,8 +1,8 @@
-from agents.agent.memory.memory import MemoryManager, MemoryObject
+from agents.agent.memory.memory import MemoryStore, MemoryObject
 from agents.common.redis_utils import redis_utils
 
 
-class RedisMemory(MemoryManager):
+class RedisMemoryStore(MemoryStore):
     memory: dict[str, list[MemoryObject]] = {}
     prefix: str = "deepcore.memory"
     max_ttl: int = 5 * 24 * 60 * 60

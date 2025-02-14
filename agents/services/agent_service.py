@@ -5,7 +5,7 @@ from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from agents.agent.core.chat_agent import ChatAgent
+from agents.agent.chat_agent import ChatAgent
 from agents.exceptions import CustomAgentException
 from agents.models.db import get_db
 from agents.models.models import App, Tool
@@ -20,10 +20,8 @@ async def dialogue(agent_id: int, request: DialogueRequest, session: AsyncSessio
     result = await session.execute(select(App).where(App.id == agent_id))
     agent = result.scalar_one_or_none()
     agent = ChatAgent(agent)
-    async for response in agent.arun(request.query, request.conversation_id):
+    async for response in agent.stream(request.query, request.conversation_id):
         yield response
-
-
 
 
 async def get_agent(id: int, session: AsyncSession):
@@ -72,6 +70,7 @@ async def create_agent(
 
     return await get_agent(new_agent.id, session)
 
+
 async def list_agents(status: Optional[AgentStatus], skip: int, limit: int, session: AsyncSession):
     query = select(App)
     if status:
@@ -88,6 +87,7 @@ async def list_agents(status: Optional[AgentStatus], skip: int, limit: int, sess
         results.append(model)
 
     return results
+
 
 async def update_agent(
         agent_id: int,
@@ -106,8 +106,8 @@ async def update_agent(
             raise CustomAgentException(f"Agent with ID {agent_id} does not exist.")
 
         # Update agent information in the App table
-        stmt = update(App).where(App.id == agent_id)\
-            .values(name=name, description=description, status=status, tool_prompt=tool_prompt, max_loops=max_loops)\
+        stmt = update(App).where(App.id == agent_id) \
+            .values(name=name, description=description, status=status, tool_prompt=tool_prompt, max_loops=max_loops) \
             .execution_options(synchronize_session="fetch")
         await session.execute(stmt)
 
@@ -152,9 +152,10 @@ async def update_agent(
                 await session.delete(tool)
     return await get_agent(agent_id, session)
 
+
 async def delete_agent(agent_id: int, session: AsyncSession = Depends(get_db)):
-    stmt = update(App).where(App.id == agent_id)\
-        .values(is_deleted=True)\
+    stmt = update(App).where(App.id == agent_id) \
+        .values(is_deleted=True) \
         .execution_options(synchronize_session="fetch")
     await session.execute(stmt)
     await session.commit()

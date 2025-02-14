@@ -11,6 +11,7 @@ from agents.services.file_service import FileInfo
 
 router = APIRouter()
 
+
 @router.post("/upload/file")
 async def upload_file(file: UploadFile = File(...), session: AsyncSession = Depends(get_db)):
     """
@@ -20,6 +21,7 @@ async def upload_file(file: UploadFile = File(...), session: AsyncSession = Depe
     """
     result = await file_service.upload_file(file, session)
     return RestResponse(data=result)
+
 
 @router.get("/files/{fid}")
 async def get_file(fid: str, session: AsyncSession = Depends(get_db)):

@@ -1,15 +1,17 @@
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, AsyncIterator
-
 from starlette.responses import StreamingResponse
 
 from agents.common.response import RestResponse
 from agents.models.db import get_db
-from agents.protocol.schemas import AgentCreate, AgentUpdate, DialogueResponse, DialogueRequest, AgentStatus, PaginationParams
+from agents.protocol.schemas import AgentCreate, AgentUpdate, DialogueResponse, DialogueRequest, AgentStatus, \
+    PaginationParams
 from agents.services import agent_service
 
 router = APIRouter()
+
 
 @router.post("/agents/create")
 async def create_agent(agent: AgentCreate, session: AsyncSession = Depends(get_db)):
@@ -38,11 +40,12 @@ async def create_agent(agent: AgentCreate, session: AsyncSession = Depends(get_d
     )
     return RestResponse(data=agent)
 
+
 @router.get("/agents/get")
 async def list_agents(
-    status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
-    pagination: PaginationParams = Depends(),
-    session: AsyncSession = Depends(get_db)
+        status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
+        pagination: PaginationParams = Depends(),
+        session: AsyncSession = Depends(get_db)
 ):
     """
     Retrieve a list of agents with pagination, optionally filtered by status.
@@ -51,8 +54,10 @@ async def list_agents(
     - **skip**: Number of records to skip
     - **limit**: Maximum number of records to return
     """
-    agents = await agent_service.list_agents(status=status, skip=pagination.skip, limit=pagination.limit, session=session)
+    agents = await agent_service.list_agents(status=status, skip=pagination.skip, limit=pagination.limit,
+                                             session=session)
     return RestResponse(data=agents)
+
 
 @router.put("/agents/{agent_id}")
 async def update_agent(agent_id: int, agent: AgentUpdate, session: AsyncSession = Depends(get_db)):
@@ -79,6 +84,7 @@ async def update_agent(agent_id: int, agent: AgentUpdate, session: AsyncSession 
     )
     return RestResponse(data=agent)
 
+
 @router.delete("/agents/{agent_id}")
 async def delete_agent(agent_id: int, session: AsyncSession = Depends(get_db)):
     """
@@ -89,9 +95,10 @@ async def delete_agent(agent_id: int, session: AsyncSession = Depends(get_db)):
     await agent_service.delete_agent(agent_id, session)
     return RestResponse(data="ok")
 
+
 @router.post("/agents/{agent_id}/dialogue", response_model=DialogueResponse)
 async def dialogue(agent_id: int, request: DialogueRequest,
-             session: AsyncSession = Depends(get_db)):
+                   session: AsyncSession = Depends(get_db)):
     """
     Handle a dialogue between a user and an agent.
     

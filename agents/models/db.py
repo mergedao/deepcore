@@ -1,6 +1,7 @@
+from urllib.parse import quote
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from sqlalchemy.orm import sessionmaker
-from urllib.parse import quote
 
 from agents.common.config import SETTINGS
 from agents.models.models import Base
@@ -16,15 +17,19 @@ SessionLocal = sessionmaker(
     expire_on_commit=False
 )
 
+
 # Dependency for providing a database session in each request
 async def get_db():
     async with SessionLocal() as session:
         yield session
 
+
 async def init_db(engine: AsyncEngine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+
 if __name__ == '__main__':
     import asyncio
+
     asyncio.run(init_db(engine))

@@ -4,7 +4,7 @@ import uuid
 from fastapi import Query, APIRouter
 from starlette.responses import StreamingResponse
 
-from agents.agent.core.coins_agent import CoinAgent
+from agents.agent.coins_agent import CoinAgent
 
 logger = logging.getLogger(__name__)
 
@@ -20,5 +20,5 @@ async def health():
 async def completion(query: str = Query(default=""), conversationId: str = Query(default=str(uuid.uuid4()))):
     logger.info(f"query: {query}, conversationId: {conversationId}")
     agent = CoinAgent()
-    resp = agent.arun(query, conversationId)
+    resp = agent.stream(query, conversationId)
     return StreamingResponse(content=resp, media_type="text/event-stream")

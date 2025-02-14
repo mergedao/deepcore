@@ -17,6 +17,7 @@ async def upload_file(file: UploadFile, session: AsyncSession = Depends(get_db))
     fid = await storage.upload_file(file, file.filename)
     return {"fid": fid, "url": f"/files/{fid}"}
 
+
 async def query_file(file_uuid: str, session: AsyncSession = Depends(get_db)):
     storage = Storage.get_storage(session)
     file_record: FileInfo = await storage.get_file(file_uuid)
@@ -65,7 +66,6 @@ class DatabaseStorage(Storage):
         pass
 
     async def get_file(self, fid: str) -> Union[FileInfo, None]:
-
         result = await self.db_session.execute(select(FileStorage).where(FileStorage.file_uuid == fid))
         first = result.scalars().first()
         if first:
@@ -76,4 +76,3 @@ class DatabaseStorage(Storage):
                 file_size=first.size,
             )
         return None
-

@@ -18,13 +18,13 @@ class LiteLLM:
     """
 
     def __init__(
-        self,
-        model_name: str = "gpt-4o",
-        system_prompt: str = None,
-        stream: bool = False,
-        temperature: float = 0.5,
-        max_tokens: int = 4000,
-        ssl_verify: bool = False,
+            self,
+            model_name: str = "gpt-4o",
+            system_prompt: str = None,
+            stream: bool = False,
+            temperature: float = 0.5,
+            max_tokens: int = 4000,
+            ssl_verify: bool = False,
     ):
         """
         Initialize the LiteLLM with the given parameters.
@@ -119,7 +119,7 @@ class LiteLLM:
                 max_tokens=self.max_tokens,
                 *args,
                 **kwargs,
-            ):
+        ):
             yield chunk
 
     def __call__(self, task: str, *args, **kwargs):
