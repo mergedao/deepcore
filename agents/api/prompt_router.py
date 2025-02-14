@@ -5,6 +5,7 @@ from agents.common.response import RestResponse
 
 router = APIRouter()
 
+
 @router.get("/prompt/getDefaultToolPrompt")
 async def get_default_tool_prompt():
     """
@@ -17,6 +18,7 @@ async def get_default_tool_prompt():
     """
     return RestResponse(data=tool_prompt())
 
+
 @router.get("/prompt/getDefaultSystemPrompt")
 async def get_system_prompt():
     """
@@ -27,5 +29,5 @@ async def get_system_prompt():
     Returns:
         RestResponse: Contains the data of the default system prompt.
     """
-    system_prompt="You are an AI Agent.You can solve problems directly or utilize specialized tools to perform detailed tasks and deliver precise solutions."""
+    system_prompt = "You are an AI Agent.You can solve problems directly or utilize specialized tools to perform detailed tasks and deliver precise solutions."""
     return RestResponse(data=system_prompt)

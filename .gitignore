@@ -1,0 +1,17 @@
+/.env
+.svn
+.tmp
+.download
+output
+.*.swp
+.*.swo
+.DS_Store
+__pycache__
+**/__pycache__/*
+output
+/log/*
+conf/
+/logs
+.idea/
+.env
+static

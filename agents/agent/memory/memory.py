@@ -7,7 +7,7 @@ class MemoryObject:
     input: str
     output: Union[str, dict]
 
-    def __init__(self, input: str = None, output: Union[str, dict] =None):
+    def __init__(self, input: str = None, output: Union[str, dict] = None):
         self.input = input
         self.output = output
 
@@ -19,7 +19,6 @@ class MemoryObject:
             return self.output
         else:
             return json.dumps(self.output, ensure_ascii=False)
-
 
     def to_dict(self) -> dict:
         return {
@@ -34,7 +33,8 @@ class MemoryObject:
         self.output = data.get("output", "")
         return self
 
-class MemoryManager(ABC):
+
+class MemoryStore(ABC):
     memory_size: int = 10
 
     def __init__(self, memory_size: int = 10):

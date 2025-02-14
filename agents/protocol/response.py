@@ -3,8 +3,8 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-class ToolModel(BaseModel):
 
+class ToolModel(BaseModel):
     id: int
     app_id: int
     name: str
@@ -14,11 +14,10 @@ class ToolModel(BaseModel):
     create_time: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
-class AppModel(BaseModel):
 
+class AppModel(BaseModel):
     id: int
     name: str
     description: str
@@ -33,5 +32,4 @@ class AppModel(BaseModel):
     tools: Optional[List[ToolModel]] = None
 
     class Config:
-        orm_mode = True
         from_attributes = True

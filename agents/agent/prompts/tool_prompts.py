@@ -1,4 +1,3 @@
-
 def tool_prompt() -> str:
     return """--
 

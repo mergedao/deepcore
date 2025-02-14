@@ -65,7 +65,7 @@ class RedisUtils:
             print(f"Error deleting key: {e}")
             return 0
 
-    def push_to_list(self, key: str, value: Any, max_length: Optional[int] = None, ttl: int=None) -> None:
+    def push_to_list(self, key: str, value: Any, max_length: Optional[int] = None, ttl: int = None) -> None:
         """
         Push a serialized value to a list in Redis.
 
@@ -158,6 +158,7 @@ class RedisUtils:
         except redis.RedisError as e:
             print(f"Error getting set members: {e}")
             return None
+
 
 redis_utils = RedisUtils(
     host=SETTINGS.REDIS_HOST,

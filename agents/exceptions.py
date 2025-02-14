@@ -9,9 +9,11 @@ class ErrorCode(IntEnum):
 
     OPENAPI_ERROR = 10010
 
+
 class CustomAgentException(Exception):
     """Custom exception for agent-related errors."""
-    def __init__(self, ErrorCode:ErrorCode = ErrorCode.INTERNAL_ERROR, message: str="error"):
+
+    def __init__(self, ErrorCode: ErrorCode = ErrorCode.INTERNAL_ERROR, message: str = "error"):
         self.message = message
         self.ErrorCode = ErrorCode
         super().__init__(self.message)

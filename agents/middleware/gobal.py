@@ -8,6 +8,7 @@ from agents.exceptions import ErrorCode, CustomAgentException
 
 logger = logging.getLogger(__name__)
 
+
 async def exception_handler(request: fastapi.Request, exc):
     """"""
     if exc.__class__ in [CustomAgentException]:

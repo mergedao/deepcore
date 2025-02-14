@@ -6,7 +6,7 @@ class NodeMessage:
     message: str = ""
     tool_name: str = ""
 
-    def __init__(self, message: str, tool_name: Optional[str]=None):
+    def __init__(self, message: str, tool_name: Optional[str] = None):
         """Constructor for the class"""
         self.message = message
         self.tool_name = tool_name

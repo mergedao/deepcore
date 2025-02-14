@@ -31,8 +31,6 @@ def init_id_maps():
         raise Exception("Failed to fetch asset platform list from CoinGecko API.")
 
 
-
-
 def query_price_by_ids(symbols: str, vs_currencies: str) -> dict:
     """
     Query the price of a cryptocurrency by its ID.
@@ -57,6 +55,7 @@ def query_price_by_ids(symbols: str, vs_currencies: str) -> dict:
     }
 
     return send_http_request('get', url, headers, params)
+
 
 def query_historical_data_by_ids(symbol: str,
                                  vs_currency: str,
@@ -87,9 +86,10 @@ def query_historical_data_by_ids(symbol: str,
     data = send_http_request('get', url, headers, params)
     return data
 
+
 def query_markets_by_currency(vs_currency: str,
-                              symbols: str=None,
-                              price_change_percentage: str="24h") -> dict:
+                              symbols: str = None,
+                              price_change_percentage: str = "24h") -> dict:
     """
     This endpoint allows you to query all the supported coins with price, market cap, volume and market related data.
 
@@ -117,6 +117,7 @@ def query_markets_by_currency(vs_currency: str,
 
     return send_http_request('get', url, headers, params)
 
+
 def query_token_price_by_id(platform: str, contract_addresses: str, vs_currencies: str):
     """
     This endpoint allows you to query the price of a token by its contract address.
@@ -141,6 +142,7 @@ def query_token_price_by_id(platform: str, contract_addresses: str, vs_currencie
 
     return send_http_request('get', url, headers, params)
 
+
 def query_top_gainers_losers(vs_currency: str, duration='24h', top_coins=50):
     """
     This endpoint allows you to query the top gainers and losers of the day.
@@ -164,7 +166,7 @@ def query_top_gainers_losers(vs_currency: str, duration='24h', top_coins=50):
     return send_http_request('get', url, headers, params)
 
 
-def to_id(symbol: str, default: str=None) -> str:
+def to_id(symbol: str, default: str = None) -> str:
     """
         Convert a symbol to an id.
     """
@@ -179,7 +181,8 @@ def to_id(symbol: str, default: str=None) -> str:
             return k
     return default
 
-def platform_to_id(platform: str, default: str=None) -> str:
+
+def platform_to_id(platform: str, default: str = None) -> str:
     platform = platform.lower().strip()
     if platform in platform_maps.keys():
         return platform
@@ -190,6 +193,7 @@ def platform_to_id(platform: str, default: str=None) -> str:
         if 'native_coin_id' in v and platform in v['native_coin_id'].lower():
             return k
     return default
+
 
 def send_http_request(method: str,
                       url: str,
@@ -216,6 +220,7 @@ def send_http_request(method: str,
         logger.error(f"Error sending HTTP request: {e}")
     return {}
 
+
 def query_listings_historical(date: str):
     """
     Returns a ranked and sorted list of all cryptocurrencies for a historical UTC date.
@@ -237,8 +242,8 @@ def query_listings_historical(date: str):
     }
     return send_http_request('get', url, headers, params, api_key=None)
 
-def query_OHLCV_historical(symbol: str):
 
+def query_OHLCV_historical(symbol: str):
     url = SETTINGS.COIN_HOST_V2 + '/v2/cryptocurrency/ohlcv/historical'
     params = {
         'symbol': symbol,
@@ -250,7 +255,6 @@ def query_OHLCV_historical(symbol: str):
         'X-CMC_PRO_API_KEY': SETTINGS.COIN_API_KEY_V2
     }
     return send_http_request('get', url, headers, params, api_key=None)
-
 
 
 if __name__ == '__main__':

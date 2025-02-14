@@ -8,6 +8,7 @@ from agents.common.config import SETTINGS
 
 logger = logging.getLogger(__name__)
 
+
 def validate_openapi(json_str: str):
     try:
         load_openapi_spec(json_str)
@@ -15,6 +16,7 @@ def validate_openapi(json_str: str):
     except Exception as e:
         logger.warning(f'check_openapi_spec failed !: {e}', exc_info=True)
         return False, str(e)
+
 
 def load_openapi_spec(json_str: str) -> Dict[str, Any]:
     try:
@@ -25,6 +27,7 @@ def load_openapi_spec(json_str: str) -> Dict[str, Any]:
         logger.warning(f'fitter_fields failed!: {e}', exc_info=True)
     parser = ResolvingParser(spec_string=json_str, skip_validation=True)
     return parser.specification
+
 
 def fitter_fields(spec: Dict[str, Any]):
     copy_spec = spec.copy()

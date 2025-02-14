@@ -23,6 +23,7 @@ async def create_tool(app_id: int, name: str, type: ToolType, content: str, sess
         content=new_tool.content,
     )
 
+
 async def update_tool(tool_id: int, name: str, type: ToolType = None, content: str = None,
                       session: AsyncSession = Depends(get_db)):
     values_to_update = {}
@@ -42,12 +43,14 @@ async def update_tool(tool_id: int, name: str, type: ToolType = None, content: s
         await session.commit()
     return get_tool(tool_id, session)
 
+
 async def delete_tool(tool_id: int, session: AsyncSession = Depends(get_db)):
-    stmt = update(Tool).where(Tool.id == tool_id)\
-        .values(is_deleted=True)\
+    stmt = update(Tool).where(Tool.id == tool_id) \
+        .values(is_deleted=True) \
         .execution_options(synchronize_session="fetch")
     await session.execute(stmt)
     await session.commit()
+
 
 async def get_tool(tool_id: int, session: AsyncSession = Depends(get_db)):
     result = await session.execute(select(Tool).where(Tool.id == tool_id))
@@ -56,10 +59,12 @@ async def get_tool(tool_id: int, session: AsyncSession = Depends(get_db)):
         raise CustomAgentException(ErrorCode.INVALID_PARAMETERS, "Invalid tool id")
     return ToolModel.from_orm(tool)
 
+
 async def get_tools(app_id: int, session: AsyncSession = Depends(get_db)):
     result = await session.execute(select(Tool).where(Tool.app_id == app_id))
     tools = result.scalars().all()
     return [ToolModel.from_orm(tool) for tool in tools]
+
 
 async def check_oepnapi_validity(type: ToolType, name: str, content: str):
     if type != ToolType.OPENAPI:

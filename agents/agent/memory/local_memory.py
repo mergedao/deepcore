@@ -1,7 +1,7 @@
-from agents.agent.memory.memory import MemoryManager, MemoryObject
+from agents.agent.memory.memory import MemoryStore, MemoryObject
 
 
-class LocalMemory(MemoryManager):
+class LocalMemoryStore(MemoryStore):
     memory: dict[str, list[MemoryObject]] = {}
 
     def __init__(self, memory_size: int = 10) -> None:
@@ -18,4 +18,4 @@ class LocalMemory(MemoryManager):
         self.memory[conversation_id].append(memory)
 
 
-local_memory = LocalMemory()
+local_memory = LocalMemoryStore()
