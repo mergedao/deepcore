@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
@@ -28,16 +29,23 @@ class ToolInfo(BaseModel):
     content: str = Field(..., description="Content or configuration details of the tool")
 
 
-class AgentCreate(BaseModel):
-    name: str = Field(..., description="Name of the agent")
-    description: str = Field(..., description="Description of the agent")
-    mode: AgentMode = Field(default=AgentMode.REACT, description='Mode of the agent')
+class AgentDTO(BaseModel):
+    name: Optional[str] = Field(None, description="Name of the agent")
+    description: Optional[str] = Field(None, description="Description of the agent")
+    mode: Optional[AgentMode] = Field(None, description='Mode of the agent')
     icon: Optional[str] = Field(None, description="Optional icon for the agent")
-    status: Optional[AgentStatus] = Field(default=AgentStatus.ACTIVE,
-                                          description="Status of the agent, can be active, inactive, or draft")
+    role_settings: Optional[str] = Field(None, description="Optional roles for the agent")
+    welcome_message: Optional[str] = Field(None, description="Optional welcome message for the agent")
+    twitter_link: Optional[str] = Field(None, description="Optional twitter link for the agent")
+    telegram_bot_id: Optional[str] = Field(None, description="Optional telegram bot id for the agent")
+    status: Optional[AgentStatus] = Field(default=None,
+                                          description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
-    max_loops: int = Field(default=5, description="Maximum number of loops the agent can perform")
-    tools: List[ToolInfo] = Field(default_factory=list, description="List of tools associated with the agent")
+    max_loops: Optional[int] = Field(default=None, description="Maximum number of loops the agent can perform")
+    tools: Optional[List[ToolInfo]] = Field(default=None, description="List of tools associated with the agent")
+    id: Optional[str] = Field(None, description="Optional ID of the tool, used for identifying existing tools")
+    update_time: Optional[datetime] = Field(None, description="Optional update time for the agent")
+    create_time: Optional[datetime] = Field(None, description="Optional create time for the agent")
 
 
 class AgentUpdate(BaseModel):
