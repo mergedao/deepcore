@@ -1,3 +1,5 @@
+import datetime
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -6,42 +8,48 @@ from starlette.responses import StreamingResponse
 
 from agents.common.response import RestResponse
 from agents.models.db import get_db
-from agents.protocol.schemas import AgentCreate, AgentUpdate, DialogueResponse, DialogueRequest, AgentStatus, \
-    PaginationParams
+from agents.protocol.schemas import AgentDTO, DialogueResponse, DialogueRequest, AgentStatus, \
+    PaginationParams, AgentMode
 from agents.services import agent_service
 
 router = APIRouter()
 
+defaults = {
+    'id': uuid.uuid4().hex,
+    'create_time': datetime.datetime.now(),
+    'update_time': datetime.datetime.now(),
+    'mode': AgentMode.REACT,
+    'status': AgentStatus.ACTIVE,
+    'max_loops': 3,
+    'name': "",
+    'description': "",
+    'icon': "",
+    'role_settings': "",
+    'welcome_message': "",
+    'twitter_link': "",
+    'telegram_bot_id': "",
+    'tool_prompt': "",
+    'tools': []
+}
 
-@router.post("/agents/create")
-async def create_agent(agent: AgentCreate, session: AsyncSession = Depends(get_db)):
+
+@router.post("/agents/create", summary="创建 Agent")
+async def create_agent(agent: AgentDTO, session: AsyncSession = Depends(get_db)):
     """
     Create a new agent.
-    
-    - **name**: Name of the agent
-    - **description**: Description of the agent
-    - **mode**: Mode of the agent, default is 'ReAct'
-    - **icon**: Icon of the agent
-    - **status**: Status of the agent
-    - **tool_prompt**: Tool prompt for the agent
-    - **max_loops**: Maximum loops for the agent, default is 5
-    - **tenant_id**: Tenant ID for the agent
     """
+    for key, value in defaults.items():
+        if getattr(agent, key) is None:
+            setattr(agent, key, value)
+
     agent = await agent_service.create_agent(
-        agent.name,
-        agent.description,
-        agent.mode,
-        agent.icon,
-        agent.status,
-        agent.tool_prompt,
-        agent.max_loops,
-        agent.tools,
+        agent,
         session
     )
     return RestResponse(data=agent)
 
 
-@router.get("/agents/get")
+@router.get("/agents/list", summary="获取 Agent 列表")
 async def list_agents(
         status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
         pagination: PaginationParams = Depends(),
@@ -59,34 +67,28 @@ async def list_agents(
     return RestResponse(data=agents)
 
 
-@router.put("/agents/{agent_id}")
-async def update_agent(agent_id: int, agent: AgentUpdate, session: AsyncSession = Depends(get_db)):
+@router.get("/agents/get", summary="获取 Agent 详情")
+async def get_agent(
+        agent_id: str = Query(None, description="agent id"),
+        session: AsyncSession = Depends(get_db)
+):
+    agents = await agent_service.get_agent(agent_id, session=session)
+    return RestResponse(data=agents)
+
+
+@router.post("/agents/update", summary="更新 Agent")
+async def update_agent(agent: AgentDTO, session: AsyncSession = Depends(get_db)):
     """
-    Update an existing agent.
-    
-    - **agent_id**: ID of the agent to update
-    - **name**: New name of the agent
-    - **description**: New description of the agent
-    - **status**: New status of the agent
-    - **tool_prompt**: New tool prompt for the agent
-    - **max_loops**: New maximum loops for the agent
-    - **tools**: New tools for the agent
-    """
+    Update an existing agent."""
     agent = await agent_service.update_agent(
-        agent_id,
-        name=agent.name,
-        description=agent.description,
-        status=agent.status,
-        tool_prompt=agent.tool_prompt,
-        max_loops=agent.max_loops,
-        tools=agent.tools,
+        agent,
         session=session
     )
     return RestResponse(data=agent)
 
 
-@router.delete("/agents/{agent_id}")
-async def delete_agent(agent_id: int, session: AsyncSession = Depends(get_db)):
+@router.delete("/agents/delete", summary="删除 Agent")
+async def delete_agent(agent_id: str = Query(None, description="agent id"), session: AsyncSession = Depends(get_db)):
     """
     Delete an agent by setting its is_deleted flag to True.
     

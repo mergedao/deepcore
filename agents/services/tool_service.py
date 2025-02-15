@@ -57,13 +57,13 @@ async def get_tool(tool_id: int, session: AsyncSession = Depends(get_db)):
     tool = result.scalar_one_or_none()
     if tool is None:
         raise CustomAgentException(ErrorCode.INVALID_PARAMETERS, "Invalid tool id")
-    return ToolModel.from_orm(tool)
+    return ToolModel.model_validate(tool)
 
 
 async def get_tools(app_id: int, session: AsyncSession = Depends(get_db)):
     result = await session.execute(select(Tool).where(Tool.app_id == app_id))
     tools = result.scalars().all()
-    return [ToolModel.from_orm(tool) for tool in tools]
+    return [ToolModel.model_validate(tool) for tool in tools]
 
 
 async def check_oepnapi_validity(type: ToolType, name: str, content: str):

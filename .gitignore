@@ -15,3 +15,5 @@ conf/
 .idea/
 .env
 static
+/Makefile
+/openapi.py
