@@ -111,3 +111,26 @@ async def dialogue(agent_id: int, request: DialogueRequest,
     # Placeholder logic for generating a response
     resp = agent_service.dialogue(agent_id, request, session)
     return StreamingResponse(content=resp, media_type="text/event-stream")
+
+
+@router.get("/agents/{agent_id}/dialogue", response_model=DialogueResponse)
+async def dialogue_get(
+        agent_id: int,
+        query: Optional[str] = Query(None, description="Query message from the user"),
+        conversation_id: Optional[str] = Query(
+            None,
+            alias="conversationId",
+            description="ID of the conversation"
+        ),
+        session: AsyncSession = Depends(get_db)
+):
+    """
+    Handle a dialogue between a user and an agent using GET method.
+
+    - **agent_id**: ID of the agent to interact with
+    - **query**: Query message from the user (optional)
+    - **conversation_id**: ID of the conversation (optional, auto-generated if not provided)
+    """
+    request = DialogueRequest(query=query, conversation_id=conversation_id)
+    resp = agent_service.dialogue(agent_id, request, session)
+    return StreamingResponse(content=resp, media_type="text/event-stream")
