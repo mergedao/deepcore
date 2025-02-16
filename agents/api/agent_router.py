@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
+from agents.agent.factory.gen_agent import gen_agent
 from agents.common.response import RestResponse
 from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueResponse, DialogueRequest, AgentStatus, \
-    PaginationParams, AgentMode
+    PaginationParams, AgentMode, AICreateAgentDTO
 from agents.services import agent_service
 
 router = APIRouter()
@@ -96,6 +97,14 @@ async def delete_agent(agent_id: str = Query(None, description="agent id"), sess
     """
     await agent_service.delete_agent(agent_id, session)
     return RestResponse(data="ok")
+
+@router.post("/agents/ai/create", summary="AI 创建 Agent")
+async def ai_create_agent(agent: AICreateAgentDTO, session: AsyncSession = Depends(get_db)):
+    """
+    Create a new agent.
+    """
+    resp = gen_agent(agent.description)
+    return StreamingResponse(content=resp, media_type="text/event-stream")
 
 
 @router.post("/agents/{agent_id}/dialogue", response_model=DialogueResponse)
