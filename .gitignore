@@ -17,3 +17,4 @@ conf/
 static
 /Makefile
 /openapi.py
+/buid.sh

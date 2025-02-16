@@ -48,14 +48,8 @@ class AgentDTO(BaseModel):
     create_time: Optional[datetime] = Field(None, description="Optional create time for the agent")
 
 
-class AgentUpdate(BaseModel):
-    name: Optional[str] = Field(None, description="Optional new name for the agent")
-    description: Optional[str] = Field(None, description="Optional new description for the agent")
-    status: Optional[AgentStatus] = Field(None,
-                                          description="New status for the agent, can be active, inactive, or draft")
-    tool_prompt: Optional[str] = Field(None, description="Optional new tool prompt for the agent")
-    max_loops: int = Field(default=5, description="Optional new maximum loops for the agent")
-    tools: List[ToolInfo] = Field(default_factory=list, description="Optional new list of tools for the agent")
+class AICreateAgentDTO(BaseModel):
+    description: str = Field(..., description="Description of the agent")
 
 
 class ToolCreate(BaseModel):

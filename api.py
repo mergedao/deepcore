@@ -25,7 +25,7 @@ async def default_exception_handler(request: fastapi.Request, exc):
 app.include_router(api_router.router)
 app.include_router(agent_router.router, prefix="/api")
 app.include_router(file_router.router, prefix="/api")
-app.include_router(tool_router.router, prefix="/api")
+# app.include_router(tool_router.router, prefix="/api")
 app.include_router(prompt_router.router, prefix="/api")
 
 if __name__ == '__main__':

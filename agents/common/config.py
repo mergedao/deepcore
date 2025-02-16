@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     PORT: int = 8080
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = ""
-    MODEL_NAME: str = "gpt-4-turbo"
+    MODEL_NAME: str = "gpt-4o-2024-11-20"
     COIN_HOST: str = ""
     COIN_HOST_V2: str = ""
     COIN_API_KEY: str = ""
