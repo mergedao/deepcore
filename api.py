@@ -5,7 +5,7 @@ import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router
+from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router, image_router
 from agents.common.config import SETTINGS
 from agents.common.log import Log
 from agents.common.otel import Otel, OtelFastAPI
@@ -30,6 +30,7 @@ app.include_router(model_router.router, prefix="/api", tags=["model"])
 app.include_router(file_router.router, prefix="/api", tags=["file"])
 app.include_router(tool_router.router, prefix="/api", tags=["tool"])
 app.include_router(prompt_router.router, prefix="/api", tags=["prompt"])
+app.include_router(image_router.router, prefix="/api", tags=["images"])
 
 if __name__ == '__main__':
     Log.init()
