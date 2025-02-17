@@ -12,10 +12,16 @@ from agents.models.db import get_db
 from agents.models.models import FileStorage
 
 
-async def upload_file(file: UploadFile, session: AsyncSession = Depends(get_db)):
+async def upload_file(
+        file: UploadFile, 
+        user: dict,  # Add user parameter
+        session: AsyncSession = Depends(get_db)):
+    """
+    Upload file with user context
+    """
     storage = Storage.get_storage(session)
-    fid = await storage.upload_file(file, file.filename)
-    return {"fid": fid, "url": f"/files/{fid}"}
+    fid = await storage.upload_file(file, file.filename, user.get('tenant_id'))
+    return {"fid": fid, "url": f"/api/files/{fid}"}
 
 
 async def query_file(file_uuid: str, session: AsyncSession = Depends(get_db)):
@@ -54,10 +60,24 @@ class DatabaseStorage(Storage):
     def __init__(self, session: AsyncSession):
         self.db_session = session
 
-    async def upload_file(self, file: UploadFile, file_name: str) -> str:
+    async def upload_file(
+            self, 
+            file: UploadFile, 
+            file_name: str,
+            tenant_id: str = None  # Add tenant_id parameter
+        ) -> str:
+        """
+        Upload file to database with tenant context
+        """
         file_uuid = str(uuid.uuid4())
         file_content = file.file.read()
-        new_file = FileStorage(file_uuid=file_uuid, file_name=file_name, file_content=file_content, size=file.size)
+        new_file = FileStorage(
+            file_uuid=file_uuid, 
+            file_name=file_name, 
+            file_content=file_content, 
+            size=file.size,
+            tenant_id=tenant_id  # Add tenant_id
+        )
         self.db_session.add(new_file)
         await self.db_session.commit()
         return file_uuid

@@ -42,5 +42,8 @@ class Settings(BaseSettings):
 
     OPENAPI_FITTER_FIELDS: list[str] = []
 
+    JWT_SECRET: str = ""
+    ENCRYPTION_KEY: str = ""
+
 
 SETTINGS = Settings()
