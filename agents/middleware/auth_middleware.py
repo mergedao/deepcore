@@ -24,6 +24,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/api/auth/verify-email",
             "/docs",
             "/redoc",
+            "/api/health",
             "/openapi.json"
         ]
         
