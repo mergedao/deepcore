@@ -8,6 +8,7 @@ class ErrorCode(IntEnum):
     INVALID_PARAMETERS = 10003
 
     OPENAPI_ERROR = 10010
+    PERMISSION_DENIED = 10011
 
 
 class CustomAgentException(Exception):
