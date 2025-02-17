@@ -13,9 +13,21 @@ router = APIRouter()
 router.include_router(image_router)
 
 
+async def health_check():
+    """Health check endpoint that returns service status"""
+    return {"status": "ok"}
+
+
+@router.get("/")
+async def root():
+    """Root endpoint that returns service status"""
+    return await health_check()
+
+
 @router.get("/api/health")
 async def health():
-    return {"status": "ok"}
+    """Health check endpoint"""
+    return await health_check()
 
 
 @router.get("/api/chat/completion")
