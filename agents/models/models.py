@@ -54,7 +54,7 @@ class Tool(Base):
 class FileStorage(Base):
     __tablename__ = 'file_storage'
 
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()).replace('-', ''), comment="UUID ID")
+    id = Column(BigInteger, primary_key=True, autoincrement=True, comment="Auto-incrementing ID")
     file_name = Column(String(255), nullable=False, comment="Name of the file")
     file_uuid = Column(String(255), nullable=False, comment="file UUID")
     file_content = Column(LargeBinary, nullable=False, comment="Content of the file")

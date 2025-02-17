@@ -5,10 +5,12 @@ from fastapi import Query, APIRouter
 from starlette.responses import StreamingResponse
 
 from agents.agent.coins_agent import CoinAgent
+from .image_router import router as image_router
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+router.include_router(image_router)
 
 
 @router.get("/api/health")

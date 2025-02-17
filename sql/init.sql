@@ -31,7 +31,7 @@ CREATE TABLE `file_storage` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the file',
   `file_uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'file UUID',
-  `file_content` blob NOT NULL COMMENT 'Content of the file',
+  `file_content` LONGBLOB NOT NULL COMMENT 'Content of the file',
   `size` bigint NOT NULL COMMENT 'Size of the file',
   `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
   PRIMARY KEY (`id`)
