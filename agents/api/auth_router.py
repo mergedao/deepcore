@@ -1,12 +1,15 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents.common.response import RestResponse
 from agents.models.db import get_db
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, WalletLoginRequest, WalletLoginResponse
 from agents.services import auth_service
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 @router.post("/login", response_model=LoginResponse, summary="User login")
 async def login(request: LoginRequest, session: AsyncSession = Depends(get_db)):
@@ -20,6 +23,7 @@ async def login(request: LoginRequest, session: AsyncSession = Depends(get_db)):
         result = await auth_service.login(request, session)
         return result
     except Exception as e:
+        logger.error( f'Error while user login {request}: {e}', exc_info=True)
         raise HTTPException(
             status_code=400,
             detail=str(e)
@@ -38,6 +42,7 @@ async def register(request: RegisterRequest, session: AsyncSession = Depends(get
         result = await auth_service.register(request, session)
         return result
     except Exception as e:
+        logger.error( f'Error while user registration {request}: {e}', exc_info=True)
         raise HTTPException(
             status_code=400,
             detail=str(e)
@@ -57,6 +62,7 @@ async def get_nonce(
         result = await auth_service.get_wallet_nonce(wallet_address, session)
         return result
     except Exception as e:
+        logger.error( f'Error while getting nonce for wallet {wallet_address}: {e}', exc_info=True)
         raise HTTPException(
             status_code=400,
             detail=str(e)
@@ -78,6 +84,7 @@ async def wallet_login(
         result = await auth_service.wallet_login(request, session)
         return result
     except Exception as e:
+        logger.error( f'Error while wallet login {request}: {e}', exc_info=True)
         raise HTTPException(
             status_code=400,
             detail=str(e)

@@ -81,7 +81,11 @@ class User(Base):
 
     def check_password(self, password):
         """Check password."""
-        return check_password_hash(self.password, password)
+        try:
+            return check_password_hash(self.password, password)
+        except Exception:
+            pass
+        return False
 
     def to_dict(self):
         """Convert user to dictionary."""
