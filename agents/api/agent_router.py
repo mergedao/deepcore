@@ -59,28 +59,58 @@ async def create_agent(
     return RestResponse(data=agent)
 
 
-@router.get("/agents/list", summary="List Agents")
-async def list_agents(
+@router.get("/agents/list", summary="List Personal Agents")
+async def list_personal_agents(
         status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
-        include_public: bool = Query(True, description="Include public agents"),
-        only_official: bool = Query(False, description="Show only official agents"),
+        include_public: bool = Query(False, description="Include public agents along with personal agents"),
         pagination: PaginationParams = Depends(),
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
-    Retrieve a list of agents with pagination, optionally filtered by status.
+    Retrieve a list of user's personal agents with pagination.
     
     - **status**: Filter agents by their status (active, inactive, or draft)
-    - **skip**: Number of records to skip
-    - **limit**: Maximum number of records to return
+    - **include_public**: Whether to include public agents along with personal agents
+    - **page**: Page number (starts from 1)
+    - **page_size**: Number of items per page (1-100)
     """
-    agents = await agent_service.list_agents(
+    # Calculate offset from page number
+    offset = (pagination.page - 1) * pagination.page_size
+    
+    agents = await agent_service.list_personal_agents(
         status=status,
-        skip=pagination.skip,
-        limit=pagination.limit,
+        skip=offset,
+        limit=pagination.page_size,
         user=user,
         include_public=include_public,
+        session=session
+    )
+    return RestResponse(data=agents)
+
+
+@router.get("/agents/public", summary="List Public Agents")
+async def list_public_agents(
+        status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
+        only_official: bool = Query(False, description="Show only official agents"),
+        pagination: PaginationParams = Depends(),
+        session: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieve a list of public or official agents with pagination.
+    
+    - **status**: Filter agents by their status (active, inactive, or draft)
+    - **only_official**: Whether to show only official agents
+    - **page**: Page number (starts from 1)
+    - **page_size**: Number of items per page (1-100)
+    """
+    # Calculate offset from page number
+    offset = (pagination.page - 1) * pagination.page_size
+    
+    agents = await agent_service.list_public_agents(
+        status=status,
+        skip=offset,
+        limit=pagination.page_size,
         only_official=only_official,
         session=session
     )

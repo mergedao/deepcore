@@ -1,5 +1,5 @@
 from fastapi import Depends
-from sqlalchemy import update, select, or_, and_, delete
+from sqlalchemy import update, select, or_, and_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -127,11 +127,21 @@ async def get_tool(
 async def get_tools(
         session: AsyncSession,
         user: dict,
+        page: int = 1,
+        page_size: int = 10,
         include_public: bool = True,
         only_official: bool = False
 ):
     """
     List tools with filters for public and official tools
+    
+    Args:
+        session: Database session
+        user: Current user info
+        page: Page number (starts from 1)
+        page_size: Number of items per page
+        include_public: Whether to include public tools
+        only_official: Whether to only show official tools
     """
     conditions = []
     
@@ -148,12 +158,27 @@ async def get_tools(
         else:
             conditions.append(Tool.is_public == True)
             
-    # Remove app_id filter since we use AgentTool for associations
+    # Calculate total count for pagination info
+    count_query = select(func.count()).select_from(Tool).where(and_(*conditions))
+    total_count = await session.execute(count_query)
+    total_count = total_count.scalar()
+    
+    # Calculate offset from page number
+    offset = (page - 1) * page_size
+    
+    # Get paginated results
     result = await session.execute(
-        select(Tool).where(and_(*conditions))
+        select(Tool).where(and_(*conditions)).offset(offset).limit(page_size)
     )
     tools = result.scalars().all()
-    return [ToolModel.model_validate(tool) for tool in tools]
+    
+    return {
+        "items": [ToolModel.model_validate(tool) for tool in tools],
+        "total": total_count,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total_count + page_size - 1) // page_size
+    }
 
 
 async def check_oepnapi_validity(type: ToolType, name: str, content: str):
