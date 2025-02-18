@@ -30,11 +30,15 @@ async def get_file(fid: str, session: AsyncSession = Depends(get_db)):
 
     - **fid**: File ID
     """
-    file_record: FileInfo = await file_service.query_file(fid, session)
-    if file_record:
-        return StreamingResponse(
-            iter([file_record['file_data']]),
-            media_type="application/octet-stream",
-            headers={"Content-Disposition": f"attachment; filename*=utf-8''{quote(file_record['file_name'])}"}
-        )
-    raise HTTPException(status_code=404, detail="File not found")
+    try:
+        file_record: FileInfo = await file_service.query_file(fid, session)
+        if file_record:
+            return StreamingResponse(
+                iter([file_record['file_data']]),
+                media_type="application/octet-stream",
+                headers={"Content-Disposition": f"attachment; filename*=utf-8''{quote(file_record['file_name'])}"}
+            )
+        return RestResponse(code=1, msg="File not found")
+    except Exception as e:
+        logger.error(f"Error while getting file {fid}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
