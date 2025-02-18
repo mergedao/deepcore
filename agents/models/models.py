@@ -71,7 +71,6 @@ class User(Base):
     email = Column(String(120), unique=True, nullable=True)  # Make email optional
     password = Column(String(255), nullable=True)
     wallet_address = Column(String(42), unique=True, nullable=True)  # ETH address is 42 chars with '0x'
-    nonce = Column(String(32), nullable=True)  # For wallet signature verification
     tenant_id = Column(String(255), comment="Tenant ID")
     create_time = Column(DateTime, server_default=func.now(), comment="Registration time")
     update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")
