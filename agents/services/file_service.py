@@ -1,4 +1,5 @@
 import uuid
+import logging
 from abc import ABC, abstractmethod
 from typing import TypedDict, Union
 
@@ -10,7 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.models.db import get_db
 from agents.models.models import FileStorage
+from agents.exceptions import CustomAgentException, ErrorCode
 
+logger = logging.getLogger(__name__)
 
 async def upload_file(
         file: UploadFile, 
@@ -19,15 +22,27 @@ async def upload_file(
     """
     Upload file with user context
     """
-    storage = Storage.get_storage(session)
-    fid = await storage.upload_file(file, file.filename, user.get('tenant_id'))
-    return {"fid": fid, "url": f"/api/files/{fid}"}
+    try:
+        storage = Storage.get_storage(session)
+        fid = await storage.upload_file(file, file.filename, user.get('tenant_id'))
+        return {"fid": fid, "url": f"/api/files/{fid}"}
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}", exc_info=True)
+        raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e))
 
 
 async def query_file(file_uuid: str, session: AsyncSession = Depends(get_db)):
-    storage = Storage.get_storage(session)
-    file_record: FileInfo = await storage.get_file(file_uuid)
-    return file_record
+    try:
+        storage = Storage.get_storage(session)
+        file_record: FileInfo = await storage.get_file(file_uuid)
+        if not file_record:
+            raise CustomAgentException(ErrorCode.RESOURCE_NOT_FOUND, "File not found")
+        return file_record
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error querying file: {e}", exc_info=True)
+        raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e))
 
 
 class FileInfo(TypedDict):

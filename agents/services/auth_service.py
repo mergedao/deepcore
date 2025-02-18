@@ -7,11 +7,11 @@ import json
 import eth_account
 import logging
 
-from agents.exceptions import CustomAgentException
+from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import User
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, \
-    WalletLoginRequest, WalletLoginResponse
-from agents.utils.jwt_utils import generate_token
+    WalletLoginRequest, WalletLoginResponse, TokenResponse
+from agents.utils.jwt_utils import generate_token, generate_token_pair, verify_refresh_token, generate_access_token
 from agents.utils.web3_utils import generate_nonce, get_message_to_sign, verify_signature
 from agents.common.redis_utils import redis_utils
 
@@ -31,31 +31,47 @@ async def login(request: LoginRequest, session: AsyncSession) -> LoginResponse:
     """
     Handle user login with username or email
     """
-    result = await session.execute(
-        select(User).where(
-            (User.username == request.username) |
-            (User.email == request.username)
+    try:
+        result = await session.execute(
+            select(User).where(
+                (User.username == request.username) |
+                (User.email == request.username)
+            )
         )
-    )
-    user = result.scalar_one_or_none()
+        user = result.scalar_one_or_none()
 
-    if not user:
-        raise CustomAgentException(message="Invalid username/email or password")
+        if not user:
+            raise CustomAgentException(
+                ErrorCode.INVALID_CREDENTIALS,
+                "Invalid username/email or password"
+            )
 
-    if not user.check_password(request.password):
-        raise CustomAgentException(message="Invalid username/email or password")
+        if not user.check_password(request.password):
+            raise CustomAgentException(
+                ErrorCode.INVALID_CREDENTIALS,
+                "Invalid username/email or password"
+            )
 
-    # Include tenant_id in token payload
-    token = generate_token(
-        user_id=user.id,
-        username=user.username,
-        tenant_id=user.tenant_id
-    )
+        # Generate token pair
+        access_token, refresh_token = generate_token_pair(
+            user_id=str(user.id),
+            username=user.username,
+            tenant_id=user.tenant_id
+        )
 
-    return {
-        "token": token,
-        "user": user.to_dict()
-    }
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "user": user.to_dict()
+        }
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in login: {str(e)}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Login failed: {str(e)}"
+        )
 
 
 async def register(request: RegisterRequest, session: AsyncSession) -> RegisterResponse:
@@ -194,15 +210,16 @@ async def wallet_login(request: WalletLoginRequest, session: AsyncSession) -> Wa
             user.create_time = datetime.utcnow()
             await session.commit()
 
-        # Generate JWT token
-        token = create_access_token({
-            "sub": str(user.id),
-            "username": user.username,
-            "tenant_id": user.tenant_id
-        })
+        # Generate token pair
+        access_token, refresh_token = generate_token_pair(
+            user_id=str(user.id),
+            username=user.username,
+            tenant_id=user.tenant_id
+        )
 
         return {
-            "token": token,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
             "user": user.to_dict(),
             "is_new_user": is_new_user
         }
@@ -248,12 +265,31 @@ async def get_or_create_wallet_user(wallet_address: str, session: AsyncSession) 
     return user
 
 
-def create_access_token(data: dict) -> str:
+async def refresh_token(refresh_token: str, session: AsyncSession) -> TokenResponse:
     """
-    Create JWT access token
+    Refresh access token using refresh token
     """
-    return generate_token(
-        user_id=data["sub"],
-        username=data.get("username", ""),
-        tenant_id=data.get("tenant_id", "")
+    # Verify refresh token
+    user_id = verify_refresh_token(refresh_token)
+    if not user_id:
+        raise CustomAgentException(message="Invalid or expired refresh token")
+    
+    # Get user info
+    result = await session.execute(
+        select(User).where(User.id == user_id)
     )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise CustomAgentException(message="User not found")
+    
+    # Generate new token pair
+    access_token, new_refresh_token = generate_token_pair(
+        user_id=str(user.id),
+        username=user.username,
+        tenant_id=user.tenant_id
+    )
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": new_refresh_token
+    }

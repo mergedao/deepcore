@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, Query, Path, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,8 +7,11 @@ from agents.middleware.auth_middleware import get_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import ModelCreate, ModelUpdate, ModelDTO, List
 from agents.services import model_service
+from agents.exceptions import ErrorCode
+from agents.common.error_messages import get_error_message
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/models/create", summary="Create Model", response_model=RestResponse[ModelDTO])
 async def create_model(
@@ -23,8 +27,12 @@ async def create_model(
     - **endpoint**: API endpoint of the model
     - **api_key**: Optional API key for authentication
     """
-    result = await model_service.create_model(model, user, session)
-    return RestResponse(data=result)
+    try:
+        result = await model_service.create_model(model, user, session)
+        return RestResponse(data=result)
+    except Exception as e:
+        logger.error(f"Error while creating model: {e}", exc_info=True)
+        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e))
 
 @router.put("/models/{model_id}", summary="Update Model", response_model=RestResponse[ModelDTO])
 async def update_model(
@@ -42,8 +50,12 @@ async def update_model(
     - **endpoint**: Optional new endpoint for the model
     - **api_key**: Optional new API key for the model
     """
-    result = await model_service.update_model(model_id, model, user, session)
-    return RestResponse(data=result)
+    try:
+        result = await model_service.update_model(model_id, model, user, session)
+        return RestResponse(data=result)
+    except Exception as e:
+        logger.error(f"Error while updating model {model_id}: {e}", exc_info=True)
+        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e))
 
 @router.get("/models/list", summary="List Models", response_model=RestResponse[List[ModelDTO]])
 async def list_models(
@@ -59,8 +71,12 @@ async def list_models(
     - **include_public**: Whether to include public models (default: True)
     - **only_official**: Whether to show only official models (default: False)
     """
-    models = await model_service.list_models(user, include_public, only_official, session)
-    return RestResponse(data=models)
+    try:
+        models = await model_service.list_models(user, include_public, only_official, session)
+        return RestResponse(data=models)
+    except Exception as e:
+        logger.error(f"Error while listing models: {e}", exc_info=True)
+        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e))
 
 @router.get("/models/{model_id}", summary="Get Model", response_model=RestResponse[ModelDTO])
 async def get_model(
@@ -74,5 +90,9 @@ async def get_model(
     Parameters:
     - **model_id**: ID of the model to retrieve
     """
-    model = await model_service.get_model(model_id, user, session)
-    return RestResponse(data=model) 
+    try:
+        model = await model_service.get_model(model_id, user, session)
+        return RestResponse(data=model)
+    except Exception as e:
+        logger.error(f"Error while getting model {model_id}: {e}", exc_info=True)
+        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e)) 

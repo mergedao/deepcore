@@ -1,6 +1,7 @@
+import logging
 from urllib.parse import quote
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
@@ -8,37 +9,94 @@ from agents.common.response import RestResponse
 from agents.models.db import get_db
 from agents.services import file_service
 from agents.services.file_service import FileInfo
+from agents.exceptions import CustomAgentException, ErrorCode
+from agents.common.error_messages import get_error_message
+from agents.middleware.auth_middleware import get_current_user
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
-@router.post("/upload/file")
-async def upload_file(file: UploadFile = File(...), session: AsyncSession = Depends(get_db)):
+@router.post("/upload/file", summary="Upload File")
+async def upload_file(
+    file: UploadFile = File(...), 
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
     """
-    Upload a file and store it using S3 protocol.
+    Upload a file and store it using database storage.
     
-    - **file**: File to upload
-    """
-    result = await file_service.upload_file(file, session)
-    return RestResponse(data=result)
-
-
-@router.get("/files/{fid}")
-async def get_file(fid: str, session: AsyncSession = Depends(get_db)):
-    """
-    Get a presigned URL to download a file from S3 by file name.
-
-    - **fid**: File ID
+    Parameters:
+    - **file**: File to upload (form data)
     """
     try:
-        file_record: FileInfo = await file_service.query_file(fid, session)
-        if file_record:
-            return StreamingResponse(
-                iter([file_record['file_data']]),
-                media_type="application/octet-stream",
-                headers={"Content-Disposition": f"attachment; filename*=utf-8''{quote(file_record['file_name'])}"}
+        if not file:
+            raise CustomAgentException(
+                ErrorCode.INVALID_PARAMETERS,
+                "No file provided"
             )
-        return RestResponse(code=1, msg="File not found")
+            
+        if not user.get('tenant_id'):
+            raise CustomAgentException(
+                ErrorCode.UNAUTHORIZED,
+                "User must belong to a tenant to upload files"
+            )
+            
+        result = await file_service.upload_file(file, user, session)
+        logger.info(f"File uploaded successfully: {result['fid']}")
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error uploading file: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while getting file {fid}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error uploading file: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.get("/files/{fid}", summary="Get File")
+async def get_file(
+    fid: str, 
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Get a file by its ID.
+
+    Parameters:
+    - **fid**: File ID to retrieve
+    """
+    try:
+        if not user.get('tenant_id'):
+            raise CustomAgentException(
+                ErrorCode.UNAUTHORIZED,
+                "User must belong to a tenant to access files"
+            )
+            
+        file_record: FileInfo = await file_service.query_file(fid, session)
+        if not file_record:
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                "File not found"
+            )
+            
+        logger.info(f"File retrieved successfully: {fid}")
+        return StreamingResponse(
+            iter([file_record['file_data']]),
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename*=utf-8''{quote(file_record['file_name'])}",
+                "Content-Length": str(file_record['file_size'])
+            }
+        )
+    except CustomAgentException as e:
+        logger.error(f"Error retrieving file {fid}: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error retrieving file {fid}: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )

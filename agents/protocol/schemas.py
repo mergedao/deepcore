@@ -105,7 +105,8 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
-    token: str
+    access_token: str
+    refresh_token: str
     user: dict
 
 
@@ -134,7 +135,8 @@ class NonceResponse(BaseModel):
 
 class WalletLoginResponse(BaseModel):
     """Response for successful wallet login"""
-    token: str
+    access_token: str
+    refresh_token: str
     user: dict
     is_new_user: bool
 
@@ -176,3 +178,14 @@ class ToolModel(BaseModel):
     tenant_id: Optional[str] = None
     create_time: Optional[datetime] = None
     update_time: Optional[datetime] = None
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request for refreshing access token"""
+    refresh_token: str
+
+
+class TokenResponse(BaseModel):
+    """Response containing new access token"""
+    access_token: str
+    refresh_token: str
