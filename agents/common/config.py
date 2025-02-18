@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     OPENAPI_FITTER_FIELDS: list[str] = []
 
     JWT_SECRET: str = ""
+    JWT_EXPIRATION_TIME: int = 1  # default one day
     ENCRYPTION_KEY: str = ""
 
 

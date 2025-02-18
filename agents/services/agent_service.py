@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy import update, delete, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 
 from agents.agent.chat_agent import ChatAgent
 from agents.exceptions import CustomAgentException, ErrorCode
@@ -148,38 +149,107 @@ async def create_agent(
         return agent
 
 
-async def list_agents(
+async def list_personal_agents(
         status: Optional[AgentStatus],
         skip: int,
         limit: int,
         session: AsyncSession,
         user: dict,
-        include_public: bool = True,
+        include_public: bool = False
+):
+    """
+    List user's personal agents
+    
+    Args:
+        status: Optional filter for agent status
+        skip: Number of records to skip ((page - 1) * page_size)
+        limit: Number of records per page (page_size)
+        session: Database session
+        user: Current user info
+        include_public: Whether to include public agents along with personal agents
+        
+    Returns:
+        dict: {
+            "items": list of agents,
+            "total": total number of records,
+            "page": current page number,
+            "page_size": number of items per page,
+            "total_pages": total number of pages
+        }
+    """
+    if not user or not user.get('tenant_id'):
+        return {
+            "items": [],
+            "total": 0,
+            "page": 1,
+            "page_size": limit,
+            "total_pages": 0
+        }
+
+    conditions = [App.tenant_id == user.get('tenant_id')]
+    
+    if include_public:
+        conditions = [or_(
+            App.tenant_id == user.get('tenant_id'),
+            App.is_public == True
+        )]
+
+    if status:
+        conditions.append(App.status == status)
+    
+    return await _get_paginated_agents(conditions, skip, limit, user, session)
+
+
+async def list_public_agents(
+        status: Optional[AgentStatus],
+        skip: int,
+        limit: int,
+        session: AsyncSession,
         only_official: bool = False
 ):
     """
-    List agents with filters for public and official agents, including their tools
+    List public or official agents
+    
+    Args:
+        status: Optional filter for agent status
+        skip: Number of records to skip ((page - 1) * page_size)
+        limit: Number of records per page (page_size)
+        session: Database session
+        only_official: Whether to only show official agents
+        
+    Returns:
+        dict: {
+            "items": list of agents,
+            "total": total number of records,
+            "page": current page number,
+            "page_size": number of items per page,
+            "total_pages": total number of pages
+        }
     """
     conditions = []
     
     if only_official:
         conditions.append(App.is_official == True)
     else:
-        # Show user's own agents and optionally public agents
-        if user and user.get('tenant_id'):
-            conditions.append(
-                or_(
-                    App.tenant_id == user.get('tenant_id'),
-                    and_(App.is_public == True) if include_public else False
-                )
-            )
-        else:
-            conditions.append(App.is_public == True)
+        conditions.append(App.is_public == True)
 
     if status:
         conditions.append(App.status == status)
     
-    query = select(App).where(and_(*conditions))
+    return await _get_paginated_agents(conditions, skip, limit, None, session)
+
+
+async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: Optional[dict], session: AsyncSession):
+    """
+    Helper function to get paginated agents with given conditions
+    """
+    # Calculate total count for pagination info
+    count_query = select(func.count()).select_from(App).where(and_(*conditions))
+    total_count = await session.execute(count_query)
+    total_count = total_count.scalar()
+    
+    # Get paginated results with ordering
+    query = select(App).where(and_(*conditions)).order_by(App.create_time.desc())
     
     result = await session.execute(
         query.offset(skip).limit(limit)
@@ -192,7 +262,8 @@ async def list_agents(
         tools_result = await session.execute(
             select(Tool).join(AgentTool).where(
                 AgentTool.agent_id == agent.id,
-                AgentTool.tenant_id == user.get('tenant_id')
+                # Only filter by tenant_id for personal tools
+                *([AgentTool.tenant_id == user.get('tenant_id')] if user else [])
             )
         )
         tools = tools_result.scalars().all()
@@ -208,7 +279,16 @@ async def list_agents(
         
         results.append(model)
 
-    return results
+    # Calculate current page from skip and limit
+    current_page = (skip // limit) + 1
+    
+    return {
+        "items": results,
+        "total": total_count,
+        "page": current_page,
+        "page_size": limit,
+        "total_pages": (total_count + limit - 1) // limit
+    }
 
 
 async def update_agent(

@@ -9,7 +9,7 @@ from agents.common.config import SETTINGS
 # JWT configuration
 JWT_SECRET = SETTINGS.JWT_SECRET
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_DELTA = timedelta(days=1)
+JWT_EXPIRATION_DELTA = timedelta(days=SETTINGS.JWT_EXPIRATION_TIME)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def generate_token(user_id: int, username: str, tenant_id: str) -> str:
         'user_id': user_id,
         'username': username,
         'tenant_id': tenant_id,
-        'exp': datetime.utcnow() + timedelta(days=30)
+        'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
     }
     return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 

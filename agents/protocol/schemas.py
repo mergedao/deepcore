@@ -95,8 +95,8 @@ class DialogueResponse(BaseModel):
 
 
 class PaginationParams(BaseModel):
-    skip: int = 0
-    limit: int = 10
+    page: int = Field(default=1, ge=1, description="Page number (starts from 1)")
+    page_size: int = Field(default=10, ge=1, le=100, description="Number of items per page")
 
 
 class LoginRequest(BaseModel):
