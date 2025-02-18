@@ -25,7 +25,8 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/docs",
             "/redoc",
             "/api/health",
-            "/openapi.json"
+            "/openapi.json",
+            "/"
         ]
         
         if request.url.path in auth_whitelist:

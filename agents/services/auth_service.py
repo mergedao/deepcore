@@ -103,8 +103,26 @@ async def get_wallet_nonce(wallet_address: str, session: AsyncSession) -> NonceR
         # Update existing user's nonce
         user.nonce = nonce
     else:
-        # Create temporary user entry
-        user = User(wallet_address=wallet_address, nonce=nonce)
+        # Create temporary user entry with generated username
+        # Generate a username based on wallet address (e.g., "wallet_1234")
+        temp_username = f"wallet_{wallet_address[-8:]}"  # Use last 8 characters of wallet address
+        
+        # Check if the generated username exists
+        username_result = await session.execute(
+            select(User).where(User.username == temp_username)
+        )
+        if username_result.scalar_one_or_none():
+            # If username exists, add a random suffix
+            temp_username = f"wallet_{wallet_address[-8:]}_{uuid.uuid4().hex[:4]}"
+            
+        # Create new user with tenant_id
+        tenant_id = str(uuid.uuid4())
+        user = User(
+            username=temp_username,
+            wallet_address=wallet_address,
+            nonce=nonce,
+            tenant_id=tenant_id
+        )
         session.add(user)
     
     await session.commit()
