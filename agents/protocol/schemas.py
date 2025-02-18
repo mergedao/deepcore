@@ -120,14 +120,8 @@ class RegisterResponse(BaseModel):
     user: dict
 
 
-class WalletType(str, Enum):
-    METAMASK = "metamask"
-    TRUST = "trust"
-
-
 class WalletLoginRequest(BaseModel):
     """Request for wallet login/registration"""
-    wallet_type: WalletType
     wallet_address: str
     signature: Optional[str] = None
 
