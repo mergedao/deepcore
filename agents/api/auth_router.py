@@ -6,12 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agents.models.db import get_db
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, WalletLoginRequest, WalletLoginResponse
 from agents.services import auth_service
+from agents.common.response import RestResponse
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
-@router.post("/login", response_model=LoginResponse, summary="User login")
+@router.post("/login", response_model=RestResponse[LoginResponse], summary="User login")
 async def login(request: LoginRequest, session: AsyncSession = Depends(get_db)):
     """
     User login endpoint
@@ -21,15 +22,12 @@ async def login(request: LoginRequest, session: AsyncSession = Depends(get_db)):
     """
     try:
         result = await auth_service.login(request, session)
-        return result
+        return RestResponse(data=result)
     except Exception as e:
-        logger.error( f'Error while user login {request}: {e}', exc_info=True)
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        logger.error(f'Error while user login {request}: {e}', exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
-@router.post("/register", response_model=RegisterResponse, summary="User registration")
+@router.post("/register", response_model=RestResponse[RegisterResponse], summary="User registration")
 async def register(request: RegisterRequest, session: AsyncSession = Depends(get_db)):
     """
     User registration endpoint
@@ -40,15 +38,12 @@ async def register(request: RegisterRequest, session: AsyncSession = Depends(get
     """
     try:
         result = await auth_service.register(request, session)
-        return result
+        return RestResponse(data=result)
     except Exception as e:
-        logger.error( f'Error while user registration {request}: {e}', exc_info=True)
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        logger.error(f'Error while user registration {request}: {e}', exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
-@router.post("/wallet/nonce", response_model=NonceResponse)
+@router.post("/wallet/nonce", response_model=RestResponse[NonceResponse])
 async def get_nonce(
     wallet_address: str,
     session: AsyncSession = Depends(get_db)
@@ -60,15 +55,12 @@ async def get_nonce(
     """
     try:
         result = await auth_service.get_wallet_nonce(wallet_address, session)
-        return result
+        return RestResponse(data=result)
     except Exception as e:
-        logger.error( f'Error while getting nonce for wallet {wallet_address}: {e}', exc_info=True)
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        )
+        logger.error(f'Error while getting nonce for wallet {wallet_address}: {e}', exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
-@router.post("/wallet/login", response_model=WalletLoginResponse)
+@router.post("/wallet/login", response_model=RestResponse[WalletLoginResponse])
 async def wallet_login(
     request: WalletLoginRequest,
     session: AsyncSession = Depends(get_db)
@@ -82,10 +74,7 @@ async def wallet_login(
     """
     try:
         result = await auth_service.wallet_login(request, session)
-        return result
+        return RestResponse(data=result)
     except Exception as e:
-        logger.error( f'Error while wallet login {request}: {e}', exc_info=True)
-        raise HTTPException(
-            status_code=400,
-            detail=str(e)
-        ) 
+        logger.error(f'Error while wallet login {request}: {e}', exc_info=True)
+        return RestResponse(code=1, msg=str(e)) 

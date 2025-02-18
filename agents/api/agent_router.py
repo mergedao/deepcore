@@ -165,11 +165,15 @@ async def ai_create_agent(
     """
     Create a new agent.
     """
-    resp = gen_agent(description)
-    return StreamingResponse(content=resp, media_type="text/event-stream")
+    try:
+        resp = gen_agent(description)
+        return StreamingResponse(content=resp, media_type="text/event-stream")
+    except Exception as e:
+        logger.error(f"Error in AI agent creation: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
-@router.post("/agents/{agent_id}/dialogue", response_model=DialogueResponse)
+@router.post("/agents/{agent_id}/dialogue")
 async def dialogue(
         agent_id: str,
         request: DialogueRequest,
@@ -183,12 +187,15 @@ async def dialogue(
     - **user_id**: ID of the user
     - **message**: Message from the user
     """
-    # Placeholder logic for generating a response
-    resp = agent_service.dialogue(agent_id, request, user, session)
-    return StreamingResponse(content=resp, media_type="text/event-stream")
+    try:
+        resp = agent_service.dialogue(agent_id, request, user, session)
+        return StreamingResponse(content=resp, media_type="text/event-stream")
+    except Exception as e:
+        logger.error(f"Error in dialogue: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
-@router.get("/agents/{agent_id}/dialogue", response_model=DialogueResponse)
+@router.get("/agents/{agent_id}/dialogue")
 async def dialogue_get(
         agent_id: str,
         query: Optional[str] = Query(None, description="Query message from the user"),
@@ -206,9 +213,13 @@ async def dialogue_get(
     - **query**: Query message from the user (optional)
     - **conversation_id**: ID of the conversation (optional, auto-generated if not provided)
     """
-    request = DialogueRequest(query=query, conversation_id=conversation_id)
-    resp = agent_service.dialogue(agent_id, request, session)
-    return StreamingResponse(content=resp, media_type="text/event-stream")
+    try:
+        request = DialogueRequest(query=query, conversation_id=conversation_id)
+        resp = agent_service.dialogue(agent_id, request, session)
+        return StreamingResponse(content=resp, media_type="text/event-stream")
+    except Exception as e:
+        logger.error(f"Error in dialogue: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.post("/agents/{agent_id}/publish", summary="Publish Agent")

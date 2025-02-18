@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, Query, Path, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -10,6 +11,7 @@ from agents.protocol.schemas import ToolCreate, ToolUpdate, AgentToolsRequest
 from agents.services import tool_service
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/tools/create", summary="Create Tool", response_model=RestResponse[ToolModel])
@@ -27,15 +29,19 @@ async def create_tool(
     - **content**: Content or configuration of the tool
     - **auth_config**: Optional authentication configuration
     """
-    tool = await tool_service.create_tool(
-        tool.name,
-        tool.type,
-        tool.content,
-        user,
-        session,
-        tool.auth_config
-    )
-    return RestResponse(data=tool)
+    try:
+        tool = await tool_service.create_tool(
+            tool.name,
+            tool.type,
+            tool.content,
+            user,
+            session,
+            tool.auth_config
+        )
+        return RestResponse(data=tool)
+    except Exception as e:
+        logger.error(f"Error while creating tool: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.get("/tools/list", summary="List Tools")
@@ -48,13 +54,17 @@ async def list_tools(
     """
     List all available tools
     """
-    tools = await tool_service.get_tools(
-        user=user,
-        include_public=include_public,
-        only_official=only_official,
-        session=session
-    )
-    return RestResponse(data=tools)
+    try:
+        tools = await tool_service.get_tools(
+            user=user,
+            include_public=include_public,
+            only_official=only_official,
+            session=session
+        )
+        return RestResponse(data=tools)
+    except Exception as e:
+        logger.error(f"Error while listing tools: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.get("/tools/{tool_id}", summary="Get Tool Details")
@@ -68,7 +78,11 @@ async def get_tool(
     
     - **tool_id**: UUID of the tool to retrieve
     """
-    return RestResponse(data=await tool_service.get_tool(tool_id, user, session))
+    try:
+        return RestResponse(data=await tool_service.get_tool(tool_id, user, session))
+    except Exception as e:
+        logger.error(f"Error while getting tool {tool_id}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.put("/tools/{tool_id}", summary="Update Tool")
@@ -85,15 +99,19 @@ async def update_tool(
     - **type**: New type of the tool
     - **content**: New content of the tool
     """
-    tool = await tool_service.update_tool(
-        tool_id, 
-        tool.name, 
-        tool.type, 
-        tool.content,
-        user,
-        session
-    )
-    return RestResponse(data=tool)
+    try:
+        tool = await tool_service.update_tool(
+            tool_id, 
+            tool.name, 
+            tool.type, 
+            tool.content,
+            user,
+            session
+        )
+        return RestResponse(data=tool)
+    except Exception as e:
+        logger.error(f"Error while updating tool {tool_id}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.delete("/tools/{tool_id}", summary="Delete Tool")
@@ -107,8 +125,12 @@ async def delete_tool(
     
     - **tool_id**: ID of the tool to delete
     """
-    await tool_service.delete_tool(tool_id, user, session)
-    return RestResponse(data="ok")
+    try:
+        await tool_service.delete_tool(tool_id, user, session)
+        return RestResponse(data="ok")
+    except Exception as e:
+        logger.error(f"Error while deleting tool {tool_id}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.post("/tools/{tool_id}/publish", summary="Publish Tool")
@@ -121,8 +143,12 @@ async def publish_tool(
     """
     Publish or unpublish a tool
     """
-    await tool_service.publish_tool(tool_id, is_public, user, session)
-    return RestResponse(data="ok")
+    try:
+        await tool_service.publish_tool(tool_id, is_public, user, session)
+        return RestResponse(data="ok")
+    except Exception as e:
+        logger.error(f"Error while publishing tool {tool_id}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.post("/agents/{agent_id}/tools", summary="Assign Tools to Agent")
@@ -139,8 +165,12 @@ async def assign_tools(
     - **agent_id**: ID of the agent
     - **tool_ids**: List of tool IDs to assign
     """
-    await tool_service.assign_tools_to_agent(request.tool_ids, agent_id, user, session)
-    return RestResponse(data="ok")
+    try:
+        await tool_service.assign_tools_to_agent(request.tool_ids, agent_id, user, session)
+        return RestResponse(data="ok")
+    except Exception as e:
+        logger.error(f"Error while assigning tools to agent {agent_id}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.delete("/agents/{agent_id}/tools", summary="Remove Tools from Agent")
@@ -156,8 +186,12 @@ async def remove_tools(
     - **agent_id**: ID of the agent
     - **tool_ids**: List of tool IDs to remove
     """
-    await tool_service.remove_tools_from_agent(request.tool_ids, agent_id, user, session)
-    return RestResponse(data="ok")
+    try:
+        await tool_service.remove_tools_from_agent(request.tool_ids, agent_id, user, session)
+        return RestResponse(data="ok")
+    except Exception as e:
+        logger.error(f"Error while removing tools from agent {agent_id}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
 
 
 @router.get("/agents/{agent_id}/tools", summary="Get Agent Tools")
@@ -169,9 +203,13 @@ async def get_agent_tools(
     """
     Get all tools associated with a specific agent
     """
-    tools = await tool_service.get_tools_by_agent(
-        agent_id=agent_id,
-        user=user,
-        session=session
-    )
-    return RestResponse(data=tools)
+    try:
+        tools = await tool_service.get_tools_by_agent(
+            agent_id=agent_id,
+            user=user,
+            session=session
+        )
+        return RestResponse(data=tools)
+    except Exception as e:
+        logger.error(f"Error while getting tools for agent {agent_id}: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))

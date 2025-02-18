@@ -6,6 +6,7 @@ from starlette.responses import StreamingResponse
 
 from agents.agent.coins_agent import CoinAgent
 from .image_router import router as image_router
+from agents.common.response import RestResponse
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ router.include_router(image_router)
 
 async def health_check():
     """Health check endpoint that returns service status"""
-    return {"status": "ok"}
+    return RestResponse(data={"status": "ok"})
 
 
 @router.get("/")
@@ -32,7 +33,14 @@ async def health():
 
 @router.get("/api/chat/completion")
 async def completion(query: str = Query(default=""), conversationId: str = Query(default=str(uuid.uuid4()))):
-    logger.info(f"query: {query}, conversationId: {conversationId}")
-    agent = CoinAgent()
-    resp = agent.stream(query, conversationId)
-    return StreamingResponse(content=resp, media_type="text/event-stream")
+    """
+    Chat completion endpoint that returns a streaming response
+    """
+    try:
+        logger.info(f"query: {query}, conversationId: {conversationId}")
+        agent = CoinAgent()
+        resp = agent.stream(query, conversationId)
+        return StreamingResponse(content=resp, media_type="text/event-stream")
+    except Exception as e:
+        logger.error(f"Error in chat completion: {e}", exc_info=True)
+        return RestResponse(code=1, msg=str(e))
