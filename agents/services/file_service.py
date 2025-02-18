@@ -16,15 +16,14 @@ from agents.exceptions import CustomAgentException, ErrorCode
 logger = logging.getLogger(__name__)
 
 async def upload_file(
-        file: UploadFile, 
-        user: dict,  # Add user parameter
+        file: UploadFile,
         session: AsyncSession = Depends(get_db)):
     """
     Upload file with user context
     """
     try:
         storage = Storage.get_storage(session)
-        fid = await storage.upload_file(file, file.filename, user.get('tenant_id'))
+        fid = await storage.upload_file(file, file.filename)
         return {"fid": fid, "url": f"/api/files/{fid}"}
     except Exception as e:
         logger.error(f"Error uploading file: {e}", exc_info=True)
@@ -76,10 +75,10 @@ class DatabaseStorage(Storage):
         self.db_session = session
 
     async def upload_file(
-            self, 
-            file: UploadFile, 
+            self,
+            file: UploadFile,
             file_name: str,
-            tenant_id: str = None  # Add tenant_id parameter
+            # tenant_id: str = None  # Add tenant_id parameter
         ) -> str:
         """
         Upload file to database with tenant context
@@ -87,11 +86,11 @@ class DatabaseStorage(Storage):
         file_uuid = str(uuid.uuid4())
         file_content = file.file.read()
         new_file = FileStorage(
-            file_uuid=file_uuid, 
-            file_name=file_name, 
-            file_content=file_content, 
+            file_uuid=file_uuid,
+            file_name=file_name,
+            file_content=file_content,
             size=file.size,
-            tenant_id=tenant_id  # Add tenant_id
+            # tenant_id=tenant_id  # Add tenant_id
         )
         self.db_session.add(new_file)
         await self.db_session.commit()

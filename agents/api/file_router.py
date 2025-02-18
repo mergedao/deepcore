@@ -19,13 +19,13 @@ logger = logging.getLogger(__name__)
 
 @router.post("/upload/file", summary="Upload File")
 async def upload_file(
-    file: UploadFile = File(...), 
-    user: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db)
+        file: UploadFile = File(...),
+        # user: dict = Depends(get_current_user),
+        session: AsyncSession = Depends(get_db)
 ):
     """
     Upload a file and store it using database storage.
-    
+
     Parameters:
     - **file**: File to upload (form data)
     """
@@ -35,14 +35,14 @@ async def upload_file(
                 ErrorCode.INVALID_PARAMETERS,
                 "No file provided"
             )
-            
-        if not user.get('tenant_id'):
-            raise CustomAgentException(
-                ErrorCode.UNAUTHORIZED,
-                "User must belong to a tenant to upload files"
-            )
-            
-        result = await file_service.upload_file(file, user, session)
+
+        # if not user.get('tenant_id'):
+        #     raise CustomAgentException(
+        #         ErrorCode.UNAUTHORIZED,
+        #         "User must belong to a tenant to upload files"
+        #     )
+
+        result = await file_service.upload_file(file, session)
         logger.info(f"File uploaded successfully: {result['fid']}")
         return RestResponse(data=result)
     except CustomAgentException as e:
@@ -58,9 +58,9 @@ async def upload_file(
 
 @router.get("/files/{fid}", summary="Get File")
 async def get_file(
-    fid: str, 
-    user: dict = Depends(get_current_user),
-    session: AsyncSession = Depends(get_db)
+        fid: str,
+        # user: dict = Depends(get_current_user),
+        session: AsyncSession = Depends(get_db)
 ):
     """
     Get a file by its ID.
@@ -69,19 +69,19 @@ async def get_file(
     - **fid**: File ID to retrieve
     """
     try:
-        if not user.get('tenant_id'):
-            raise CustomAgentException(
-                ErrorCode.UNAUTHORIZED,
-                "User must belong to a tenant to access files"
-            )
-            
+        # if not user.get('tenant_id'):
+        #     raise CustomAgentException(
+        #         ErrorCode.UNAUTHORIZED,
+        #         "User must belong to a tenant to access files"
+        #     )
+
         file_record: FileInfo = await file_service.query_file(fid, session)
         if not file_record:
             raise CustomAgentException(
                 ErrorCode.RESOURCE_NOT_FOUND,
                 "File not found"
             )
-            
+
         logger.info(f"File retrieved successfully: {fid}")
         return StreamingResponse(
             iter([file_record['file_data']]),
