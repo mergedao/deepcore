@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, AsyncIterator, List
 
 from fastapi import Depends
@@ -12,6 +13,7 @@ from agents.models.db import get_db
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo
 
+logger = logging.getLogger(__name__)
 
 async def dialogue(
         agent_id: str,
@@ -23,7 +25,10 @@ async def dialogue(
     result = await get_agent(agent_id, user, session)
     agent = result.scalar_one_or_none()
     if not agent:
-        raise CustomAgentException(message=f'Agent not found or no permission')
+        raise CustomAgentException(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            "Agent not found or no permission"
+        )
     agent = ChatAgent(agent)
     async for response in agent.stream(request.query, request.conversation_id):
         yield response
@@ -33,6 +38,12 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
     """
     Get agent with its associated tools
     """
+    if not user or not user.get('tenant_id'):
+        raise CustomAgentException(
+            ErrorCode.UNAUTHORIZED,
+            "User authentication required"
+        )
+
     # Add tenant filter
     result = await session.execute(
         select(App).where(
@@ -42,7 +53,10 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
     )
     agent = result.scalar_one_or_none()
     if agent is None:
-        raise CustomAgentException(message=f'Agent not found or no permission')
+        raise CustomAgentException(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            "Agent not found or no permission"
+        )
 
     # Get associated tools
     tools_result = await session.execute(
@@ -54,15 +68,22 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
     tools = tools_result.scalars().all()
     
     # Convert to DTO
-    model = AgentDTO.model_validate_json(agent.model_json)
-    model.tools = [ToolInfo(
-        id=tool.id,
-        name=tool.name,
-        type=tool.type,
-        content=tool.content
-    ) for tool in tools]
-    
-    return model
+    try:
+        model = AgentDTO.model_validate_json(agent.model_json)
+        model.tools = [ToolInfo(
+            id=tool.id,
+            name=tool.name,
+            type=tool.type,
+            content=tool.content
+        ) for tool in tools]
+        
+        return model
+    except Exception as e:
+        logger.error(f"Error converting agent to DTO: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            "Error processing agent data"
+        )
 
 
 async def verify_tool_permissions(
@@ -74,6 +95,9 @@ async def verify_tool_permissions(
     Verify if user has permission to use the specified tools
     Raises CustomAgentException if any tool is not accessible
     """
+    if not tool_ids:
+        return []
+
     tools = await session.execute(
         select(Tool).where(
             and_(
@@ -106,47 +130,54 @@ async def create_agent(
     """
     if not user.get('tenant_id'):
         raise CustomAgentException(
-            ErrorCode.PERMISSION_DENIED,
+            ErrorCode.UNAUTHORIZED,
             "User must belong to a tenant to create agents"
         )
 
-    async with session.begin():
-        # Verify tool permissions if tools are specified
-        tool_ids = []
-        if agent.tools:
-            tool_ids = agent.tools  # Now tools is directly a list of IDs
-            await verify_tool_permissions(tool_ids, user, session)
+    try:
+        async with session.begin():
+            # Verify tool permissions if tools are specified
+            tool_ids = []
+            if agent.tools:
+                tool_ids = agent.tools
+                await verify_tool_permissions(tool_ids, user, session)
 
-        new_agent = App(
-            id=agent.id,
-            name=agent.name,
-            description=agent.description,
-            mode=agent.mode,
-            icon=agent.icon,
-            status=agent.status,
-            role_settings=agent.role_settings,
-            welcome_message=agent.welcome_message,
-            twitter_link=agent.twitter_link,
-            telegram_bot_id=agent.telegram_bot_id,
-            tool_prompt=agent.tool_prompt,
-            max_loops=agent.max_loops,
-            suggested_questions=agent.suggested_questions,
-            model_json=agent.model_dump_json(),
-            tenant_id=user.get('tenant_id')
-        )
-        session.add(new_agent)
-        await session.flush()
-
-        # Create tool associations
-        for tool_id in tool_ids:
-            agent_tool = AgentTool(
-                agent_id=new_agent.id,
-                tool_id=tool_id,
+            new_agent = App(
+                id=agent.id,
+                name=agent.name,
+                description=agent.description,
+                mode=agent.mode,
+                icon=agent.icon,
+                status=agent.status,
+                role_settings=agent.role_settings,
+                welcome_message=agent.welcome_message,
+                twitter_link=agent.twitter_link,
+                telegram_bot_id=agent.telegram_bot_id,
+                tool_prompt=agent.tool_prompt,
+                max_loops=agent.max_loops,
+                suggested_questions=agent.suggested_questions,
+                model_json=agent.model_dump_json(),
                 tenant_id=user.get('tenant_id')
             )
-            session.add(agent_tool)
+            session.add(new_agent)
+            await session.flush()
 
-        return agent
+            # Create tool associations
+            for tool_id in tool_ids:
+                agent_tool = AgentTool(
+                    agent_id=new_agent.id,
+                    tool_id=tool_id,
+                    tenant_id=user.get('tenant_id')
+                )
+                session.add(agent_tool)
+
+            return agent
+    except Exception as e:
+        logger.error(f"Error creating agent: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to create agent: {str(e)}"
+        )
 
 
 async def list_personal_agents(
@@ -296,65 +327,74 @@ async def update_agent(
         user: dict,
         session: AsyncSession = Depends(get_db)
 ):
-    async with session.begin():
-        # Verify agent ownership
-        existing_agent = await get_agent(agent.id, user, session)
-        if not existing_agent:
-            raise CustomAgentException(
-                ErrorCode.PERMISSION_DENIED,
-                "Agent not found or no permission to update"
-            )
-            
-        # Verify tool permissions if tools are being updated
-        if agent.tools is not None:
-            tool_ids = agent.tools  # Now tools is directly a list of IDs
-            await verify_tool_permissions(tool_ids, user, session)
-            
-            # Remove existing associations
-            await session.execute(
-                delete(AgentTool).where(
-                    AgentTool.agent_id == agent.id,
-                    AgentTool.tenant_id == user.get('tenant_id')
+    try:
+        async with session.begin():
+            # Verify agent ownership
+            existing_agent = await get_agent(agent.id, user, session)
+            if not existing_agent:
+                raise CustomAgentException(
+                    ErrorCode.PERMISSION_DENIED,
+                    "Agent not found or no permission to update"
                 )
-            )
-            
-            # Create new associations
-            for tool_id in tool_ids:
-                agent_tool = AgentTool(
-                    agent_id=agent.id,
-                    tool_id=tool_id,
-                    tenant_id=user.get('tenant_id')
+                
+            # Verify tool permissions if tools are being updated
+            if agent.tools is not None:
+                tool_ids = agent.tools
+                await verify_tool_permissions(tool_ids, user, session)
+                
+                # Remove existing associations
+                await session.execute(
+                    delete(AgentTool).where(
+                        AgentTool.agent_id == agent.id,
+                        AgentTool.tenant_id == user.get('tenant_id')
+                    )
                 )
-                session.add(agent_tool)
+                
+                # Create new associations
+                for tool_id in tool_ids:
+                    agent_tool = AgentTool(
+                        agent_id=agent.id,
+                        tool_id=tool_id,
+                        tenant_id=user.get('tenant_id')
+                    )
+                    session.add(agent_tool)
 
-        # Update agent fields
-        update_values = {
-            'name': agent.name,
-            'description': agent.description,
-            'mode': agent.mode,
-            'icon': agent.icon,
-            'status': agent.status,
-            'role_settings': agent.role_settings,
-            'welcome_message': agent.welcome_message,
-            'twitter_link': agent.twitter_link,
-            'telegram_bot_id': agent.telegram_bot_id,
-            'tool_prompt': agent.tool_prompt,
-            'max_loops': agent.max_loops,
-            'suggested_questions': agent.suggested_questions,
-            'model_json': agent.model_dump_json()
-        }
-        
-        # Filter out None values
-        update_values = {k: v for k, v in update_values.items() if v is not None}
+            # Update agent fields
+            update_values = {
+                'name': agent.name,
+                'description': agent.description,
+                'mode': agent.mode,
+                'icon': agent.icon,
+                'status': agent.status,
+                'role_settings': agent.role_settings,
+                'welcome_message': agent.welcome_message,
+                'twitter_link': agent.twitter_link,
+                'telegram_bot_id': agent.telegram_bot_id,
+                'tool_prompt': agent.tool_prompt,
+                'max_loops': agent.max_loops,
+                'suggested_questions': agent.suggested_questions,
+                'model_json': agent.model_dump_json()
+            }
+            
+            # Filter out None values
+            update_values = {k: v for k, v in update_values.items() if v is not None}
 
-        stmt = update(App).where(
-            App.id == existing_agent.id,
-            App.tenant_id == user.get('tenant_id')
-        ).values(**update_values).execution_options(synchronize_session="fetch")
-        
-        await session.execute(stmt)
+            stmt = update(App).where(
+                App.id == existing_agent.id,
+                App.tenant_id == user.get('tenant_id')
+            ).values(**update_values).execution_options(synchronize_session="fetch")
+            
+            await session.execute(stmt)
 
-    return existing_agent
+        return existing_agent
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating agent: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to update agent: {str(e)}"
+        )
 
 
 async def delete_agent(
@@ -362,15 +402,36 @@ async def delete_agent(
         user: dict,
         session: AsyncSession = Depends(get_db)
 ):
-    async with session.begin():  # Use transaction
-        # Add tenant filter
-        await session.execute(
-            delete(App).where(
-                App.id == agent_id,
-                App.tenant_id == user.get('tenant_id')
+    try:
+        async with session.begin():
+            # Verify agent exists and belongs to user
+            result = await session.execute(
+                select(App).where(
+                    App.id == agent_id,
+                    App.tenant_id == user.get('tenant_id')
+                )
             )
+            if not result.scalar_one_or_none():
+                raise CustomAgentException(
+                    ErrorCode.RESOURCE_NOT_FOUND,
+                    "Agent not found or no permission to delete"
+                )
+            
+            # Delete agent
+            await session.execute(
+                delete(App).where(
+                    App.id == agent_id,
+                    App.tenant_id == user.get('tenant_id')
+                )
+            )
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting agent: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to delete agent: {str(e)}"
         )
-        # Transaction will auto commit or rollback when exiting async with
 
 
 async def publish_agent(
@@ -381,24 +442,35 @@ async def publish_agent(
     """
     Publish or unpublish an agent
     """
-    async with session.begin():  # Use transaction
-        # First check if the agent exists and belongs to the user's tenant
-        result = await session.execute(
-            select(App).where(
+    try:
+        async with session.begin():
+            # First check if the agent exists and belongs to the user's tenant
+            result = await session.execute(
+                select(App).where(
+                    App.id == agent_id,
+                    App.tenant_id == user.get('tenant_id')
+                )
+            )
+            agent = result.scalar_one_or_none()
+            if not agent:
+                raise CustomAgentException(
+                    ErrorCode.RESOURCE_NOT_FOUND,
+                    "Agent not found or no permission"
+                )
+
+            # Update publish status
+            stmt = update(App).where(
                 App.id == agent_id,
                 App.tenant_id == user.get('tenant_id')
+            ).values(
+                is_public=is_public
             )
+            await session.execute(stmt)
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error publishing agent: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to publish agent: {str(e)}"
         )
-        agent = result.scalar_one_or_none()
-        if not agent:
-            raise CustomAgentException(message="Agent not found or no permission")
-
-        # If agent exists and belongs to user's tenant, proceed with publish/unpublish
-        stmt = update(App).where(
-            App.id == agent_id,
-            App.tenant_id == user.get('tenant_id')
-        ).values(
-            is_public=is_public
-        )
-        await session.execute(stmt)
-        # Transaction will auto commit or rollback when exiting async with

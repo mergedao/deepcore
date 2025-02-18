@@ -1,4 +1,5 @@
 import uuid
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -12,8 +13,11 @@ from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueResponse, DialogueRequest, AgentStatus, \
     PaginationParams, AgentMode
 from agents.services import agent_service
+from agents.exceptions import CustomAgentException, ErrorCode
+from agents.common.error_messages import get_error_message
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 defaults = {
     'id': uuid.uuid4().hex,
@@ -50,13 +54,23 @@ async def create_agent(
     - **model_id**: Optional ID of the model to use
     - **suggested_questions**: Optional list of suggested questions
     """
-    for key, value in defaults.items():
-        if getattr(agent, key) is None:
-            setattr(agent, key, value)
+    try:
+        for key, value in defaults.items():
+            if getattr(agent, key) is None:
+                setattr(agent, key, value)
 
-    agent.id = str(uuid.uuid4())
-    agent = await agent_service.create_agent(agent, user, session)
-    return RestResponse(data=agent)
+        agent.id = str(uuid.uuid4())
+        agent = await agent_service.create_agent(agent, user, session)
+        return RestResponse(data=agent)
+    except CustomAgentException as e:
+        logger.error(f"Error in agent creation: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in agent creation: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/agents/list", summary="List Personal Agents")
@@ -75,18 +89,28 @@ async def list_personal_agents(
     - **page**: Page number (starts from 1)
     - **page_size**: Number of items per page (1-100)
     """
-    # Calculate offset from page number
-    offset = (pagination.page - 1) * pagination.page_size
-    
-    agents = await agent_service.list_personal_agents(
-        status=status,
-        skip=offset,
-        limit=pagination.page_size,
-        user=user,
-        include_public=include_public,
-        session=session
-    )
-    return RestResponse(data=agents)
+    try:
+        # Calculate offset from page number
+        offset = (pagination.page - 1) * pagination.page_size
+        
+        agents = await agent_service.list_personal_agents(
+            status=status,
+            skip=offset,
+            limit=pagination.page_size,
+            user=user,
+            include_public=include_public,
+            session=session
+        )
+        return RestResponse(data=agents)
+    except CustomAgentException as e:
+        logger.error(f"Error listing personal agents: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error listing personal agents: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/agents/public", summary="List Public Agents")
@@ -104,17 +128,27 @@ async def list_public_agents(
     - **page**: Page number (starts from 1)
     - **page_size**: Number of items per page (1-100)
     """
-    # Calculate offset from page number
-    offset = (pagination.page - 1) * pagination.page_size
-    
-    agents = await agent_service.list_public_agents(
-        status=status,
-        skip=offset,
-        limit=pagination.page_size,
-        only_official=only_official,
-        session=session
-    )
-    return RestResponse(data=agents)
+    try:
+        # Calculate offset from page number
+        offset = (pagination.page - 1) * pagination.page_size
+        
+        agents = await agent_service.list_public_agents(
+            status=status,
+            skip=offset,
+            limit=pagination.page_size,
+            only_official=only_official,
+            session=session
+        )
+        return RestResponse(data=agents)
+    except CustomAgentException as e:
+        logger.error(f"Error listing public agents: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error listing public agents: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/agents/get", summary="Get Agent Details")
@@ -123,8 +157,18 @@ async def get_agent(
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
-    agents = await agent_service.get_agent(agent_id, user, session=session)
-    return RestResponse(data=agents)
+    try:
+        agents = await agent_service.get_agent(agent_id, user, session=session)
+        return RestResponse(data=agents)
+    except CustomAgentException as e:
+        logger.error(f"Error getting agent details: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error getting agent details: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.post("/agents/update", summary="Update Agent")
@@ -134,13 +178,24 @@ async def update_agent(
         session: AsyncSession = Depends(get_db)
 ):
     """
-    Update an existing agent."""
-    agent = await agent_service.update_agent(
-        agent,
-        user,
-        session=session
-    )
-    return RestResponse(data=agent)
+    Update an existing agent.
+    """
+    try:
+        agent = await agent_service.update_agent(
+            agent,
+            user,
+            session=session
+        )
+        return RestResponse(data=agent)
+    except CustomAgentException as e:
+        logger.error(f"Error updating agent: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error updating agent: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.delete("/agents/delete", summary="Delete Agent")
@@ -154,8 +209,18 @@ async def delete_agent(
     
     - **agent_id**: ID of the agent to delete
     """
-    await agent_service.delete_agent(agent_id, user, session)
-    return RestResponse(data="ok")
+    try:
+        await agent_service.delete_agent(agent_id, user, session)
+        return RestResponse(data="ok")
+    except CustomAgentException as e:
+        logger.error(f"Error deleting agent: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error deleting agent: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/agents/ai/create", summary="AI Create Agent")
@@ -170,7 +235,10 @@ async def ai_create_agent(
         return StreamingResponse(content=resp, media_type="text/event-stream")
     except Exception as e:
         logger.error(f"Error in AI agent creation: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        return RestResponse(
+            code=ErrorCode.API_CALL_ERROR,
+            msg=f"Failed to create AI agent: {str(e)}"
+        )
 
 
 @router.post("/agents/{agent_id}/dialogue")
@@ -190,9 +258,15 @@ async def dialogue(
     try:
         resp = agent_service.dialogue(agent_id, request, user, session)
         return StreamingResponse(content=resp, media_type="text/event-stream")
+    except CustomAgentException as e:
+        logger.error(f"Error in dialogue: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error in dialogue: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error in dialogue: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/agents/{agent_id}/dialogue")
@@ -217,9 +291,15 @@ async def dialogue_get(
         request = DialogueRequest(query=query, conversation_id=conversation_id)
         resp = agent_service.dialogue(agent_id, request, session)
         return StreamingResponse(content=resp, media_type="text/event-stream")
+    except CustomAgentException as e:
+        logger.error(f"Error in dialogue: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error in dialogue: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error in dialogue: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.post("/agents/{agent_id}/publish", summary="Publish Agent")
@@ -232,5 +312,15 @@ async def publish_agent(
     """
     Publish or unpublish an agent
     """
-    await agent_service.publish_agent(agent_id, is_public, user, session)
-    return RestResponse(data="ok")
+    try:
+        await agent_service.publish_agent(agent_id, is_public, user, session)
+        return RestResponse(data="ok")
+    except CustomAgentException as e:
+        logger.error(f"Error publishing agent: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error publishing agent: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )

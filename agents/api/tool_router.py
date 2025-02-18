@@ -9,6 +9,8 @@ from agents.models.db import get_db
 from agents.protocol.response import ToolModel
 from agents.protocol.schemas import ToolCreate, ToolUpdate, AgentToolsRequest
 from agents.services import tool_service
+from agents.exceptions import CustomAgentException, ErrorCode
+from agents.common.error_messages import get_error_message
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,9 +41,15 @@ async def create_tool(
             tool.auth_config
         )
         return RestResponse(data=tool)
+    except CustomAgentException as e:
+        logger.error(f"Error creating tool: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while creating tool: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error creating tool: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/tools/list", summary="List Tools")
@@ -62,9 +70,15 @@ async def list_tools(
             session=session
         )
         return RestResponse(data=tools)
+    except CustomAgentException as e:
+        logger.error(f"Error listing tools: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while listing tools: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error listing tools: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/tools/{tool_id}", summary="Get Tool Details")
@@ -80,9 +94,15 @@ async def get_tool(
     """
     try:
         return RestResponse(data=await tool_service.get_tool(tool_id, user, session))
+    except CustomAgentException as e:
+        logger.error(f"Error getting tool details: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while getting tool {tool_id}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error getting tool details: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.put("/tools/{tool_id}", summary="Update Tool")
@@ -109,9 +129,15 @@ async def update_tool(
             session
         )
         return RestResponse(data=tool)
+    except CustomAgentException as e:
+        logger.error(f"Error updating tool: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while updating tool {tool_id}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error updating tool: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.delete("/tools/{tool_id}", summary="Delete Tool")
@@ -128,9 +154,15 @@ async def delete_tool(
     try:
         await tool_service.delete_tool(tool_id, user, session)
         return RestResponse(data="ok")
+    except CustomAgentException as e:
+        logger.error(f"Error deleting tool: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while deleting tool {tool_id}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error deleting tool: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.post("/tools/{tool_id}/publish", summary="Publish Tool")
@@ -146,9 +178,15 @@ async def publish_tool(
     try:
         await tool_service.publish_tool(tool_id, is_public, user, session)
         return RestResponse(data="ok")
+    except CustomAgentException as e:
+        logger.error(f"Error publishing tool: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while publishing tool {tool_id}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error publishing tool: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.post("/agents/{agent_id}/tools", summary="Assign Tools to Agent")
@@ -168,9 +206,15 @@ async def assign_tools(
     try:
         await tool_service.assign_tools_to_agent(request.tool_ids, agent_id, user, session)
         return RestResponse(data="ok")
+    except CustomAgentException as e:
+        logger.error(f"Error assigning tools to agent: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while assigning tools to agent {agent_id}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error assigning tools to agent: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.delete("/agents/{agent_id}/tools", summary="Remove Tools from Agent")
@@ -189,9 +233,15 @@ async def remove_tools(
     try:
         await tool_service.remove_tools_from_agent(request.tool_ids, agent_id, user, session)
         return RestResponse(data="ok")
+    except CustomAgentException as e:
+        logger.error(f"Error removing tools from agent: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while removing tools from agent {agent_id}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error removing tools from agent: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 
 @router.get("/agents/{agent_id}/tools", summary="Get Agent Tools")
@@ -210,6 +260,12 @@ async def get_agent_tools(
             session=session
         )
         return RestResponse(data=tools)
+    except CustomAgentException as e:
+        logger.error(f"Error getting agent tools: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Error while getting tools for agent {agent_id}: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        logger.error(f"Unexpected error getting agent tools: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
