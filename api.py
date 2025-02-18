@@ -15,28 +15,16 @@ from agents.api.auth_router import router as auth_router
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
 
-
-@app.exception_handler(Exception)
-async def default_exception_handler(request: fastapi.Request, exc):
-    return await exception_handler(request, exc)
-
-
-app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
-app.include_router(api_router.router)
-app.include_router(agent_router.router, prefix="/api", tags=["agent"])
-app.include_router(model_router.router, prefix="/api", tags=["model"])
-app.include_router(file_router.router, prefix="/api", tags=["file"])
-app.include_router(tool_router.router, prefix="/api", tags=["tool"])
-app.include_router(prompt_router.router, prefix="/api", tags=["prompt"])
-app.include_router(image_router.router, prefix="/api", tags=["images"])
-
-if __name__ == '__main__':
+def create_app() -> FastAPI:
+    # Initialize logging and telemetry
     Log.init()
     Otel.init()
     logger.info("Server started.")
 
+    app = FastAPI()
+
+    # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -45,7 +33,30 @@ if __name__ == '__main__':
         allow_headers=["*"],
     )
 
+    # Add JWT middleware
     app.add_middleware(JWTAuthMiddleware)
-    
+
+    @app.exception_handler(Exception)
+    async def default_exception_handler(request: fastapi.Request, exc):
+        return await exception_handler(request, exc)
+
+    # Include routers
+    app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
+    app.include_router(api_router.router)
+    app.include_router(agent_router.router, prefix="/api", tags=["agent"])
+    app.include_router(model_router.router, prefix="/api", tags=["model"])
+    app.include_router(file_router.router, prefix="/api", tags=["file"])
+    app.include_router(tool_router.router, prefix="/api", tags=["tool"])
+    app.include_router(prompt_router.router, prefix="/api", tags=["prompt"])
+    app.include_router(image_router.router, prefix="/api", tags=["images"])
+
+    # Initialize OpenTelemetry
     OtelFastAPI.init(app)
+
+    return app
+
+
+app = create_app()
+
+if __name__ == '__main__':
     uvicorn.run(app, host=SETTINGS.HOST, port=SETTINGS.PORT)
