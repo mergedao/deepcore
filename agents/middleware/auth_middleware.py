@@ -15,6 +15,7 @@ security = HTTPBearer()
 
 logger = logging.getLogger(__name__)
 
+
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.method == "OPTIONS":
@@ -24,20 +25,24 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         auth_whitelist = [
             "/api/auth/login",
             "/api/auth/register",
-            "/api/auth/wallet/nonce",    # Wallet nonce endpoint
-            "/api/auth/wallet/login",    # Wallet login endpoint
-            "/api/auth/refresh",         # Token refresh endpoint
+            "/api/auth/wallet/nonce",  # Wallet nonce endpoint
+            "/api/auth/wallet/login",  # Wallet login endpoint
+            "/api/auth/refresh",  # Token refresh endpoint
             "/api/auth/reset-password",
             "/api/auth/verify-email",
             "/docs",
             "/redoc",
             "/api/health",
             "/openapi.json",
+            "/api/upload/file",
+            "/api/files/",
+            "/api/images/generate",
             "/"
         ]
-        
-        if request.url.path in auth_whitelist:
-            return await call_next(request)
+
+        for prefix in auth_whitelist:
+            if request.url.path.startswith(prefix):
+                return await call_next(request)
 
         try:
             auth_header = request.headers.get("Authorization")
@@ -51,7 +56,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
                 )
 
             token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
-            
+
             payload = verify_token(token)
             if not payload:
                 return JSONResponse(
@@ -64,7 +69,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
             # Add user information to request state
             request.state.user = payload
-            
+
         except Exception as e:
             logger.error("Error verifying token", e, exc_info=True)
             return JSONResponse(
@@ -77,6 +82,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         return await call_next(request)
 
+
 # FastAPI dependency for getting current user in routes
 async def get_current_user(request: Request):
     user = getattr(request.state, "user", None)
@@ -85,4 +91,4 @@ async def get_current_user(request: Request):
             status_code=HTTP_401_UNAUTHORIZED,
             detail=get_error_message(ErrorCode.UNAUTHORIZED)
         )
-    return user 
+    return user
