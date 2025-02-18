@@ -1,4 +1,3 @@
-import datetime
 import uuid
 from typing import Optional
 
@@ -11,7 +10,7 @@ from agents.common.response import RestResponse
 from agents.middleware.auth_middleware import get_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueResponse, DialogueRequest, AgentStatus, \
-    PaginationParams, AgentMode, AICreateAgentDTO
+    PaginationParams, AgentMode
 from agents.services import agent_service
 
 router = APIRouter()
@@ -54,7 +53,7 @@ async def create_agent(
     for key, value in defaults.items():
         if getattr(agent, key) is None:
             setattr(agent, key, value)
-    
+
     agent.id = str(uuid.uuid4())
     agent = await agent_service.create_agent(agent, user, session)
     return RestResponse(data=agent)
@@ -100,7 +99,7 @@ async def get_agent(
 
 @router.post("/agents/update", summary="Update Agent")
 async def update_agent(
-        agent: AgentDTO, 
+        agent: AgentDTO,
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
@@ -116,7 +115,7 @@ async def update_agent(
 
 @router.delete("/agents/delete", summary="Delete Agent")
 async def delete_agent(
-        agent_id: str = Query(None, description="agent id"), 
+        agent_id: str = Query(None, description="agent id"),
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
@@ -128,12 +127,15 @@ async def delete_agent(
     await agent_service.delete_agent(agent_id, user, session)
     return RestResponse(data="ok")
 
-@router.post("/agents/ai/create", summary="AI Create Agent")
-async def ai_create_agent(agent: AICreateAgentDTO, session: AsyncSession = Depends(get_db)):
+
+@router.get("/agents/ai/create", summary="AI Create Agent")
+async def ai_create_agent(
+        description: Optional[str] = Query(None, description="description"),
+        session: AsyncSession = Depends(get_db)):
     """
     Create a new agent.
     """
-    resp = gen_agent(agent.description)
+    resp = gen_agent(description)
     return StreamingResponse(content=resp, media_type="text/event-stream")
 
 
