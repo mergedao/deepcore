@@ -35,12 +35,18 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/api/health",
             "/openapi.json",
             "/api/upload/file",
-            "/api/files/",
             "/api/images/generate",
             "/"
         ]
+        auth_whitelist_startswith = ["/api/files/",]
 
-        for prefix in auth_whitelist:
+        # Check if the request path is in the whitelist
+        for path in auth_whitelist:
+            if request.url.path == path:
+                return await call_next(request)
+
+        # Check if the request path starts with any of the whitelist prefixes
+        for prefix in auth_whitelist_startswith:
             if request.url.path.startswith(prefix):
                 return await call_next(request)
 
