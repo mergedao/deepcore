@@ -10,6 +10,7 @@ from sqlalchemy import func
 from agents.agent.chat_agent import ChatAgent
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
+from agents.models.entity import AgentInfo
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo
 
@@ -23,14 +24,14 @@ async def dialogue(
         session: AsyncSession = Depends(get_db)
 ) -> AsyncIterator[str]:
     # Add tenant filter
-    result = await get_agent(agent_id, user, session)
-    agent = result.scalar_one_or_none()
+    agent = await get_agent(agent_id, user, session)
+    agent_info = AgentInfo.from_dto(agent)
     if not agent:
         raise CustomAgentException(
             ErrorCode.RESOURCE_NOT_FOUND,
             "Agent not found or no permission"
         )
-    agent = ChatAgent(agent)
+    agent = ChatAgent(agent_info)
     async for response in agent.stream(request.query, request.conversation_id):
         yield response
 
