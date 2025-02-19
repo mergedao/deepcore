@@ -278,6 +278,7 @@ async def dialogue_get(
             alias="conversationId",
             description="ID of the conversation"
         ),
+        user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
@@ -289,7 +290,7 @@ async def dialogue_get(
     """
     try:
         request = DialogueRequest(query=query, conversation_id=conversation_id)
-        resp = agent_service.dialogue(agent_id, request, session)
+        resp = agent_service.dialogue(agent_id, request, user, session)
         return StreamingResponse(content=resp, media_type="text/event-stream")
     except CustomAgentException as e:
         logger.error(f"Error in dialogue: {str(e)}", exc_info=True)

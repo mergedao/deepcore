@@ -20,7 +20,7 @@ async def exception_handler(request: fastapi.Request, exc):
     if isinstance(exc, CustomAgentException):
         # Handle business exceptions with their own error codes and messages
         ret = RestResponse(
-            code=exc.ErrorCode,
+            code=exc.error_code,
             msg=exc.message,
             data=None
         )

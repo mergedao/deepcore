@@ -9,6 +9,7 @@ from agents.agent.llm.openai import openai
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt
+from agents.models.entity import AgentInfo
 from agents.models.models import App
 
 
@@ -19,7 +20,7 @@ class ChatAgent(AbstractAgent):
 
     redis_memory: RedisMemoryStore = RedisMemoryStore()
 
-    def __init__(self, app: App):
+    def __init__(self, app: AgentInfo):
         """"
         Initialize the ChatAgent with the given app.
         Args:
@@ -76,14 +77,14 @@ class ChatAgent(AbstractAgent):
                 response_buffer += output
                 is_finalized = True
                 if output:
-                    yield self.send_message("message", {"text": output})
+                    yield self.send_message("message", {"type": "markdown", "text": output})
 
             # Handle the case where no final response was generated
             if not is_finalized:
                 if final_response:
-                    yield self.send_message("message", {"text": final_response[-1]})
+                    yield self.send_message("message", {"type": "markdown", "text": final_response[-1]})
                 else:
-                    yield self.send_message("message", {"text": self.default_final_answer})
+                    yield self.send_message("message", {"type": "markdown", "text": self.default_final_answer})
         except Exception as e:
             print("Error occurred:", e)
             raise e
