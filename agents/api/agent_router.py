@@ -45,7 +45,7 @@ async def create_agent(
 ):
     """
     Create a new agent
-    
+
     Parameters:
     - **name**: Name of the agent
     - **description**: Description of the agent
@@ -83,7 +83,7 @@ async def list_personal_agents(
 ):
     """
     Retrieve a list of user's personal agents with pagination.
-    
+
     - **status**: Filter agents by their status (active, inactive, or draft)
     - **include_public**: Whether to include public agents along with personal agents
     - **page**: Page number (starts from 1)
@@ -92,7 +92,7 @@ async def list_personal_agents(
     try:
         # Calculate offset from page number
         offset = (pagination.page - 1) * pagination.page_size
-        
+
         agents = await agent_service.list_personal_agents(
             status=status,
             skip=offset,
@@ -122,7 +122,7 @@ async def list_public_agents(
 ):
     """
     Retrieve a list of public or official agents with pagination.
-    
+
     - **status**: Filter agents by their status (active, inactive, or draft)
     - **only_official**: Whether to show only official agents
     - **page**: Page number (starts from 1)
@@ -131,7 +131,7 @@ async def list_public_agents(
     try:
         # Calculate offset from page number
         offset = (pagination.page - 1) * pagination.page_size
-        
+
         agents = await agent_service.list_public_agents(
             status=status,
             skip=offset,
@@ -206,7 +206,7 @@ async def delete_agent(
 ):
     """
     Delete an agent by setting its is_deleted flag to True.
-    
+
     - **agent_id**: ID of the agent to delete
     """
     try:
@@ -250,7 +250,7 @@ async def dialogue(
 ):
     """
     Handle a dialogue between a user and an agent.
-    
+
     - **agent_id**: ID of the agent to interact with
     - **user_id**: ID of the user
     - **message**: Message from the user
@@ -306,14 +306,22 @@ async def dialogue_get(
 async def publish_agent(
         agent_id: str,
         is_public: bool = Query(True, description="Set agent as public"),
+        create_fee: float = Query(0.0, description="Fee for creating the agent (tips for creator)"),
+        price: float = Query(0.0, description="Fee for using the agent"),
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
-    Publish or unpublish an agent
+    Publish or unpublish an agent with pricing settings
+
+    Parameters:
+    - **agent_id**: ID of the agent to publish
+    - **is_public**: Whether to make the agent public
+    - **create_fee**: Fee for creating the agent (tips for creator)
+    - **price**: Fee for using the agent
     """
     try:
-        await agent_service.publish_agent(agent_id, is_public, user, session)
+        await agent_service.publish_agent(agent_id, is_public, create_fee, price, user, session)
         return RestResponse(data="ok")
     except CustomAgentException as e:
         logger.error(f"Error publishing agent: {str(e)}", exc_info=True)

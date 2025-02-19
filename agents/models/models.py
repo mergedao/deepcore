@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Column, String, Boolean, DateTime, func, JSON, Text, LargeBinary, BigInteger, Integer, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, func, JSON, Text, LargeBinary, BigInteger, Integer, ForeignKey, Numeric
 from sqlalchemy.orm import declarative_base, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -29,6 +29,8 @@ class App(Base):
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
     is_public = Column(Boolean, default=False, comment="Whether the agent is public")
     is_official = Column(Boolean, default=False, comment="Whether the agent is official preset")
+    create_fee = Column(Numeric(20, 9), default=0.000000000, comment="Fee for creating the agent (tips for creator)")
+    price = Column(Numeric(20, 9), default=0.000000000, comment="Fee for using the agent")
     tools = relationship('Tool', secondary='agent_tools', backref='agents')
     suggested_questions = Column(JSON, comment="List of suggested questions for the agent")
     model_id = Column(BigInteger, ForeignKey('models.id'), comment="ID of the associated model")
