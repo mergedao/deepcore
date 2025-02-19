@@ -20,6 +20,8 @@ CREATE TABLE `app` (
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is official preset',
   `suggested_questions` JSON COMMENT 'List of suggested questions for the agent',
   `model_id` bigint DEFAULT NULL COMMENT 'ID of the associated model',
+  `create_fee` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for creating the agent (tips for creator)',
+  `price` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for using the agent',
   PRIMARY KEY (`id`),
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_model` (`model_id`),
@@ -111,3 +113,14 @@ CREATE TABLE `models` (
 -- ALTER TABLE `app` MODIFY COLUMN `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID';
 --
 -- ALTER TABLE `tools` MODIFY COLUMN `app_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID of the associated app';
+
+-- Add create_fee and price columns to existing app table
+ALTER TABLE `app`
+ADD COLUMN `create_fee` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for creating the agent (tips for creator)',
+ADD COLUMN `price` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for using the agent';
+
+-- Update existing records to set default values
+UPDATE `app` SET
+    `create_fee` = 0.000000000,
+    `price` = 0.000000000
+WHERE `create_fee` IS NULL OR `price` IS NULL;

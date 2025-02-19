@@ -15,9 +15,10 @@ from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, Tool
 
 logger = logging.getLogger(__name__)
 
+
 async def dialogue(
         agent_id: str,
-        request: DialogueRequest, 
+        request: DialogueRequest,
         user: dict,
         session: AsyncSession = Depends(get_db)
 ) -> AsyncIterator[str]:
@@ -66,7 +67,7 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
         )
     )
     tools = tools_result.scalars().all()
-    
+
     # Convert to DTO
     try:
         model = AgentDTO.model_validate_json(agent.model_json)
@@ -76,7 +77,7 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
             type=tool.type,
             content=tool.content
         ) for tool in tools]
-        
+
         return model
     except Exception as e:
         logger.error(f"Error converting agent to DTO: {e}", exc_info=True)
@@ -87,9 +88,9 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
 
 
 async def verify_tool_permissions(
-    tool_ids: List[int],
-    user: dict,
-    session: AsyncSession
+        tool_ids: List[int],
+        user: dict,
+        session: AsyncSession
 ) -> List[Tool]:
     """
     Verify if user has permission to use the specified tools
@@ -110,14 +111,14 @@ async def verify_tool_permissions(
         )
     )
     found_tools = tools.scalars().all()
-    
+
     if len(found_tools) != len(tool_ids):
         inaccessible_tools = set(tool_ids) - {tool.id for tool in found_tools}
         raise CustomAgentException(
             ErrorCode.PERMISSION_DENIED,
             f"No permission to access tools: {inaccessible_tools}"
         )
-    
+
     return found_tools
 
 
@@ -190,7 +191,7 @@ async def list_personal_agents(
 ):
     """
     List user's personal agents
-    
+
     Args:
         status: Optional filter for agent status
         skip: Number of records to skip ((page - 1) * page_size)
@@ -198,7 +199,7 @@ async def list_personal_agents(
         session: Database session
         user: Current user info
         include_public: Whether to include public agents along with personal agents
-        
+
     Returns:
         dict: {
             "items": list of agents,
@@ -218,7 +219,7 @@ async def list_personal_agents(
         }
 
     conditions = [App.tenant_id == user.get('tenant_id')]
-    
+
     if include_public:
         conditions = [or_(
             App.tenant_id == user.get('tenant_id'),
@@ -227,7 +228,7 @@ async def list_personal_agents(
 
     if status:
         conditions.append(App.status == status)
-    
+
     return await _get_paginated_agents(conditions, skip, limit, user, session)
 
 
@@ -240,14 +241,14 @@ async def list_public_agents(
 ):
     """
     List public or official agents
-    
+
     Args:
         status: Optional filter for agent status
         skip: Number of records to skip ((page - 1) * page_size)
         limit: Number of records per page (page_size)
         session: Database session
         only_official: Whether to only show official agents
-        
+
     Returns:
         dict: {
             "items": list of agents,
@@ -258,7 +259,7 @@ async def list_public_agents(
         }
     """
     conditions = []
-    
+
     if only_official:
         conditions.append(App.is_official == True)
     else:
@@ -266,7 +267,7 @@ async def list_public_agents(
 
     if status:
         conditions.append(App.status == status)
-    
+
     return await _get_paginated_agents(conditions, skip, limit, None, session)
 
 
@@ -278,16 +279,16 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
     count_query = select(func.count()).select_from(App).where(and_(*conditions))
     total_count = await session.execute(count_query)
     total_count = total_count.scalar()
-    
+
     # Get paginated results with ordering
     query = select(App).where(and_(*conditions)).order_by(App.create_time.desc())
-    
+
     result = await session.execute(
         query.offset(skip).limit(limit)
     )
     agents = result.scalars().all()
     results = []
-    
+
     for agent in agents:
         # Get associated tools for each agent
         tools_result = await session.execute(
@@ -298,7 +299,7 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             )
         )
         tools = tools_result.scalars().all()
-        
+
         # Convert to DTO
         model = AgentDTO.model_validate_json(agent.model_json)
         model.tools = [ToolInfo(
@@ -307,12 +308,12 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             type=tool.type,
             content=tool.content
         ) for tool in tools]
-        
+
         results.append(model)
 
     # Calculate current page from skip and limit
     current_page = (skip // limit) + 1
-    
+
     return {
         "items": results,
         "total": total_count,
@@ -336,12 +337,12 @@ async def update_agent(
                     ErrorCode.PERMISSION_DENIED,
                     "Agent not found or no permission to update"
                 )
-                
+
             # Verify tool permissions if tools are being updated
             if agent.tools is not None:
                 tool_ids = agent.tools
                 await verify_tool_permissions(tool_ids, user, session)
-                
+
                 # Remove existing associations
                 await session.execute(
                     delete(AgentTool).where(
@@ -349,7 +350,7 @@ async def update_agent(
                         AgentTool.tenant_id == user.get('tenant_id')
                     )
                 )
-                
+
                 # Create new associations
                 for tool_id in tool_ids:
                     agent_tool = AgentTool(
@@ -375,7 +376,7 @@ async def update_agent(
                 'suggested_questions': agent.suggested_questions,
                 'model_json': agent.model_dump_json()
             }
-            
+
             # Filter out None values
             update_values = {k: v for k, v in update_values.items() if v is not None}
 
@@ -383,7 +384,7 @@ async def update_agent(
                 App.id == existing_agent.id,
                 App.tenant_id == user.get('tenant_id')
             ).values(**update_values).execution_options(synchronize_session="fetch")
-            
+
             await session.execute(stmt)
 
         return existing_agent
@@ -398,7 +399,7 @@ async def update_agent(
 
 
 async def delete_agent(
-        agent_id: str, 
+        agent_id: str,
         user: dict,
         session: AsyncSession = Depends(get_db)
 ):
@@ -416,7 +417,7 @@ async def delete_agent(
                     ErrorCode.RESOURCE_NOT_FOUND,
                     "Agent not found or no permission to delete"
                 )
-            
+
             # Delete agent
             await session.execute(
                 delete(App).where(
@@ -437,10 +438,20 @@ async def delete_agent(
 async def publish_agent(
         agent_id: str,
         is_public: bool,
+        create_fee: float,
+        price: float,
         user: dict,
         session: AsyncSession):
     """
     Publish or unpublish an agent
+
+    Args:
+        agent_id: ID of the agent
+        is_public: Whether to make the agent public
+        create_fee: Fee for creating the agent (tips for creator)
+        price: Fee for using the agent
+        user: Current user info
+        session: Database session
     """
     try:
         async with session.begin():
@@ -458,12 +469,14 @@ async def publish_agent(
                     "Agent not found or no permission"
                 )
 
-            # Update publish status
+            # Update publish status and fees
             stmt = update(App).where(
                 App.id == agent_id,
                 App.tenant_id == user.get('tenant_id')
             ).values(
-                is_public=is_public
+                is_public=is_public,
+                create_fee=create_fee,
+                price=price
             )
             await session.execute(stmt)
     except CustomAgentException:
