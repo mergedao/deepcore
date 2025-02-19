@@ -1,13 +1,14 @@
 import logging
-from fastapi import APIRouter, Depends, Query, Path, Body
+from fastapi import APIRouter, Depends, Query, Path, Body, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Optional, List
+import json
 
 from agents.common.response import RestResponse
 from agents.middleware.auth_middleware import get_current_user
 from agents.models.db import get_db
 from agents.protocol.response import ToolModel
-from agents.protocol.schemas import ToolCreate, ToolUpdate, AgentToolsRequest
+from agents.protocol.schemas import ToolCreate, ToolUpdate, AgentToolsRequest, CreateOpenAPIToolRequest, CreateToolsBatchRequest
 from agents.services import tool_service
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.common.error_messages import get_error_message
@@ -18,27 +19,21 @@ logger = logging.getLogger(__name__)
 
 @router.post("/tools/create", summary="Create Tool", response_model=RestResponse[ToolModel])
 async def create_tool(
-        tool: ToolCreate,
+        request: ToolCreate,
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
-    Create a new tool
+    Create a new API tool
     
     Parameters:
-    - **name**: Name of the tool
-    - **type**: Type of the tool (openapi or function)
-    - **content**: Content or configuration of the tool
-    - **auth_config**: Optional authentication configuration
+    - **tool_data**: API tool configuration including name, host, path, method, parameters and auth_config
     """
     try:
         tool = await tool_service.create_tool(
-            tool.name,
-            tool.type,
-            tool.content,
-            user,
-            session,
-            tool.auth_config
+            tool_data=request.tool_data.model_dump(),
+            user=user,
+            session=session
         )
         return RestResponse(data=tool)
     except CustomAgentException as e:
@@ -113,20 +108,28 @@ async def update_tool(
         session: AsyncSession = Depends(get_db)
 ):
     """
-    Update an existing tool
+    Update an existing API tool
     
+    Parameters:
     - **tool_id**: ID of the tool to update
-    - **type**: New type of the tool
-    - **content**: New content of the tool
+    - **name**: Optional new name for the tool
+    - **host**: Optional new API host
+    - **path**: Optional new API path
+    - **method**: Optional new HTTP method
+    - **parameters**: Optional new API parameters
+    - **auth_config**: Optional new authentication configuration
     """
     try:
         tool = await tool_service.update_tool(
-            tool_id, 
-            tool.name, 
-            tool.type, 
-            tool.content,
-            user,
-            session
+            tool_id=tool_id,
+            user=user,
+            session=session,
+            name=tool.name,
+            host=tool.host,
+            path=tool.path,
+            method=tool.method,
+            parameters=tool.parameters,
+            auth_config=tool.auth_config
         )
         return RestResponse(data=tool)
     except CustomAgentException as e:
@@ -265,6 +268,91 @@ async def get_agent_tools(
         return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
         logger.error(f"Unexpected error getting agent tools: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/tools/parse-openapi", summary="Parse OpenAPI Content")
+async def parse_openapi(
+    content: str = Body(..., description="OpenAPI content to parse"),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Parse OpenAPI content and return API information
+    
+    Parameters:
+    - **content**: OpenAPI specification content (JSON or YAML format)
+    """
+    try:
+        api_info = await tool_service.parse_openapi_content(content)
+        return RestResponse(data=api_info)
+    except CustomAgentException as e:
+        logger.error(f"Error parsing OpenAPI content: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error parsing OpenAPI content: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/tools/create-batch", summary="Create Tools in Batch", response_model=RestResponse[List[ToolModel]])
+async def create_tools_batch(
+    request: CreateToolsBatchRequest,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Create multiple API tools in batch
+    
+    Parameters:
+    - **tools**: List of API tool configurations, each containing name, host, path, method, parameters and auth_config
+    """
+    try:
+        tools = await tool_service.create_tools_batch(
+            tools=[tool.model_dump() for tool in request.tools],
+            user=user,
+            session=session
+        )
+        return RestResponse(data=tools)
+    except CustomAgentException as e:
+        logger.error(f"Error creating tools in batch: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating tools in batch: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/tools/upload-openapi", summary="Upload and Parse OpenAPI File")
+async def upload_openapi(
+    file: UploadFile = File(...),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Upload and parse OpenAPI file
+    
+    Parameters:
+    - **file**: OpenAPI specification file (JSON or YAML format)
+    """
+    try:
+        content = await file.read()
+        content_str = content.decode('utf-8')
+        api_info = await tool_service.parse_openapi_content(content_str)
+        return RestResponse(data={
+            "content": content_str,
+            "api_info": api_info
+        })
+    except CustomAgentException as e:
+        logger.error(f"Error uploading OpenAPI file: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error uploading OpenAPI file: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

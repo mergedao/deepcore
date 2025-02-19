@@ -43,7 +43,12 @@ class Tool(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), comment="UUID")
     name = Column(String(255), nullable=False)
     type = Column(String(50), nullable=False)
-    content = Column(Text, nullable=False)
+    # OpenAPI specific fields
+    origin = Column(String(255), comment="API origin")
+    path = Column(String(255), comment="API path")
+    method = Column(String(20), comment="HTTP method")
+    parameters = Column(JSON, comment="API parameters including header, query, path, and body")
+    # Common fields
     auth_config = Column(JSON)
     is_deleted = Column(Boolean, default=False)
     tenant_id = Column(String(36))
