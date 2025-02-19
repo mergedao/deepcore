@@ -75,7 +75,10 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
             id=tool.id,
             name=tool.name,
             type=tool.type,
-            content=tool.content
+            origin=tool.origin,
+            path=tool.path,
+            method=tool.method,
+            parameters=tool.parameters
         ) for tool in tools]
 
         return model
@@ -306,7 +309,10 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             id=tool.id,
             name=tool.name,
             type=tool.type,
-            content=tool.content
+            origin=tool.origin,
+            path=tool.path,
+            method=tool.method,
+            parameters=tool.parameters
         ) for tool in tools]
 
         results.append(model)

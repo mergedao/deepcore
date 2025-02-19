@@ -37,7 +37,10 @@ class ToolInfo(BaseModel):
     id: Optional[str] = Field(None, description="Tool UUID")
     name: str = Field(..., description="Name of the tool")
     type: ToolType = Field(default=ToolType.OPENAPI, description='Type of the tool')
-    content: str = Field(..., description="Content or configuration details of the tool")
+    origin: str = Field(..., description="API origin")
+    path: str = Field(..., description="API path")
+    method: str = Field(..., description="HTTP method")
+    parameters: Dict = Field(default_factory=dict, description="API parameters including header, query, path, and body")
     is_public: Optional[bool] = Field(False, description="Whether the tool is public")
     tenant_id: Optional[str] = Field(None, description="Tenant ID that owns this tool")
 
