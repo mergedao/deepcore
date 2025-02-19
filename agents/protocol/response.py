@@ -10,7 +10,10 @@ class ToolModel(BaseModel):
     id: str  # UUID string
     name: str
     type: ToolType  # Enum type for tool type
-    content: str
+    origin: str
+    path: str
+    method: str
+    parameters: Dict
     auth_config: Optional[Dict] = None
     is_public: bool = False
     is_official: bool = False

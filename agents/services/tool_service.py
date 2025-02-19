@@ -1,8 +1,9 @@
 from fastapi import Depends
 from sqlalchemy import update, select, or_, and_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import List, Optional, Dict
 import logging
+import json
 
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
@@ -10,6 +11,7 @@ from agents.models.models import Tool, App, AgentTool
 from agents.protocol.response import ToolModel
 from agents.protocol.schemas import ToolType, AuthConfig
 from agents.utils import openapi
+from agents.utils.openapi_utils import extract_endpoints_info
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +22,10 @@ def tool_to_dto(tool: Tool) -> ToolModel:
             id=tool.id,
             name=tool.name,
             type=tool.type,
-            content=tool.content,
+            origin=tool.origin,
+            path=tool.path,
+            method=tool.method,
+            parameters=tool.parameters,
             auth_config=tool.auth_config,
             is_public=tool.is_public,
             is_official=tool.is_official,
@@ -36,33 +41,38 @@ def tool_to_dto(tool: Tool) -> ToolModel:
         )
 
 async def create_tool(
-        name: str, 
-        type: ToolType, 
-        content: str,
+        tool_data: dict,
         user: dict,
-        session: AsyncSession,
-        auth_config: Optional[AuthConfig] = None
+        session: AsyncSession
 ):
     """
-    Create tool with user context
+    Create a new tool
+    
+    Args:
+        tool_data: API tool configuration data
+        user: Current user information
+        session: Database session
     """
-    if not user.get('tenant_id'):
-        raise CustomAgentException(
-            ErrorCode.UNAUTHORIZED,
-            "User must belong to a tenant to create tools"
-        )
-
     try:
+        if not user.get('tenant_id'):
+            raise CustomAgentException(
+                ErrorCode.UNAUTHORIZED,
+                "User must belong to a tenant to create tools"
+            )
+
         new_tool = Tool(
-            name=name, 
-            type=type.value, 
-            content=content,
+            name=tool_data['name'],
+            type=ToolType.OPENAPI.value,
+            origin=tool_data['origin'],
+            path=tool_data['path'],
+            method=tool_data['method'],
+            parameters=tool_data['parameters'],
+            auth_config=tool_data.get('auth_config'),
             is_public=False,
             is_official=False,
-            auth_config=auth_config.model_dump() if auth_config else None,
             tenant_id=user.get('tenant_id')
         )
-        await check_oepnapi_validity(type, name, content)
+
         session.add(new_tool)
         await session.commit()
         return tool_to_dto(new_tool)
@@ -75,15 +85,65 @@ async def create_tool(
             f"Failed to create tool: {str(e)}"
         )
 
+async def create_tools_batch(
+        tools: List[dict],
+        user: dict,
+        session: AsyncSession
+):
+    """
+    Create multiple tools in batch
+    
+    Args:
+        tools: List of API tool configurations
+        user: Current user information
+        session: Database session
+    """
+    try:
+        created_tools = []
+        
+        for tool_data in tools:
+            tool = await create_tool(
+                tool_data=tool_data,
+                user=user,
+                session=session
+            )
+            created_tools.append(tool)
+        
+        return created_tools
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating tools in batch: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to create tools in batch: {str(e)}"
+        )
+
 async def update_tool(
         tool_id: int,
         user: dict,
         session: AsyncSession,
         name: Optional[str] = None,
-        type: Optional[ToolType] = None,
-        content: Optional[str] = None,
+        origin: Optional[str] = None,
+        path: Optional[str] = None,
+        method: Optional[str] = None,
+        parameters: Optional[Dict] = None,
         auth_config: Optional[AuthConfig] = None
 ):
+    """
+    Update an existing tool
+    
+    Args:
+        tool_id: ID of the tool to update
+        user: Current user information
+        session: Database session
+        name: Optional new name for the tool
+        origin: Optional new API origin
+        path: Optional new API path
+        method: Optional new HTTP method
+        parameters: Optional new API parameters
+        auth_config: Optional new authentication configuration
+    """
     try:
         # Verify if the tool belongs to current user
         tool_result = await session.execute(
@@ -102,11 +162,14 @@ async def update_tool(
         values_to_update = {}
         if name is not None:
             values_to_update['name'] = name
-        if type is not None:
-            values_to_update['type'] = type.value
-        if content is not None:
-            await check_oepnapi_validity(type, name, content)
-            values_to_update['content'] = content
+        if origin is not None:
+            values_to_update['origin'] = origin
+        if path is not None:
+            values_to_update['path'] = path
+        if method is not None:
+            values_to_update['method'] = method
+        if parameters is not None:
+            values_to_update['parameters'] = parameters
         if auth_config is not None:
             values_to_update['auth_config'] = auth_config.model_dump()
 
@@ -117,7 +180,7 @@ async def update_tool(
             ).values(**values_to_update).execution_options(synchronize_session="fetch")
             await session.execute(stmt)
             await session.commit()
-        return get_tool(tool_id, user, session)
+        return await get_tool(tool_id, user, session)
     except CustomAgentException:
         raise
     except Exception as e:
@@ -543,4 +606,63 @@ async def get_tools_by_agent(
         raise CustomAgentException(
             ErrorCode.API_CALL_ERROR,
             f"Failed to get tools by agent: {str(e)}"
+        )
+
+def flatten_api_info(api_info: dict) -> list:
+    """
+    Flatten OpenAPI information into a list of API tools
+    """
+    flattened_apis = []
+    origin = api_info.get('origin', '')
+    
+    for endpoint in api_info.get('endpoints', []):
+        api_tool = {
+            'name': endpoint.get('name', ''),
+            'path': endpoint.get('path', ''),
+            'method': endpoint.get('method', ''),
+            'origin': origin,
+            'parameters': {
+                'header': [],
+                'query': [],
+                'path': [],
+                'body': None
+            }
+        }
+        
+        # Process parameters
+        parameters = endpoint.get('parameters', {})
+        for param_type in ['header', 'query', 'path']:
+            for param in parameters.get(param_type, []):
+                param_info = {
+                    'name': param.get('name', ''),
+                    'type': param.get('type', 'string'),
+                }
+                if param.get('required'):
+                    param_info['required'] = True
+                if 'default' in param:
+                    param_info['default'] = param['default']
+                if 'description' in param:
+                    param_info['description'] = param['description']
+                api_tool['parameters'][param_type].append(param_info)
+        
+        # Process body if exists
+        if parameters.get('body'):
+            api_tool['parameters']['body'] = parameters['body']
+        
+        flattened_apis.append(api_tool)
+    
+    return flattened_apis
+
+async def parse_openapi_content(content: str) -> list:
+    """
+    Parse OpenAPI content and return flattened API information
+    """
+    try:
+        api_info = extract_endpoints_info(content)
+        return flatten_api_info(api_info)
+    except Exception as e:
+        logger.error(f"Error parsing OpenAPI content: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to parse OpenAPI content: {str(e)}"
         )

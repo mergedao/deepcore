@@ -71,18 +71,29 @@ class AICreateAgentDTO(BaseModel):
     description: str = Field(..., description="Description of the agent")
 
 
-class ToolCreate(BaseModel):
-    name: str = Field(..., description="Name of the tool")
-    type: ToolType = Field(default=ToolType.OPENAPI, description='Type of the tool')
-    content: str = Field(..., description="Content or configuration details of the tool")
+class APIToolData(BaseModel):
+    """Base model for API tool data"""
+    name: str = Field(..., description="Name of the API tool")
+    origin: str = Field(..., description="API origin")
+    path: str = Field(..., description="API path")
+    method: str = Field(..., description="HTTP method")
+    parameters: Dict = Field(default_factory=dict, description="API parameters including header, query, path, and body")
     auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
+
+
+class ToolCreate(BaseModel):
+    """Request model for creating a single tool"""
+    tool_data: APIToolData = Field(..., description="API tool configuration data")
 
 
 class ToolUpdate(BaseModel):
+    """Request model for updating a tool"""
     name: Optional[str] = Field(None, description="Optional new name for the tool")
-    type: ToolType = Field(default=ToolType.OPENAPI, description='Type of the tool')
-    content: Optional[str] = Field(None, description="Optional new content for the tool")
-    auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
+    origin: Optional[str] = Field(None, description="Optional new API origin")
+    path: Optional[str] = Field(None, description="Optional new API path")
+    method: Optional[str] = Field(None, description="Optional new HTTP method")
+    parameters: Optional[Dict] = Field(None, description="Optional new API parameters")
+    auth_config: Optional[AuthConfig] = Field(None, description="Optional new authentication configuration")
 
 
 class DialogueRequest(BaseModel):
@@ -168,10 +179,14 @@ class ModelUpdate(BaseModel):
 
 
 class ToolModel(BaseModel):
+    """Model for tool data"""
     id: str
     name: str
-    type: ToolType
-    content: str
+    type: ToolType = Field(default=ToolType.OPENAPI)
+    origin: str
+    path: str
+    method: str
+    parameters: Dict
     auth_config: Optional[Dict] = None
     is_public: bool = False
     is_official: bool = False
@@ -189,3 +204,15 @@ class TokenResponse(BaseModel):
     """Response containing new access token"""
     access_token: str
     refresh_token: str
+
+
+class CreateOpenAPIToolRequest(BaseModel):
+    """Request model for creating OpenAPI tools"""
+    name: str = Field(..., description="Base name for the tools")
+    api_list: List[dict] = Field(..., description="List of API endpoint information")
+    auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
+
+
+class CreateToolsBatchRequest(BaseModel):
+    """Request model for creating multiple tools in batch"""
+    tools: List[APIToolData] = Field(..., description="List of API tool configurations")
