@@ -11,8 +11,8 @@ JWT_SECRET = SETTINGS.JWT_SECRET
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_DELTA = timedelta(days=SETTINGS.JWT_EXPIRATION_TIME)
 
-# Access token expires in 1 hour
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+# Access token expires in 4 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = 240
 # Refresh token expires in 7 days
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 

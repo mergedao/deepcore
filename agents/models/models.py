@@ -99,9 +99,8 @@ class User(Base):
         return {
             'id': self.id,
             'username': self.username,
-            'email': self.email,
-            'create_time': self.create_time.isoformat() if self.create_time else None,
-            'update_time': self.update_time.isoformat() if self.update_time else None
+            'wallet_address': self.wallet_address,
+            'email': self.email
         }
 
 

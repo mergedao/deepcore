@@ -11,7 +11,10 @@ from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import User
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, \
     WalletLoginRequest, WalletLoginResponse, TokenResponse
-from agents.utils.jwt_utils import generate_token, generate_token_pair, verify_refresh_token, generate_access_token
+from agents.utils.jwt_utils import (
+    generate_token, generate_token_pair, verify_refresh_token, generate_access_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
+)
 from agents.utils.web3_utils import generate_nonce, get_message_to_sign, verify_signature
 from agents.common.redis_utils import redis_utils
 
@@ -62,7 +65,9 @@ async def login(request: LoginRequest, session: AsyncSession) -> LoginResponse:
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
-            "user": user.to_dict()
+            "user": user.to_dict(),
+            "access_token_expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # convert to seconds
+            "refresh_token_expires_in": REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # convert to seconds
         }
     except CustomAgentException:
         raise
@@ -221,7 +226,9 @@ async def wallet_login(request: WalletLoginRequest, session: AsyncSession) -> Wa
             "access_token": access_token,
             "refresh_token": refresh_token,
             "user": user.to_dict(),
-            "is_new_user": is_new_user
+            "is_new_user": is_new_user,
+            "access_token_expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # convert to seconds
+            "refresh_token_expires_in": REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60  # convert to seconds
         }
 
     except Exception as e:
@@ -291,5 +298,8 @@ async def refresh_token(refresh_token: str, session: AsyncSession) -> TokenRespo
     
     return {
         "access_token": access_token,
-        "refresh_token": new_refresh_token
+        "refresh_token": new_refresh_token,
+        "access_token_expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # convert to seconds
+        "refresh_token_expires_in": REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # convert to seconds
+        "user": user.to_dict()
     }

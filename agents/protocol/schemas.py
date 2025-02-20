@@ -122,6 +122,8 @@ class LoginResponse(BaseModel):
     access_token: str
     refresh_token: str
     user: dict
+    access_token_expires_in: int  # in seconds
+    refresh_token_expires_in: int  # in seconds
 
 
 class RegisterRequest(BaseModel):
@@ -153,6 +155,8 @@ class WalletLoginResponse(BaseModel):
     refresh_token: str
     user: dict
     is_new_user: bool
+    access_token_expires_in: int  # in seconds
+    refresh_token_expires_in: int  # in seconds
 
 
 class AgentToolsRequest(BaseModel):
@@ -207,6 +211,9 @@ class TokenResponse(BaseModel):
     """Response containing new access token"""
     access_token: str
     refresh_token: str
+    access_token_expires_in: int  # in seconds
+    refresh_token_expires_in: int  # in seconds
+    user: dict
 
 
 class CreateOpenAPIToolRequest(BaseModel):
