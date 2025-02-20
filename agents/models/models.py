@@ -42,6 +42,7 @@ class Tool(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), comment="UUID")
     name = Column(String(255), nullable=False)
+    description = Column(String(255), nullable=True, comment="Description of the tool")
     type = Column(String(50), nullable=False)
     # OpenAPI specific fields
     origin = Column(String(255), comment="API origin")

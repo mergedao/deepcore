@@ -62,6 +62,7 @@ async def create_tool(
 
         new_tool = Tool(
             name=tool_data['name'],
+            description=tool_data.get('description'),
             type=ToolType.OPENAPI.value,
             origin=tool_data['origin'],
             path=tool_data['path'],
@@ -618,6 +619,7 @@ def flatten_api_info(api_info: dict) -> list:
     for endpoint in api_info.get('endpoints', []):
         api_tool = {
             'name': endpoint.get('name', ''),
+            'description': endpoint.get('description'),
             'path': endpoint.get('path', ''),
             'method': endpoint.get('method', ''),
             'origin': origin,

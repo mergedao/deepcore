@@ -11,13 +11,16 @@ from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.short_memory import ShortMemory
-from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT
+from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
 from agents.agent.tools import BaseTool
 from agents.agent.tools.tool_executor import async_execute
+from agents.models.entity import ToolInfo
+from agents.utils import tools_parser
 from agents.utils.common import dict_to_csv, exists, concat_strings
-from agents.utils.parser import parse_and_execute_json
+from agents.utils.http_client import async_client
+from agents.utils.parser import parse_and_execute_json, extract_md_code
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,7 @@ class DeepAgentExecutor(object):
             llm: Optional[Any] = None,
             system_prompt: Optional[str] = "You are a helpful assistant.",
             tool_system_prompt: str = tool_prompt(),
+            api_tool: Optional[List[ToolInfo]] = None,
             tools: Optional[List[Callable]] = None,
             async_tools: Optional[List[Callable]] = None,
             node_massage_enabled: Optional[bool] = False,
@@ -58,6 +62,7 @@ class DeepAgentExecutor(object):
         self.retry_attempts = retry
         self.stop_func = stop_func
         self.tools = tools or []
+        self.api_tool = api_tool or []
         self.async_tools = async_tools or []
         self.should_send_node = node_massage_enabled
         self.tokenizer = tokenizer
@@ -90,28 +95,34 @@ class DeepAgentExecutor(object):
 
 
     def _initialize_tools(self) -> None:
-        all_tools = self.tools + self.async_tools
+        function_tools = self.tools + self.async_tools
 
-        if not exists(all_tools):
+        if not exists(function_tools):
             return
 
         self.tool_struct = BaseTool(
-            tools=all_tools,
+            tools=function_tools,
             tool_system_prompt=self.tool_system_prompt,
         )
 
-        if all_tools:
+        self.short_memory.add(role="system", content=self.tool_system_prompt)
+
+        if function_tools or self.api_tool:
             logger.info(
-                "Tools provided: Accessing %d tools. Ensure functions have documentation and type hints.",
-                len(all_tools)
+                "Tools provided: Accessing fucntion: %d api: %d tools. Ensure functions have documentation and type hints.",
+                len(function_tools), len(self.api_tool),
             )
 
-            self.short_memory.add(role="system", content=self.tool_system_prompt)
+            self.short_memory.add(role="system", content=TOOLS_PROMPT)
 
-            tool_dict = self.tool_struct.convert_tool_into_openai_schema()
-            self.short_memory.add(role="system", content=tool_dict)
+            if self.api_tool:
+                tool_dict = tools_parser.convert_tool_into_openai_schema(self.api_tool)
+                self.short_memory.add(role="api tool", content=tool_dict)
 
-            self.function_map = {tool.__name__: tool for tool in all_tools}
+            if function_tools:
+                tool_dict = self.tool_struct.convert_tool_into_openai_schema()
+                self.short_memory.add(role="function tool", content=tool_dict)
+                self.function_map = {tool.__name__: tool for tool in function_tools}
 
     def _initialize_answer(self):
         self.short_memory.add(role="system", content=ANSWER_PROMPT)
@@ -223,29 +234,32 @@ class DeepAgentExecutor(object):
                                 f"Unexpected response format: {type(response)}"
                             )
 
-                        # Check and execute tools
-                        if not should_stop:
-                            is_finished = False
-                            if self.async_tools is not None:
-                                async for resp in self.execute_tools_astream(response, direct_output=True):
-                                    yield ToolOutput(resp)
-                                    is_finished = True
-                                if is_finished:
-                                    should_stop = True
-                                    success = True
-                                    break
-                            try:
-                                if self.tools is not None:
-                                    self.parse_and_execute_tools(response)
-                            except Exception as e:
-                                logger.error(
-                                    f"Error executing tools: {e}"
-                                )
-
                         # Add the response to the memory
                         self.short_memory.add(
                             role=self.agent_name, content=response
                         )
+
+                        # Check and execute tools
+                        if not should_stop:
+                            await self.parse_and_execute_api_tools(response)
+
+
+                            # is_finished = False
+                            # if self.async_tools is not None:
+                            #     async for resp in self.execute_tools_astream(response, direct_output=True):
+                            #         yield ToolOutput(resp)
+                            #         is_finished = True
+                            #     if is_finished:
+                            #         should_stop = True
+                            #         success = True
+                            #         break
+                            # try:
+                            #     if self.tools is not None:
+                            #         self.parse_and_execute_tools(response)
+                            # except Exception as e:
+                            #     logger.error(
+                            #         f"Error executing tools: {e}"
+                            #     )
 
                         # Add to all responses
                         all_responses.append(response)
@@ -489,3 +503,119 @@ class DeepAgentExecutor(object):
         except Exception as error:
             logger.error(f"Error executing tool: {error}")
             raise error
+
+    async def parse_and_execute_api_tools(self, json_string):
+        try:
+            json_string = extract_md_code(json_string)
+            tool_data = json.loads(json_string)
+            result = self.dict_to_tool(tool_data)
+
+            if result is None:
+                return False
+
+            tool_info, parameters = result
+
+            response = await async_client.request(
+                method=tool_info.method,
+                base_url=tool_info.origin,
+                path=tool_info.path,
+                params=parameters["query"],
+                headers=parameters["header"],
+                json_data=parameters["body"],
+                auth_config=tool_info.auth_config
+            )
+
+            self.short_memory.add(
+                role="Tool Executor",
+                content=response if isinstance(response, str) else json.dumps(response, ensure_ascii=False)
+            )
+            return True
+        except Exception as error:
+            logger.error(f"Error executing tool: {error}", exc_info=True)
+
+        return False
+
+    def dict_to_tool(self, input_dict: dict) -> Optional[tuple[ToolInfo, dict]]:
+        """
+        Convert input dictionary to tool information and parameters
+        
+        Args:
+            input_dict: Dictionary containing tool call information
+            
+        Returns:
+            Tuple of (ToolInfo, parameters) if successful, None if no matching tool found
+            
+        Example input:
+        {
+            "type": "api",
+            "function": {
+                "name": "example_tool",
+                "parameters": {
+                    "header": {},
+                    "query": {},
+                    "path": {},
+                    "body": {}
+                }
+            }
+        }
+        """
+        try:
+            if not isinstance(input_dict, dict):
+                logger.error("Input must be a dictionary")
+                return None
+                
+            # Check if it's an API tool call
+            if input_dict.get("type") != "api":
+                logger.error("Only API type tools are supported")
+                return None
+                
+            function_data = input_dict.get("function")
+            if not function_data:
+                logger.error("No function data found")
+                return None
+                
+            tool_name = function_data.get("name")
+            if not tool_name:
+                logger.error("No tool name specified")
+                return None
+                
+            # Find matching tool in self.api_tool
+            matching_tool = None
+            for tool in self.api_tool:
+                if tool.name == tool_name:
+                    matching_tool = tool
+                    break
+                    
+            if not matching_tool:
+                logger.error(f"No matching tool found for name: {tool_name}")
+                return None
+                
+            # Extract parameters
+            parameters = function_data.get("parameters", {})
+            extracted_params = {
+                "header": parameters.get("header", {}),
+                "query": parameters.get("query", {}),
+                "path": parameters.get("path", {}),
+                "body": parameters.get("body", {})
+            }
+            
+            # Validate required parameters based on tool definition
+            tool_params = matching_tool.parameters
+            for param_type in ["header", "query", "path"]:
+                required_params = [
+                    p["name"] for p in tool_params.get(param_type, [])
+                    if p.get("required", False)
+                ]
+                provided_params = extracted_params[param_type].keys()
+                missing_params = set(required_params) - set(provided_params)
+                
+                if missing_params:
+                    logger.error(f"Missing required {param_type} parameters: {missing_params}")
+                    return None
+            
+            # Return the matched tool and extracted parameters
+            return matching_tool, extracted_params
+            
+        except Exception as e:
+            logger.error(f"Error parsing tool data: {str(e)}")
+            return None

@@ -37,6 +37,7 @@ class ChatAgent(AbstractAgent):
         self.agent_executor = DeepAgentExecutor(
             name=app.name,
             llm=openai.get_model(),
+            api_tool=app.tools,
             tool_system_prompt=app.tool_prompt if app.tool_prompt else tool_prompt(),
             max_loops=app.max_loops if app.max_loops else 5,
             output_type="list",

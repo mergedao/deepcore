@@ -14,6 +14,7 @@ class ToolModel(BaseModel):
     path: str
     method: str
     parameters: Dict
+    description: Optional[str] = None
     auth_config: Optional[Dict] = None
     is_public: bool = False
     is_official: bool = False
