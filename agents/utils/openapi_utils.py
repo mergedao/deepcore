@@ -323,6 +323,7 @@ def extract_endpoints_info(spec_json: str) -> Dict[str, Any]:
                 continue
             endpoint_info = {
                 "path": path,
+                "description": operation.get("description") or operation.get("summary") or "",
                 "method": method.upper(),
                 "name": operation.get("operationId") or operation.get("summary") or ""
             }

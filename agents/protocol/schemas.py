@@ -40,7 +40,9 @@ class ToolInfo(BaseModel):
     origin: str = Field(..., description="API origin")
     path: str = Field(..., description="API path")
     method: str = Field(..., description="HTTP method")
+    auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
     parameters: Dict = Field(default_factory=dict, description="API parameters including header, query, path, and body")
+    description: Optional[str] = Field(None, description="Description of the tool")
     is_public: Optional[bool] = Field(False, description="Whether the tool is public")
     tenant_id: Optional[str] = Field(None, description="Tenant ID that owns this tool")
 
@@ -58,9 +60,9 @@ class AgentDTO(BaseModel):
                                           description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: Optional[int] = Field(default=None, description="Maximum number of loops the agent can perform")
-    tools: Optional[List[str]] = Field(
+    tools: Optional[List[Union[str, ToolInfo]]] = Field(
         default=None, 
-        description="List of tool UUIDs to associate with the agent"
+        description="List of tool UUIDs to associate with the agent when creating/updating, or list of ToolInfo when getting agent details"
     )
     id: Optional[str] = Field(default=None, description="Optional ID of the tool, used for identifying existing tools")
     suggested_questions: Optional[List[str]] = Field(

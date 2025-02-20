@@ -1,5 +1,6 @@
 import logging
 from typing import Optional, AsyncIterator, List
+import json
 
 from fastapi import Depends
 from sqlalchemy import update, delete, or_, and_
@@ -10,9 +11,10 @@ from sqlalchemy import func
 from agents.agent.chat_agent import ChatAgent
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
-from agents.models.entity import AgentInfo
+from agents.models.entity import AgentInfo, ModelInfo
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo
+from agents.services.model_service import get_model_with_key
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,10 @@ async def dialogue(
     # Add tenant filter
     agent = await get_agent(agent_id, user, session)
     agent_info = AgentInfo.from_dto(agent)
+    if agent.model_id:
+        model_dto, api_key = await get_model_with_key(agent.model_id, user, session)
+        model_info = ModelInfo(**model_dto.model_dump(), **api_key)
+        agent_info.set_model(model_info)
     if not agent:
         raise CustomAgentException(
             ErrorCode.RESOURCE_NOT_FOUND,
@@ -71,18 +77,51 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
 
     # Convert to DTO
     try:
-        model = AgentDTO.model_validate_json(agent.model_json)
-        model.tools = [ToolInfo(
+        # Convert App model to AgentDTO
+        agent_dto = AgentDTO(
+            id=agent.id,
+            name=agent.name,
+            description=agent.description,
+            mode=agent.mode,
+            icon=agent.icon,
+            status=agent.status,
+            role_settings=agent.role_settings,
+            welcome_message=agent.welcome_message,
+            twitter_link=agent.twitter_link,
+            telegram_bot_id=agent.telegram_bot_id,
+            tool_prompt=agent.tool_prompt,
+            max_loops=agent.max_loops,
+            suggested_questions=agent.suggested_questions,
+            model_id=agent.model_id,
+            is_public=agent.is_public,
+            is_official=agent.is_official
+        )
+
+        # Add tools to the DTO
+        agent_dto.tools = [ToolInfo(
             id=tool.id,
             name=tool.name,
+            description=tool.description,
             type=tool.type,
             origin=tool.origin,
             path=tool.path,
             method=tool.method,
-            parameters=tool.parameters
+            parameters=tool.parameters,
+            auth_config=tool.auth_config,
+            is_public=tool.is_public,
+            is_official=tool.is_official,
+            tenant_id=tool.tenant_id
         ) for tool in tools]
 
-        return model
+        # # Load additional configurations from model_json if exists
+        # if agent.model_json:
+        #     extra_config = json.loads(agent.model_json)
+        #     # Update DTO with any additional configurations
+        #     for key, value in extra_config.items():
+        #         if hasattr(agent_dto, key):
+        #             setattr(agent_dto, key, value)
+
+        return agent_dto
     except Exception as e:
         logger.error(f"Error converting agent to DTO: {e}", exc_info=True)
         raise CustomAgentException(
@@ -147,6 +186,19 @@ async def create_agent(
                 tool_ids = agent.tools
                 await verify_tool_permissions(tool_ids, user, session)
 
+            # Extract extra configurations for model_json
+            extra_config = {}
+            agent_dict = agent.model_dump()
+            base_fields = {
+                'id', 'name', 'description', 'mode', 'icon', 'status',
+                'role_settings', 'welcome_message', 'twitter_link',
+                'telegram_bot_id', 'tool_prompt', 'max_loops',
+                'suggested_questions', 'model_id', 'tools'
+            }
+            for key, value in agent_dict.items():
+                if key not in base_fields:
+                    extra_config[key] = value
+
             new_agent = App(
                 id=agent.id,
                 name=agent.name,
@@ -161,7 +213,8 @@ async def create_agent(
                 tool_prompt=agent.tool_prompt,
                 max_loops=agent.max_loops,
                 suggested_questions=agent.suggested_questions,
-                model_json=agent.model_dump_json(),
+                model_id=agent.model_id,
+                model_json=json.dumps(extra_config) if extra_config else None,
                 tenant_id=user.get('tenant_id')
             )
             session.add(new_agent)
@@ -367,6 +420,19 @@ async def update_agent(
                     )
                     session.add(agent_tool)
 
+            # Extract extra configurations for model_json
+            extra_config = {}
+            agent_dict = agent.model_dump()
+            base_fields = {
+                'id', 'name', 'description', 'mode', 'icon', 'status',
+                'role_settings', 'welcome_message', 'twitter_link',
+                'telegram_bot_id', 'tool_prompt', 'max_loops',
+                'suggested_questions', 'model_id', 'tools'
+            }
+            for key, value in agent_dict.items():
+                if key not in base_fields and value is not None:
+                    extra_config[key] = value
+
             # Update agent fields
             update_values = {
                 'name': agent.name,
@@ -381,7 +447,8 @@ async def update_agent(
                 'tool_prompt': agent.tool_prompt,
                 'max_loops': agent.max_loops,
                 'suggested_questions': agent.suggested_questions,
-                'model_json': agent.model_dump_json()
+                'model_id': agent.model_id,
+                'model_json': json.dumps(extra_config) if extra_config else None
             }
 
             # Filter out None values
@@ -396,6 +463,7 @@ async def update_agent(
 
         return existing_agent
     except CustomAgentException:
+        logger.error(f"Error updating agent: ", exc_info=True)
         raise
     except Exception as e:
         logger.error(f"Error updating agent: {e}", exc_info=True)
