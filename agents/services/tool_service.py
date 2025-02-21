@@ -271,7 +271,8 @@ async def get_tools(
         page: int = 1,
         page_size: int = 10,
         include_public: bool = True,
-        only_official: bool = False
+        only_official: bool = False,
+        category_id: Optional[int] = None
 ):
     """
     List tools with filters for public and official tools
@@ -292,6 +293,9 @@ async def get_tools(
             else:
                 conditions.append(Tool.is_public == True)
                 
+        if category_id:
+            conditions.append(Tool.category_id == category_id)
+                
         # Calculate total count for pagination info
         count_query = select(func.count()).select_from(Tool).where(and_(*conditions))
         total_count = await session.execute(count_query)
@@ -300,14 +304,37 @@ async def get_tools(
         # Calculate offset from page number
         offset = (page - 1) * page_size
         
-        # Get paginated results
+        # Get paginated results with category join
+        query = (
+            select(Tool)
+            .outerjoin(Tool.category)  # 添加category关联
+            .where(and_(*conditions))
+            .order_by(Tool.create_time.desc())
+        )
+        
         result = await session.execute(
-            select(Tool).where(and_(*conditions)).offset(offset).limit(page_size)
+            query.offset(offset).limit(page_size)
         )
         tools = result.scalars().all()
         
+        tool_dtos = []
+        for tool in tools:
+            tool_dto = ToolModel.model_validate(tool)
+            if tool.category:
+                tool_dto.category = CategoryDTO(
+                    id=tool.category.id,
+                    name=tool.category.name,
+                    type=tool.category.type,
+                    description=tool.category.description,
+                    tenant_id=tool.category.tenant_id,
+                    sort_order=tool.category.sort_order,
+                    create_time=tool.category.create_time,
+                    update_time=tool.category.update_time
+                )
+            tool_dtos.append(tool_dto)
+        
         return {
-            "items": [ToolModel.model_validate(tool) for tool in tools],
+            "items": tool_dtos,
             "total": total_count,
             "page": page,
             "page_size": page_size,

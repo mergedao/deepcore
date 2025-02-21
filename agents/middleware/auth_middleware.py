@@ -92,9 +92,9 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
 
 # FastAPI dependency for getting current user in routes
-async def get_current_user(request: Request, required: bool = True):
+async def get_current_user(request: Request):
     user = getattr(request.state, "user", None)
-    if required and user is None:
+    if user is None:
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail=get_error_message(ErrorCode.UNAUTHORIZED)
@@ -103,7 +103,5 @@ async def get_current_user(request: Request, required: bool = True):
 
 async def get_optional_current_user(request: Request) -> Optional[dict]:
     """Dependency for optional user authentication"""
-    try:
-        return await get_current_user(request, required=False)
-    except:
-        return None
+    user = getattr(request.state, "user", None)
+    return user

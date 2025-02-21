@@ -8,6 +8,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 Base = declarative_base()
 
 
+class Category(Base):
+    __tablename__ = 'categories'
+    
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False, comment="Name of the category")
+    type = Column(String(50), nullable=False, comment="Type of the category: agent or tool")
+    description = Column(Text, comment="Description of the category")
+    tenant_id = Column(String(255), comment="Tenant ID")
+    sort_order = Column(Integer, default=0, comment="Sort order for display")
+    create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
+    update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")
+
+
 class App(Base):
     __tablename__ = 'app'
 
@@ -34,7 +47,9 @@ class App(Base):
     tools = relationship('Tool', secondary='agent_tools', backref='agents')
     suggested_questions = Column(JSON, comment="List of suggested questions for the agent")
     model_id = Column(BigInteger, ForeignKey('models.id'), comment="ID of the associated model")
+    category_id = Column(BigInteger, ForeignKey('categories.id'), comment="ID of the category")
     model = relationship('Model')
+    category = relationship('Category')
 
 
 class Tool(Base):
@@ -59,6 +74,8 @@ class Tool(Base):
     output_format = Column(JSON, comment="JSON configuration for formatting API output")
     create_time = Column(DateTime, default=datetime.utcnow)
     update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    category_id = Column(BigInteger, ForeignKey('categories.id'), comment="ID of the category")
+    category = relationship('Category')
 
 
 class FileStorage(Base):

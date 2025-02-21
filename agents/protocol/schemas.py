@@ -49,29 +49,62 @@ class ToolInfo(BaseModel):
     output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
 
 
+class CategoryType(str, Enum):
+    AGENT = "agent"
+    TOOL = "tool"
+
+
+class CategoryCreate(BaseModel):
+    name: str = Field(..., description="Name of the category")
+    type: CategoryType = Field(..., description="Type of the category")
+    description: Optional[str] = Field(None, description="Description of the category")
+    sort_order: Optional[int] = Field(0, description="Sort order for display")
+
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="Name of the category")
+    description: Optional[str] = Field(None, description="Description of the category")
+    sort_order: Optional[int] = Field(None, description="Sort order for display")
+
+
+class CategoryDTO(BaseModel):
+    id: int = Field(..., description="ID of the category")
+    name: str = Field(..., description="Name of the category")
+    type: CategoryType = Field(..., description="Type of the category")
+    description: Optional[str] = Field(None, description="Description of the category")
+    tenant_id: Optional[str] = Field(None, description="Tenant ID")
+    sort_order: int = Field(0, description="Sort order for display")
+    create_time: Optional[str] = Field(None, description="Creation time")
+    update_time: Optional[str] = Field(None, description="Last update time")
+
+
 class AgentDTO(BaseModel):
-    name: Optional[str] = Field(None, description="Name of the agent")
-    description: Optional[str] = Field(None, description="Description of the agent")
-    mode: Optional[AgentMode] = Field(None, description='Mode of the agent')
+    id: Optional[str] = Field(default=None, description="ID of the agent")
+    name: str = Field(..., description="Name of the agent")
+    description: str = Field(..., description="Description of the agent")
+    mode: AgentMode = Field(default=AgentMode.REACT, description='Mode of the agent')
     icon: Optional[str] = Field(None, description="Optional icon for the agent")
     role_settings: Optional[str] = Field(None, description="Optional roles for the agent")
     welcome_message: Optional[str] = Field(None, description="Optional welcome message for the agent")
     twitter_link: Optional[str] = Field(None, description="Optional twitter link for the agent")
     telegram_bot_id: Optional[str] = Field(None, description="Optional telegram bot id for the agent")
-    status: Optional[AgentStatus] = Field(default=None,
-                                          description="Status can be active, inactive, or draft")
+    status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
-    max_loops: Optional[int] = Field(default=None, description="Maximum number of loops the agent can perform")
+    max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
     tools: Optional[List[Union[str, ToolInfo]]] = Field(
-        default=None, 
+        default_factory=list, 
         description="List of tool UUIDs to associate with the agent when creating/updating, or list of ToolInfo when getting agent details"
     )
-    id: Optional[str] = Field(default=None, description="Optional ID of the tool, used for identifying existing tools")
     suggested_questions: Optional[List[str]] = Field(
-        default=None, 
+        default_factory=list, 
         description="List of suggested questions for users to ask"
     )
     model_id: Optional[int] = Field(None, description="ID of the associated model")
+    category_id: Optional[int] = Field(None, description="ID of the category")
+    category: Optional[CategoryDTO] = Field(None, description="Category information")
+
+    class Config:
+        from_attributes = True
 
 
 class AICreateAgentDTO(BaseModel):
@@ -210,6 +243,8 @@ class ToolModel(BaseModel):
     tenant_id: Optional[str] = None
     create_time: Optional[datetime] = None
     update_time: Optional[datetime] = None
+    category_id: Optional[int] = Field(None, description="ID of the category")
+    category: Optional[CategoryDTO] = Field(None, description="Category information")
 
 
 class RefreshTokenRequest(BaseModel):

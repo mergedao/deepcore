@@ -7,13 +7,14 @@ from sqlalchemy import update, delete, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
+from sqlalchemy.orm import selectinload
 
 from agents.agent.chat_agent import ChatAgent
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo
 from agents.models.models import App, Tool, AgentTool
-from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo
+from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO
 from agents.services.model_service import get_model_with_key
 
 logger = logging.getLogger(__name__)
@@ -199,7 +200,7 @@ async def create_agent(
                 'id', 'name', 'description', 'mode', 'icon', 'status',
                 'role_settings', 'welcome_message', 'twitter_link',
                 'telegram_bot_id', 'tool_prompt', 'max_loops',
-                'suggested_questions', 'model_id', 'tools'
+                'suggested_questions', 'model_id', 'tools', 'category_id'
             }
             for key, value in agent_dict.items():
                 if key not in base_fields:
@@ -220,6 +221,7 @@ async def create_agent(
                 max_loops=agent.max_loops,
                 suggested_questions=agent.suggested_questions,
                 model_id=agent.model_id,
+                category_id=agent.category_id,
                 model_json=json.dumps(extra_config) if extra_config else None,
                 tenant_id=user.get('tenant_id')
             )
@@ -250,7 +252,8 @@ async def list_personal_agents(
         limit: int,
         session: AsyncSession,
         user: dict,
-        include_public: bool = False
+        include_public: bool = False,
+        category_id: Optional[int] = None
 ):
     """
     List user's personal agents
@@ -262,6 +265,7 @@ async def list_personal_agents(
         session: Database session
         user: Current user info
         include_public: Whether to include public agents along with personal agents
+        category_id: Optional filter for category ID
 
     Returns:
         dict: {
@@ -288,6 +292,9 @@ async def list_personal_agents(
 
     if status:
         conditions.append(App.status == status)
+        
+    if category_id:
+        conditions.append(App.category_id == category_id)
 
     return await _get_paginated_agents(conditions, skip, limit, user, session)
 
@@ -297,7 +304,8 @@ async def list_public_agents(
         skip: int,
         limit: int,
         session: AsyncSession,
-        only_official: bool = False
+        only_official: bool = False,
+        category_id: Optional[int] = None
 ):
     """
     List public or official agents
@@ -308,6 +316,7 @@ async def list_public_agents(
         limit: Number of records per page (page_size)
         session: Database session
         only_official: Whether to only show official agents
+        category_id: Optional filter for category ID
 
     Returns:
         dict: {
@@ -327,6 +336,9 @@ async def list_public_agents(
 
     if status:
         conditions.append(App.status == status)
+        
+    if category_id:
+        conditions.append(App.category_id == category_id)
 
     return await _get_paginated_agents(conditions, skip, limit, None, session)
 
@@ -341,7 +353,12 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
     total_count = total_count.scalar()
 
     # Get paginated results with ordering
-    query = select(App).where(and_(*conditions)).order_by(App.create_time.desc())
+    query = (
+        select(App)
+        .options(selectinload(App.category))  # 预加载 category 数据
+        .where(and_(*conditions))
+        .order_by(App.create_time.desc())
+    )
 
     result = await session.execute(
         query.offset(skip).limit(limit)
@@ -361,18 +378,46 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
         tools = tools_result.scalars().all()
 
         # Convert to DTO
-        model = AgentDTO.model_validate_json(agent.model_json)
-        model.tools = [ToolInfo(
-            id=tool.id,
-            name=tool.name,
-            type=tool.type,
-            origin=tool.origin,
-            path=tool.path,
-            method=tool.method,
-            parameters=tool.parameters
-        ) for tool in tools]
+        agent_dto = AgentDTO(
+            id=agent.id,
+            name=agent.name,
+            description=agent.description,
+            mode=agent.mode,
+            icon=agent.icon,
+            status=agent.status,
+            role_settings=agent.role_settings,
+            welcome_message=agent.welcome_message,
+            twitter_link=agent.twitter_link,
+            telegram_bot_id=agent.telegram_bot_id,
+            tool_prompt=agent.tool_prompt,
+            max_loops=agent.max_loops,
+            suggested_questions=agent.suggested_questions,
+            model_id=agent.model_id,
+            category_id=agent.category_id,
+            tools=[ToolInfo(
+                id=tool.id,
+                name=tool.name,
+                type=tool.type,
+                origin=tool.origin,
+                path=tool.path,
+                method=tool.method,
+                parameters=tool.parameters
+            ) for tool in tools]
+        )
 
-        results.append(model)
+        if agent.category:
+            agent_dto.category = CategoryDTO(
+                id=agent.category.id,
+                name=agent.category.name,
+                type=agent.category.type,
+                description=agent.category.description,
+                tenant_id=agent.category.tenant_id,
+                sort_order=agent.category.sort_order,
+                create_time=agent.category.create_time.isoformat() if agent.category.create_time else None,
+                update_time=agent.category.update_time.isoformat() if agent.category.update_time else None
+            )
+
+        results.append(agent_dto)
 
     # Calculate current page from skip and limit
     current_page = (skip // limit) + 1
