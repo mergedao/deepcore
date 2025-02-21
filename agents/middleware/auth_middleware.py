@@ -6,6 +6,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.status import HTTP_401_UNAUTHORIZED
 
+from agents.common.http_utils import add_cors_headers
 from agents.utils.jwt_utils import verify_token
 from agents.exceptions import ErrorCode
 from agents.common.response import RestResponse
@@ -53,38 +54,38 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         try:
             auth_header = request.headers.get("Authorization")
             if not auth_header:
-                return JSONResponse(
+                return add_cors_headers(JSONResponse(
                     status_code=200,
                     content=RestResponse(
                         code=ErrorCode.TOKEN_MISSING,
                         msg=get_error_message(ErrorCode.TOKEN_MISSING)
                     ).model_dump(exclude_none=True)
-                )
+                ))
 
             token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
 
             payload = verify_token(token)
             if not payload:
-                return JSONResponse(
+                return add_cors_headers(JSONResponse(
                     status_code=200,
                     content=RestResponse(
                         code=ErrorCode.TOKEN_EXPIRED,
                         msg=get_error_message(ErrorCode.TOKEN_EXPIRED)
                     ).model_dump(exclude_none=True)
-                )
+                ))
 
             # Add user information to request state
             request.state.user = payload
 
         except Exception as e:
             logger.error("Error verifying token", e, exc_info=True)
-            return JSONResponse(
+            return add_cors_headers(JSONResponse(
                 status_code=200,
                 content=RestResponse(
                     code=ErrorCode.TOKEN_INVALID,
                     msg=get_error_message(ErrorCode.TOKEN_INVALID)
                 ).model_dump(exclude_none=True)
-            )
+            ))
 
         return await call_next(request)
 
