@@ -20,12 +20,15 @@ CREATE TABLE `app` (
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is official preset',
   `suggested_questions` JSON COMMENT 'List of suggested questions for the agent',
   `model_id` bigint DEFAULT NULL COMMENT 'ID of the associated model',
+  `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
   `create_fee` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for creating the agent (tips for creator)',
   `price` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for using the agent',
   PRIMARY KEY (`id`),
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_model` (`model_id`),
-  KEY `idx_public_official` (`is_public`, `is_official`)
+  KEY `idx_category` (`category_id`),
+  KEY `idx_public_official` (`is_public`, `is_official`),
+  CONSTRAINT `fk_app_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -58,10 +61,13 @@ CREATE TABLE `tools` (
   `auth_config` JSON COMMENT 'Authentication configuration in JSON format',
   `is_stream` BOOLEAN DEFAULT FALSE COMMENT 'Whether the API returns a stream response',
   `output_format` JSON COMMENT 'JSON configuration for formatting API output',
+  `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
   PRIMARY KEY (`id`),
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
-  KEY `idx_type` (`type`)
+  KEY `idx_type` (`type`),
+  KEY `idx_category` (`category_id`),
+  CONSTRAINT `fk_tool_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `users` (
@@ -106,6 +112,23 @@ CREATE TABLE `models` (
   KEY `idx_public_official` (`is_public`, `is_official`),
   KEY `idx_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+CREATE TABLE `categories` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the category',
+  `type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of the category: agent or tool',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Description of the category',
+  `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
+  `sort_order` int DEFAULT 0 COMMENT 'Sort order for display',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
+  `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  PRIMARY KEY (`id`),
+  KEY `idx_tenant` (`tenant_id`),
+  KEY `idx_type` (`type`),
+  KEY `idx_sort` (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 
 INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
@@ -175,5 +198,37 @@ VALUES (16, 'grok-2-latest', 'https://api.x.ai/v1', 'gAAAAABnuDiedFNNh5n0LYIILo4
 -- ADD COLUMN `is_stream` BOOLEAN DEFAULT FALSE COMMENT 'Whether the API returns a stream response',
 -- ADD COLUMN `output_format` JSON COMMENT 'JSON configuration for formatting API output';
 
+
+ALTER TABLE `app`
+ADD COLUMN `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
+ADD KEY `idx_category` (`category_id`),
+ADD CONSTRAINT `fk_app_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
+
+ALTER TABLE `tools`
+ADD COLUMN `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
+ADD KEY `idx_category` (`category_id`),
+ADD CONSTRAINT `fk_tool_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
+
+-- Insert default agent categories
+INSERT INTO `categories` (`name`, `type`, `description`, `tenant_id`, `sort_order`, `create_time`, `update_time`) VALUES
+('Programmer', 'agent', 'Programming assistant for code writing, review, and debugging', NULL, 10, NOW(), NOW()),
+('Researcher', 'agent', 'Research assistant for conducting in-depth research and literature reviews', NULL, 20, NOW(), NOW()),
+('Analyst', 'agent', 'Data analyst for analyzing data and generating reports', NULL, 30, NOW(), NOW()),
+('Twitter', 'agent', 'Twitter assistant for social media management and content creation', NULL, 40, NOW(), NOW()),
+('Network', 'agent', 'Network engineer for network configuration and troubleshooting', NULL, 50, NOW(), NOW()),
+('Crypto News', 'agent', 'Cryptocurrency news assistant for latest market updates', NULL, 60, NOW(), NOW()),
+('Graphics', 'agent', 'Graphics design assistant for image creation and editing', NULL, 70, NOW(), NOW()),
+('Video', 'agent', 'Video production assistant for video editing and post-processing', NULL, 80, NOW(), NOW());
+
+-- Insert default tool categories
+INSERT INTO `categories` (`name`, `type`, `description`, `tenant_id`, `sort_order`, `create_time`, `update_time`) VALUES
+('API Tools', 'tool', 'Tools for interacting with external services via APIs', NULL, 110, NOW(), NOW()),
+('Data Processing', 'tool', 'Tools for data transformation and analysis', NULL, 120, NOW(), NOW()),
+('File Operations', 'tool', 'Tools for file management and processing', NULL, 130, NOW(), NOW()),
+('Image Processing', 'tool', 'Tools for image editing and generation', NULL, 140, NOW(), NOW()),
+('Text Processing', 'tool', 'Tools for text analysis and transformation', NULL, 150, NOW(), NOW()),
+('Code Generation', 'tool', 'Tools for automatic code generation', NULL, 160, NOW(), NOW()),
+('Network Tools', 'tool', 'Tools for network diagnostics and management', NULL, 170, NOW(), NOW()),
+('Security Tools', 'tool', 'Tools for security detection and protection', NULL, 180, NOW(), NOW());
 
 

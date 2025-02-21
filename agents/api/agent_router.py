@@ -2,7 +2,7 @@ import uuid
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
@@ -39,7 +39,7 @@ defaults = {
 
 @router.post("/agents/create", summary="Create Agent", response_model=RestResponse[AgentDTO])
 async def create_agent(
-        agent: AgentDTO,
+        agent: AgentDTO = Body(..., description="Agent configuration data"),
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
@@ -55,13 +55,20 @@ async def create_agent(
     - **suggested_questions**: Optional list of suggested questions
     """
     try:
+        logger.info(f"Creating agent with data: {agent.model_dump()}")
+        
+        # Set default values for missing fields
         for key, value in defaults.items():
             if getattr(agent, key) is None:
                 setattr(agent, key, value)
 
+        # Generate new UUID for the agent
         agent.id = str(uuid.uuid4())
-        agent = await agent_service.create_agent(agent, user, session)
-        return RestResponse(data=agent)
+        
+        # Create agent
+        result = await agent_service.create_agent(agent, user, session)
+        logger.info(f"Agent created successfully with ID: {result.id}")
+        return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error in agent creation: {str(e)}", exc_info=True)
         return RestResponse(code=e.error_code, msg=str(e))
@@ -77,6 +84,7 @@ async def create_agent(
 async def list_personal_agents(
         status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
         include_public: bool = Query(False, description="Include public agents along with personal agents"),
+        category_id: Optional[int] = Query(None, description="Filter agents by category"),
         pagination: PaginationParams = Depends(),
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
@@ -86,6 +94,7 @@ async def list_personal_agents(
 
     - **status**: Filter agents by their status (active, inactive, or draft)
     - **include_public**: Whether to include public agents along with personal agents
+    - **category_id**: Optional filter for category ID
     - **page**: Page number (starts from 1)
     - **page_size**: Number of items per page (1-100)
     """
@@ -99,6 +108,7 @@ async def list_personal_agents(
             limit=pagination.page_size,
             user=user,
             include_public=include_public,
+            category_id=category_id,
             session=session
         )
         return RestResponse(data=agents)
@@ -117,6 +127,7 @@ async def list_personal_agents(
 async def list_public_agents(
         status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
         only_official: bool = Query(False, description="Show only official agents"),
+        category_id: Optional[int] = Query(None, description="Filter agents by category"),
         pagination: PaginationParams = Depends(),
         session: AsyncSession = Depends(get_db)
 ):
@@ -125,6 +136,7 @@ async def list_public_agents(
 
     - **status**: Filter agents by their status (active, inactive, or draft)
     - **only_official**: Whether to show only official agents
+    - **category_id**: Optional filter for category ID
     - **page**: Page number (starts from 1)
     - **page_size**: Number of items per page (1-100)
     """
@@ -137,6 +149,7 @@ async def list_public_agents(
             skip=offset,
             limit=pagination.page_size,
             only_official=only_official,
+            category_id=category_id,
             session=session
         )
         return RestResponse(data=agents)

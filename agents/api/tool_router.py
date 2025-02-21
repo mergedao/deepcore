@@ -51,17 +51,30 @@ async def create_tool(
 async def list_tools(
         include_public: bool = Query(True, description="Include public tools"),
         only_official: bool = Query(False, description="Show only official tools"),
+        category_id: Optional[int] = Query(None, description="Filter tools by category"),
+        page: int = Query(1, description="Page number"),
+        page_size: int = Query(10, description="Number of items per page"),
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
     List all available tools
+    
+    Parameters:
+    - **include_public**: Whether to include public tools
+    - **only_official**: Whether to show only official tools
+    - **category_id**: Optional filter for category ID
+    - **page**: Page number (starts from 1)
+    - **page_size**: Number of items per page (1-100)
     """
     try:
         tools = await tool_service.get_tools(
             user=user,
             include_public=include_public,
             only_official=only_official,
+            category_id=category_id,
+            page=page,
+            page_size=page_size,
             session=session
         )
         return RestResponse(data=tools)
