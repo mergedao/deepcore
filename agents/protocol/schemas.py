@@ -45,6 +45,8 @@ class ToolInfo(BaseModel):
     description: Optional[str] = Field(None, description="Description of the tool")
     is_public: Optional[bool] = Field(False, description="Whether the tool is public")
     tenant_id: Optional[str] = Field(None, description="Tenant ID that owns this tool")
+    is_stream: Optional[bool] = Field(False, description="Whether the API returns a stream response")
+    output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
 
 
 class AgentDTO(BaseModel):
@@ -79,11 +81,14 @@ class AICreateAgentDTO(BaseModel):
 class APIToolData(BaseModel):
     """Base model for API tool data"""
     name: str = Field(..., description="Name of the API tool")
+    description: Optional[str] = Field(None, description="Description of the Tool")
     origin: str = Field(..., description="API origin")
     path: str = Field(..., description="API path")
     method: str = Field(..., description="HTTP method")
     parameters: Dict = Field(default_factory=dict, description="API parameters including header, query, path, and body")
     auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
+    is_stream: Optional[bool] = Field(False, description="Whether the API returns a stream response")
+    output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
 
 
 class ToolCreate(BaseModel):
@@ -94,15 +99,18 @@ class ToolCreate(BaseModel):
 class ToolUpdate(BaseModel):
     """Request model for updating a tool"""
     name: Optional[str] = Field(None, description="Optional new name for the tool")
+    description: Optional[str] = Field(None, description="Description of the Tool")
     origin: Optional[str] = Field(None, description="Optional new API origin")
     path: Optional[str] = Field(None, description="Optional new API path")
     method: Optional[str] = Field(None, description="Optional new HTTP method")
     parameters: Optional[Dict] = Field(None, description="Optional new API parameters")
     auth_config: Optional[AuthConfig] = Field(None, description="Optional new authentication configuration")
+    is_stream: Optional[bool] = Field(None, description="Whether the API returns a stream response")
+    output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
 
 
 class DialogueRequest(BaseModel):
-    query: Optional[str] = None
+    query: str = Field(..., description="Query message from the user")
     conversation_id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), alias="conversationId")
 
 

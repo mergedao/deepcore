@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
@@ -91,11 +92,18 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
 
 # FastAPI dependency for getting current user in routes
-async def get_current_user(request: Request):
+async def get_current_user(request: Request, required: bool = True):
     user = getattr(request.state, "user", None)
-    if user is None:
+    if required and user is None:
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail=get_error_message(ErrorCode.UNAUTHORIZED)
         )
     return user
+
+async def get_optional_current_user(request: Request) -> Optional[dict]:
+    """Dependency for optional user authentication"""
+    try:
+        return await get_current_user(request, required=False)
+    except:
+        return None

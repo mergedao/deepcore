@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 async def dialogue(
         agent_id: str,
         request: DialogueRequest,
-        user: dict,
+        user: Optional[dict],
         session: AsyncSession = Depends(get_db)
 ) -> AsyncIterator[str]:
     # Add tenant filter
@@ -43,24 +43,29 @@ async def dialogue(
         yield response
 
 
-async def get_agent(id: str, user: dict, session: AsyncSession):
+async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
     """
     Get agent with its associated tools
     """
-    if not user or not user.get('tenant_id'):
-        raise CustomAgentException(
-            ErrorCode.UNAUTHORIZED,
-            "User authentication required"
-        )
+    # Build base query conditions
+    conditions = [App.id == id]
+    
+    # If user is logged in, add tenant filter or public agent condition
+    if user and user.get('tenant_id'):
+        conditions.append(or_(
+            App.tenant_id == user.get('tenant_id'),
+            App.is_public == True
+        ))
+    else:
+        # Non-logged-in users can only access public agents
+        conditions.append(App.is_public == True)
 
-    # Add tenant filter
+    # Execute query
     result = await session.execute(
-        select(App).where(
-            App.id == id,
-            App.tenant_id == user.get('tenant_id')
-        )
+        select(App).where(and_(*conditions))
     )
     agent = result.scalar_one_or_none()
+    
     if agent is None:
         raise CustomAgentException(
             ErrorCode.RESOURCE_NOT_FOUND,
@@ -68,11 +73,17 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
         )
 
     # Get associated tools
+    tool_conditions = [AgentTool.agent_id == id]
+    if user and user.get('tenant_id'):
+        tool_conditions.append(or_(
+            AgentTool.tenant_id == user.get('tenant_id'),
+            Tool.is_public == True
+        ))
+    else:
+        tool_conditions.append(Tool.is_public == True)
+
     tools_result = await session.execute(
-        select(Tool).join(AgentTool).where(
-            AgentTool.agent_id == id,
-            AgentTool.tenant_id == user.get('tenant_id')
-        )
+        select(Tool).join(AgentTool).where(and_(*tool_conditions))
     )
     tools = tools_result.scalars().all()
 
@@ -111,16 +122,10 @@ async def get_agent(id: str, user: dict, session: AsyncSession):
             auth_config=tool.auth_config,
             is_public=tool.is_public,
             is_official=tool.is_official,
-            tenant_id=tool.tenant_id
+            tenant_id=tool.tenant_id,
+            is_stream=tool.is_stream,
+            output_format=tool.output_format
         ) for tool in tools]
-
-        # # Load additional configurations from model_json if exists
-        # if agent.model_json:
-        #     extra_config = json.loads(agent.model_json)
-        #     # Update DTO with any additional configurations
-        #     for key, value in extra_config.items():
-        #         if hasattr(agent_dto, key):
-        #             setattr(agent_dto, key, value)
 
         return agent_dto
     except Exception as e:
@@ -279,10 +284,7 @@ async def list_personal_agents(
     conditions = [App.tenant_id == user.get('tenant_id')]
 
     if include_public:
-        conditions = [or_(
-            App.tenant_id == user.get('tenant_id'),
-            App.is_public == True
-        )]
+        conditions.append(App.tenant_id == user.get('tenant_id') or App.is_public == True)
 
     if status:
         conditions.append(App.status == status)

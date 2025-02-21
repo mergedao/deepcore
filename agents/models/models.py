@@ -42,7 +42,7 @@ class Tool(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()), comment="UUID")
     name = Column(String(255), nullable=False)
-    description = Column(String(255), nullable=True, comment="Description of the tool")
+    description = Column(String(800), nullable=True, comment="Description of the tool")
     type = Column(String(50), nullable=False)
     # OpenAPI specific fields
     origin = Column(String(255), comment="API origin")
@@ -55,6 +55,8 @@ class Tool(Base):
     tenant_id = Column(String(36))
     is_public = Column(Boolean, default=False)
     is_official = Column(Boolean, default=False)
+    is_stream = Column(Boolean, default=False, comment="Whether the API returns a stream response")
+    output_format = Column(JSON, comment="JSON configuration for formatting API output")
     create_time = Column(DateTime, default=datetime.utcnow)
     update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

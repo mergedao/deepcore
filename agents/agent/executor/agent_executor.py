@@ -92,6 +92,7 @@ class DeepAgentExecutor(object):
         self._initialize_tools()
         self._initialize_answer()
         self._initialize_clarify()
+        self.should_stop = False
 
 
     def _initialize_tools(self) -> None:
@@ -171,7 +172,7 @@ class DeepAgentExecutor(object):
                 # Parameters
                 attempt = 0
                 success = False
-                should_stop = False
+                self.should_stop = False
                 while attempt < self.retry_attempts and not success:
                     try:
                         if self.long_term_memory is not None:
@@ -209,11 +210,11 @@ class DeepAgentExecutor(object):
                                 async for data in self.send_node_message("generate response"):
                                     yield data
 
-                            if should_stop or (
+                            if self.should_stop or (
                                     self.stop_func is not None
                                     and self._check_stopping_condition(response)
                             ):
-                                should_stop = True
+                                self.should_stop = True
                                 yield response
                                 response = ""
 
@@ -240,8 +241,9 @@ class DeepAgentExecutor(object):
                         )
 
                         # Check and execute tools
-                        if not should_stop:
-                            await self.parse_and_execute_api_tools(response)
+                        if not self.should_stop:
+                            async for data in self.parse_and_execute_api_tools(response):
+                                yield ToolOutput(data)
 
 
                             # is_finished = False
@@ -250,7 +252,7 @@ class DeepAgentExecutor(object):
                             #         yield ToolOutput(resp)
                             #         is_finished = True
                             #     if is_finished:
-                            #         should_stop = True
+                            #         self.should_stop = True
                             #         success = True
                             #         break
                             # try:
@@ -282,7 +284,7 @@ class DeepAgentExecutor(object):
                         " retry attempts."
                     )
                     break
-                if should_stop:
+                if self.should_stop:
                     logger.warning(
                         "Stopping due to user input or other external"
                         " interruption."
@@ -511,29 +513,33 @@ class DeepAgentExecutor(object):
             result = self.dict_to_tool(tool_data)
 
             if result is None:
-                return False
+                return
 
             tool_info, parameters = result
-
-            response = await async_client.request(
+            resp = async_client.request(
                 method=tool_info.method,
                 base_url=tool_info.origin,
                 path=tool_info.path,
                 params=parameters["query"],
                 headers=parameters["header"],
                 json_data=parameters["body"],
-                auth_config=tool_info.auth_config
+                auth_config=tool_info.auth_config,
+                stream=tool_info.is_stream
             )
-
-            self.short_memory.add(
-                role="Tool Executor",
-                content=response if isinstance(response, str) else json.dumps(response, ensure_ascii=False)
-            )
-            return True
+            if tool_info.is_stream:
+                async for response in resp:
+                    yield response
+                self.should_stop = True
+            else:
+                answer = ""
+                async for response in resp:
+                    answer = response
+                self.short_memory.add(
+                    role="Tool Executor",
+                    content=answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
+                )
         except Exception as error:
             logger.error(f"Error executing tool: {error}", exc_info=True)
-
-        return False
 
     def dict_to_tool(self, input_dict: dict) -> Optional[tuple[ToolInfo, dict]]:
         """

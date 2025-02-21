@@ -4,6 +4,7 @@ from typing import AsyncIterator
 
 from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
+from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.agent_executor import DeepAgentExecutor
 from agents.agent.llm.custom_llm import CustomChat
 from agents.agent.llm.default_llm import openai
@@ -65,6 +66,10 @@ class ChatAgent(AbstractAgent):
             async for output in self.agent_executor.stream(query):
                 if isinstance(output, NodeMessage):
                     yield self.send_message("status", output.to_dict())
+                    continue
+                elif isinstance(output, ToolOutput):
+                    yield output.get_output()
+                    is_finalized = True
                     continue
                 elif isinstance(output, list):
                     final_response = output

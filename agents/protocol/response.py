@@ -21,6 +21,8 @@ class ToolModel(BaseModel):
     tenant_id: Optional[str] = None
     update_time: Optional[datetime] = None
     create_time: Optional[datetime] = None
+    is_stream: bool = False
+    output_format: Optional[Dict] = None
 
     class Config:
         from_attributes = True

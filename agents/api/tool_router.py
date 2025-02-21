@@ -113,11 +113,13 @@ async def update_tool(
     Parameters:
     - **tool_id**: ID of the tool to update
     - **name**: Optional new name for the tool
-    - **host**: Optional new API host
+    - **origin**: Optional new API origin
     - **path**: Optional new API path
     - **method**: Optional new HTTP method
     - **parameters**: Optional new API parameters
     - **auth_config**: Optional new authentication configuration
+    - **is_stream**: Optional boolean indicating if the API returns a stream response
+    - **output_format**: Optional JSON configuration for formatting API output
     """
     try:
         tool = await tool_service.update_tool(
@@ -125,11 +127,13 @@ async def update_tool(
             user=user,
             session=session,
             name=tool.name,
-            host=tool.host,
+            origin=tool.origin,
             path=tool.path,
             method=tool.method,
             parameters=tool.parameters,
-            auth_config=tool.auth_config
+            auth_config=tool.auth_config,
+            is_stream=tool.is_stream,
+            output_format=tool.output_format
         )
         return RestResponse(data=tool)
     except CustomAgentException as e:
