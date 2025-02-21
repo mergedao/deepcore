@@ -7,7 +7,7 @@ from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.agent_executor import DeepAgentExecutor
-from agents.agent.llm.openai import openai
+from agents.agent.llm.default_llm import openai
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt

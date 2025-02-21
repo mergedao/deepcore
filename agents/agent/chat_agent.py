@@ -5,7 +5,8 @@ from typing import AsyncIterator
 from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.executor.agent_executor import DeepAgentExecutor
-from agents.agent.llm.openai import openai
+from agents.agent.llm.custom_llm import CustomChat
+from agents.agent.llm.default_llm import openai
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt
@@ -36,7 +37,7 @@ class ChatAgent(AbstractAgent):
 
         self.agent_executor = DeepAgentExecutor(
             name=app.name,
-            llm=openai.get_model(),
+            llm=CustomChat(app.model).get_model() if app.model else openai.get_model(),
             api_tool=app.tools,
             tool_system_prompt=app.tool_prompt if app.tool_prompt else tool_prompt(),
             max_loops=app.max_loops if app.max_loops else 5,

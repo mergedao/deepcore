@@ -93,7 +93,7 @@ CREATE TABLE `models` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the model',
   `endpoint` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'API endpoint of the model',
-  `api_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API key for the model',
+  `api_key` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API key for the model',
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the model is official preset',
   `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the model is public',
   `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
@@ -104,6 +104,31 @@ CREATE TABLE `models` (
   KEY `idx_public_official` (`is_public`, `is_official`),
   KEY `idx_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (1, 'gpt-4o', 'https://api.openai.com/v1', 'gAAAAABnuCJ5-rriRjFbe-ESUfkI0cyurCUH8YEzRhUXA2fO3IV4v1SpKxqlYiwYJL9BlaLmce4JbxT0cXNlkzuVKmYN4odStY3jBay6VIKUz9Jdpd2sn_yok9rx7berIFyCZsxPlhpOwOx8M0PAGm9IhekJzZnXlpJPtaVQRwubksowGydi4pgThnBn62IqCpEENMvOxuyCwjZ9ga7kztlWkolUyjwruq1B4GBuWNb3RZKELDzY34qCcHYgz2y7dq0cW4jtD8vVJOWze6aZwMe_Iw6ERrOi7P46S9axjQNKRr4hPVaVCSQ=', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:58:04');
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (2, 'gpt-4o-mini', 'https://api.openai.com/v1', 'gAAAAABnuCJ5-rriRjFbe-ESUfkI0cyurCUH8YEzRhUXA2fO3IV4v1SpKxqlYiwYJL9BlaLmce4JbxT0cXNlkzuVKmYN4odStY3jBay6VIKUz9Jdpd2sn_yok9rx7berIFyCZsxPlhpOwOx8M0PAGm9IhekJzZnXlpJPtaVQRwubksowGydi4pgThnBn62IqCpEENMvOxuyCwjZ9ga7kztlWkolUyjwruq1B4GBuWNb3RZKELDzY34qCcHYgz2y7dq0cW4jtD8vVJOWze6aZwMe_Iw6ERrOi7P46S9axjQNKRr4hPVaVCSQ=', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:57:26');
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (3, 'o1', 'https://api.openai.com/v1', 'gAAAAABnuCJ5-rriRjFbe-ESUfkI0cyurCUH8YEzRhUXA2fO3IV4v1SpKxqlYiwYJL9BlaLmce4JbxT0cXNlkzuVKmYN4odStY3jBay6VIKUz9Jdpd2sn_yok9rx7berIFyCZsxPlhpOwOx8M0PAGm9IhekJzZnXlpJPtaVQRwubksowGydi4pgThnBn62IqCpEENMvOxuyCwjZ9ga7kztlWkolUyjwruq1B4GBuWNb3RZKELDzY34qCcHYgz2y7dq0cW4jtD8vVJOWze6aZwMe_Iw6ERrOi7P46S9axjQNKRr4hPVaVCSQ=', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:57:26');
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (4, 'o1-mini', 'https://api.openai.com/v1', 'gAAAAABnuCJ5-rriRjFbe-ESUfkI0cyurCUH8YEzRhUXA2fO3IV4v1SpKxqlYiwYJL9BlaLmce4JbxT0cXNlkzuVKmYN4odStY3jBay6VIKUz9Jdpd2sn_yok9rx7berIFyCZsxPlhpOwOx8M0PAGm9IhekJzZnXlpJPtaVQRwubksowGydi4pgThnBn62IqCpEENMvOxuyCwjZ9ga7kztlWkolUyjwruq1B4GBuWNb3RZKELDzY34qCcHYgz2y7dq0cW4jtD8vVJOWze6aZwMe_Iw6ERrOi7P46S9axjQNKRr4hPVaVCSQ=', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:57:26');
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (5, 'gpt-4-turbo', 'https://api.openai.com/v1', 'gAAAAABnuCJ5-rriRjFbe-ESUfkI0cyurCUH8YEzRhUXA2fO3IV4v1SpKxqlYiwYJL9BlaLmce4JbxT0cXNlkzuVKmYN4odStY3jBay6VIKUz9Jdpd2sn_yok9rx7berIFyCZsxPlhpOwOx8M0PAGm9IhekJzZnXlpJPtaVQRwubksowGydi4pgThnBn62IqCpEENMvOxuyCwjZ9ga7kztlWkolUyjwruq1B4GBuWNb3RZKELDzY34qCcHYgz2y7dq0cW4jtD8vVJOWze6aZwMe_Iw6ERrOi7P46S9axjQNKRr4hPVaVCSQ=', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:57:26');
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (6, 'gpt-4-0125-preview', 'https://api.openai.com/v1', 'gAAAAABnuCJ5-rriRjFbe-ESUfkI0cyurCUH8YEzRhUXA2fO3IV4v1SpKxqlYiwYJL9BlaLmce4JbxT0cXNlkzuVKmYN4odStY3jBay6VIKUz9Jdpd2sn_yok9rx7berIFyCZsxPlhpOwOx8M0PAGm9IhekJzZnXlpJPtaVQRwubksowGydi4pgThnBn62IqCpEENMvOxuyCwjZ9ga7kztlWkolUyjwruq1B4GBuWNb3RZKELDzY34qCcHYgz2y7dq0cW4jtD8vVJOWze6aZwMe_Iw6ERrOi7P46S9axjQNKRr4hPVaVCSQ=', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:57:26');
+
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (10, 'deepseek-v3', 'https://api.deepseek.com/v1', '2222', 1, 1, NULL, '2025-02-18 08:31:24', '2025-02-18 08:31:24');
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (11, 'deepseek-r1', 'https://api.deepseek.com/v1', '2222', 1, 1, NULL, '2025-02-18 08:31:56', '2025-02-18 08:31:56');
 
 -- ALTER TABLE `tools`
 -- ADD COLUMN `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID' AFTER `is_deleted`;
@@ -119,16 +144,22 @@ CREATE TABLE `models` (
 -- ALTER TABLE `tools` MODIFY COLUMN `app_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID of the associated app';
 
 -- Add create_fee and price columns to existing app table
-ALTER TABLE `app`
-ADD COLUMN `create_fee` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for creating the agent (tips for creator)',
-ADD COLUMN `price` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for using the agent';
+-- ALTER TABLE `app`
+-- ADD COLUMN `create_fee` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for creating the agent (tips for creator)',
+-- ADD COLUMN `price` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for using the agent';
+--
+-- -- Update existing records to set default values
+-- UPDATE `app` SET
+--     `create_fee` = 0.000000000,
+--     `price` = 0.000000000
+-- WHERE `create_fee` IS NULL OR `price` IS NULL;
+--
+-- -- Add description column to existing tools table
+-- ALTER TABLE `tools`
+-- ADD COLUMN `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Description of the tool';
+--
+-- ALTER TABLE `models`
+-- MODIFY COLUMN api_key VARCHAR(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API key for the model';
 
--- Update existing records to set default values
-UPDATE `app` SET
-    `create_fee` = 0.000000000,
-    `price` = 0.000000000
-WHERE `create_fee` IS NULL OR `price` IS NULL;
 
--- Add description column to existing tools table
-ALTER TABLE `tools`
-ADD COLUMN `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Description of the tool';
+

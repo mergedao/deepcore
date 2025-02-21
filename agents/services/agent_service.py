@@ -30,7 +30,8 @@ async def dialogue(
     agent_info = AgentInfo.from_dto(agent)
     if agent.model_id:
         model_dto, api_key = await get_model_with_key(agent.model_id, user, session)
-        model_info = ModelInfo(**model_dto.model_dump(), **api_key)
+        model_info = ModelInfo(**model_dto.model_dump())
+        model_info.api_key = api_key
         agent_info.set_model(model_info)
     if not agent:
         raise CustomAgentException(
