@@ -129,9 +129,10 @@ class AsyncHttpClient:
                 headers=merged_headers
             ) as response:
                 if stream:
-                    return self._handle_stream_response(response)
+                    async for data in self._handle_stream_response(response):
+                        yield data
                 else:
-                    return await self._handle_normal_response(response)
+                    yield await self._handle_normal_response(response)
                     
         except aiohttp.ClientError as e:
             logger.error(f"HTTP request failed: {str(e)}", exc_info=True)
@@ -148,12 +149,8 @@ class AsyncHttpClient:
 
     async def _handle_stream_response(self, response: aiohttp.ClientResponse) -> AsyncGenerator[str, None]:
         """Handle streaming response"""
-        async def generate():
-            async for chunk in response.content.iter_any():
-                if chunk:
-                    yield chunk.decode('utf-8')
-
-        return generate()
+        async for chunk in response.content.iter_any():
+            yield chunk.decode('utf-8')
 
 # Create a default client instance
 async_client = AsyncHttpClient()

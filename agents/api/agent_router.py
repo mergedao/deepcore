@@ -2,13 +2,13 @@ import uuid
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
 from agents.agent.factory.gen_agent import gen_agent
 from agents.common.response import RestResponse
-from agents.middleware.auth_middleware import get_current_user
+from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueResponse, DialogueRequest, AgentStatus, \
     PaginationParams, AgentMode
@@ -240,19 +240,17 @@ async def ai_create_agent(
             msg=f"Failed to create AI agent: {str(e)}"
         )
 
-
 @router.post("/agents/{agent_id}/dialogue")
 async def dialogue(
         agent_id: str,
         request: DialogueRequest,
-        user: dict = Depends(get_current_user),
+        user: Optional[dict] = Depends(get_optional_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
     Handle a dialogue between a user and an agent.
 
     - **agent_id**: ID of the agent to interact with
-    - **user_id**: ID of the user
     - **message**: Message from the user
     """
     try:
@@ -271,26 +269,35 @@ async def dialogue(
 
 @router.get("/agents/{agent_id}/dialogue")
 async def dialogue_get(
+        request: Request,
         agent_id: str,
-        query: Optional[str] = Query(None, description="Query message from the user"),
+        query: str = Query(..., description="Query message from the user"),
         conversation_id: Optional[str] = Query(
-            None,
+            default=None,
             alias="conversationId",
             description="ID of the conversation"
         ),
-        user: dict = Depends(get_current_user),
+        user: Optional[dict] = Depends(get_optional_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
     Handle a dialogue between a user and an agent using GET method.
 
     - **agent_id**: ID of the agent to interact with
-    - **query**: Query message from the user (optional)
+    - **query**: Query message from the user
     - **conversation_id**: ID of the conversation (optional, auto-generated if not provided)
     """
     try:
-        request = DialogueRequest(query=query, conversation_id=conversation_id)
-        resp = agent_service.dialogue(agent_id, request, user, session)
+        # Create a new DialogueRequest with default conversation_id if not provided
+        if not conversation_id:
+            conversation_id = str(uuid.uuid4())
+            
+        dialogue_request = DialogueRequest(
+            query=query,
+            conversation_id=conversation_id
+        )
+        
+        resp = agent_service.dialogue(agent_id, dialogue_request, user, session)
         return StreamingResponse(content=resp, media_type="text/event-stream")
     except CustomAgentException as e:
         logger.error(f"Error in dialogue: {str(e)}", exc_info=True)

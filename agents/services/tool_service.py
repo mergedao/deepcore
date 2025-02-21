@@ -31,7 +31,9 @@ def tool_to_dto(tool: Tool) -> ToolModel:
             is_official=tool.is_official,
             tenant_id=tool.tenant_id,
             create_time=tool.create_time,
-            update_time=tool.update_time
+            update_time=tool.update_time,
+            is_stream=tool.is_stream,
+            output_format=tool.output_format
         )
     except Exception as e:
         logger.error(f"Error converting tool to DTO: {e}", exc_info=True)
@@ -71,7 +73,9 @@ async def create_tool(
             auth_config=tool_data.get('auth_config'),
             is_public=False,
             is_official=False,
-            tenant_id=user.get('tenant_id')
+            tenant_id=user.get('tenant_id'),
+            is_stream=tool_data.get('is_stream', False),
+            output_format=tool_data.get('output_format')
         )
 
         session.add(new_tool)
@@ -129,7 +133,9 @@ async def update_tool(
         path: Optional[str] = None,
         method: Optional[str] = None,
         parameters: Optional[Dict] = None,
-        auth_config: Optional[AuthConfig] = None
+        auth_config: Optional[AuthConfig] = None,
+        is_stream: Optional[bool] = None,
+        output_format: Optional[Dict] = None
 ):
     """
     Update an existing tool
@@ -144,6 +150,8 @@ async def update_tool(
         method: Optional new HTTP method
         parameters: Optional new API parameters
         auth_config: Optional new authentication configuration
+        is_stream: Optional boolean indicating if the API returns a stream response
+        output_format: Optional JSON configuration for formatting API output
     """
     try:
         # Verify if the tool belongs to current user
@@ -173,6 +181,10 @@ async def update_tool(
             values_to_update['parameters'] = parameters
         if auth_config is not None:
             values_to_update['auth_config'] = auth_config.model_dump()
+        if is_stream is not None:
+            values_to_update['is_stream'] = is_stream
+        if output_format is not None:
+            values_to_update['output_format'] = output_format
 
         if values_to_update:
             stmt = update(Tool).where(

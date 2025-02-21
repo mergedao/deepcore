@@ -20,6 +20,8 @@ class ToolInfo(BaseModel):
     path: str
     method: str
     parameters: Dict
+    is_stream: Optional[bool] = False
+    output_format: Optional[Dict] = None
     description: Optional[str] = None
     auth_config: Optional[Dict] = None
     is_public: bool = False

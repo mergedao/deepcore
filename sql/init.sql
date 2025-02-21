@@ -43,7 +43,7 @@ CREATE TABLE `file_storage` (
 CREATE TABLE `tools` (
   `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the tool',
-  `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Description of the tool',
+  `description` varchar(800) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Description of the tool',
   `type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Type of the tool: function or openAPI',
   `origin` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API origin',
   `path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API path',
@@ -56,6 +56,8 @@ CREATE TABLE `tools` (
   `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the tool is public',
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the tool is official preset',
   `auth_config` JSON COMMENT 'Authentication configuration in JSON format',
+  `is_stream` BOOLEAN DEFAULT FALSE COMMENT 'Whether the API returns a stream response',
+  `output_format` JSON COMMENT 'JSON configuration for formatting API output',
   PRIMARY KEY (`id`),
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
@@ -130,6 +132,13 @@ VALUES (10, 'deepseek-v3', 'https://api.deepseek.com/v1', '2222', 1, 1, NULL, '2
 INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
 VALUES (11, 'deepseek-r1', 'https://api.deepseek.com/v1', '2222', 1, 1, NULL, '2025-02-18 08:31:56', '2025-02-18 08:31:56');
 
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (15, 'grok-2', 'https://api.x.ai/v1', 'gAAAAABnuDiedFNNh5n0LYIILo4kvO2KyzEbhQgYsg_Edt2f3vtvgmLGnusU-0IwbUL7J3H4pHlv-5OQ1oNN6Yj6N_lAhOY0_iwD1AdKxYiv9fTjhLLRMwS-f5mxieGvdLEIuki2lFPom9wzASGLgBggjfrTM0NEOq8JXOXJ0ziB9jhoNJhPJf15ToW-zTptHrdDQ0pCc6gi', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:57:26');
+
+INSERT INTO `models` (`id`, `name`, `endpoint`, `api_key`, `is_official`, `is_public`, `tenant_id`, `create_time`, `update_time`)
+VALUES (16, 'grok-2-latest', 'https://api.x.ai/v1', 'gAAAAABnuDiedFNNh5n0LYIILo4kvO2KyzEbhQgYsg_Edt2f3vtvgmLGnusU-0IwbUL7J3H4pHlv-5OQ1oNN6Yj6N_lAhOY0_iwD1AdKxYiv9fTjhLLRMwS-f5mxieGvdLEIuki2lFPom9wzASGLgBggjfrTM0NEOq8JXOXJ0ziB9jhoNJhPJf15ToW-zTptHrdDQ0pCc6gi', 1, 1, NULL, '2025-02-17 05:21:38', '2025-02-21 06:57:26');
+
+
 -- ALTER TABLE `tools`
 -- ADD COLUMN `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID' AFTER `is_deleted`;
 --
@@ -156,10 +165,15 @@ VALUES (11, 'deepseek-r1', 'https://api.deepseek.com/v1', '2222', 1, 1, NULL, '2
 --
 -- -- Add description column to existing tools table
 -- ALTER TABLE `tools`
--- ADD COLUMN `description` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Description of the tool';
+-- ADD COLUMN `description` varchar(800) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Description of the tool';
 --
 -- ALTER TABLE `models`
 -- MODIFY COLUMN api_key VARCHAR(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API key for the model';
+
+
+-- ALTER TABLE `tools`
+-- ADD COLUMN `is_stream` BOOLEAN DEFAULT FALSE COMMENT 'Whether the API returns a stream response',
+-- ADD COLUMN `output_format` JSON COMMENT 'JSON configuration for formatting API output';
 
 
 
