@@ -3,7 +3,7 @@ import json
 from langchain_core.prompts import HumanMessagePromptTemplate, ChatPromptTemplate
 from pydantic import BaseModel, Field
 
-from agents.agent.llm.openai import openai
+from agents.agent.llm.default_llm import openai
 
 gen_aegnt_prompt = """\
 You are an expert in generating agent configurations. Your task is to generate agent configuration based on user input according to the requirements.
