@@ -2,7 +2,7 @@ import logging
 import uuid
 
 from fastapi import Query, APIRouter
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse, Response
 
 from agents.agent.coins_agent import CoinAgent
 from .image_router import router as image_router
@@ -12,6 +12,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 router.include_router(image_router)
+
+@router.options("/{full_path:path}")
+async def preflight_handler(full_path: str):
+    return Response(status_code=204)  # 204 No Content
 
 
 async def health_check():

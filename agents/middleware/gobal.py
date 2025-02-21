@@ -3,6 +3,7 @@ import logging
 import fastapi
 from fastapi.responses import ORJSONResponse
 
+from agents.common.http_utils import add_cors_headers
 from agents.common.response import RestResponse
 from agents.exceptions import ErrorCode, CustomAgentException
 
@@ -35,9 +36,9 @@ async def exception_handler(request: fastapi.Request, exc):
             msg="Internal server error",
             data=None
         )
-    
+
     # Always return 200 status code, let frontend handle errors based on response code
-    return ORJSONResponse(
+    return add_cors_headers(ORJSONResponse(
         ret.model_dump(exclude_none=True),
         status_code=200
-    )
+    ))
