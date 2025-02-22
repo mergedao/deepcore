@@ -29,8 +29,7 @@ CREATE TABLE `app` (
   KEY `idx_model` (`model_id`),
   KEY `idx_category` (`category_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
-  KEY `idx_hot` (`is_hot`),
-  CONSTRAINT `fk_app_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
+  KEY `idx_hot` (`is_hot`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -68,8 +67,7 @@ CREATE TABLE `tools` (
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
   KEY `idx_type` (`type`),
-  KEY `idx_category` (`category_id`),
-  CONSTRAINT `fk_tool_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
+  KEY `idx_category` (`category_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE `users` (
@@ -224,18 +222,11 @@ INSERT INTO `categories` (`name`, `type`, `description`, `tenant_id`, `sort_orde
 
 -- Insert default tool categories
 INSERT INTO `categories` (`name`, `type`, `description`, `tenant_id`, `sort_order`, `create_time`, `update_time`) VALUES
-('API Tools', 'tool', 'Tools for interacting with external services via APIs', NULL, 110, NOW(), NOW()),
-('Data Processing', 'tool', 'Tools for data transformation and analysis', NULL, 120, NOW(), NOW()),
-('File Operations', 'tool', 'Tools for file management and processing', NULL, 130, NOW(), NOW()),
-('Image Processing', 'tool', 'Tools for image editing and generation', NULL, 140, NOW(), NOW()),
-('Text Processing', 'tool', 'Tools for text analysis and transformation', NULL, 150, NOW(), NOW()),
-('Code Generation', 'tool', 'Tools for automatic code generation', NULL, 160, NOW(), NOW()),
-('Network Tools', 'tool', 'Tools for network diagnostics and management', NULL, 170, NOW(), NOW()),
-('Security Tools', 'tool', 'Tools for security detection and protection', NULL, 180, NOW(), NOW());
+('Official Tools', 'tool', 'A collection of officially pre-installed tools designed to provide essential functionalities and seamless integration within the system', NULL, 110, NOW(), NOW());
 
 -- Add hot field and index to app table
-ALTER TABLE `app`
-ADD COLUMN `is_hot` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is hot',
-ADD KEY `idx_hot` (`is_hot`);
+-- ALTER TABLE `app`
+-- ADD COLUMN `is_hot` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is hot',
+-- ADD KEY `idx_hot` (`is_hot`);
 
 

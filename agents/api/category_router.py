@@ -15,7 +15,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.post("/categories/create", summary="Create Category", response_model=RestResponse[CategoryDTO])
+# @router.post("/categories/create", summary="Create Category", response_model=RestResponse[CategoryDTO])
 async def create_category(
     category: CategoryCreate,
     user: dict = Depends(get_current_user),
@@ -43,7 +43,7 @@ async def create_category(
         )
 
 
-@router.put("/categories/{category_id}", summary="Update Category")
+# @router.put("/categories/{category_id}", summary="Update Category")
 async def update_category(
     category_id: int,
     category: CategoryUpdate,
@@ -72,7 +72,7 @@ async def update_category(
         )
 
 
-@router.delete("/categories/{category_id}", summary="Delete Category")
+# @router.delete("/categories/{category_id}", summary="Delete Category")
 async def delete_category(
     category_id: int,
     user: dict = Depends(get_current_user),

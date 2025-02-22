@@ -7,6 +7,7 @@ import json
 import eth_account
 import logging
 
+from agents.common.config import SETTINGS
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import User
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, \
@@ -27,7 +28,7 @@ NONCE_KEY_PREFIX = "wallet_nonce:"  # Redis key prefix for nonce storage
 
 def get_nonce_key(wallet_address: str) -> str:
     """Generate Redis key for storing nonce"""
-    return f"{NONCE_KEY_PREFIX}{wallet_address}"
+    return f"{SETTINGS.REDIS_PREFIX}.{NONCE_KEY_PREFIX}{wallet_address}"
 
 
 async def login(request: LoginRequest, session: AsyncSession) -> LoginResponse:

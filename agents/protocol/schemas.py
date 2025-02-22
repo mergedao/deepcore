@@ -271,3 +271,8 @@ class CreateOpenAPIToolRequest(BaseModel):
 class CreateToolsBatchRequest(BaseModel):
     """Request model for creating multiple tools in batch"""
     tools: List[APIToolData] = Field(..., description="List of API tool configurations")
+
+
+class OpenAPIParseRequest(BaseModel):
+    """Request model for parsing OpenAPI content"""
+    content: str = Field(..., description="OpenAPI specification content (JSON or YAML format)")
