@@ -34,6 +34,9 @@ TOOLS_PROMPT = """
 - **Restrictions**:  
   - Do **not** output JSON and a Final Answer in the same step.  
   - Only invoke relevant tools based on the query.  
+- **For tools of type API**:
+  - When the tool type is **api**, the extracted parameters **must** include the following four levels: `header`, `query`, `path`, and `body`.
+  - Parameter extraction **cannot** be flattened into a single level.
 
 ---
 
@@ -75,5 +78,80 @@ or
   }
 }
 ```
+## **Response Format Examples**
+
+### **✅ Correct Example**
+For instance, if the user says:  
+*Generate a formal notification about the latest product update*,  
+the correct API call should be:
+```json
+{
+  "type": "api",
+  "function": {
+    "name": "notifyUser",
+    "parameters": {
+      "header": {},
+      "query": {
+        "message": "Generate a formal notification about the latest product update."
+      },
+      "path": {},
+      "body": {}
+    }
+  }
+}
+```
+
+### **❌ Incorrect Example**
+An incorrect API call would flatten the parameters instead of using the required four levels:
+```json
+{
+  "type": "api",
+  "function": {
+    "name": "notifyUser",
+    "parameters": {
+      "message": "Generate a formal notification about the latest product update."
+    }
+  }
+}
+```
+This is incorrect because it does not include the required four levels: `header`, `query`, `path`, and `body`.
+## **Response Format Examples**
+
+### **✅ Correct Example**
+For instance, if the user says:  
+*Generate a formal notification about the latest product update*,  
+the correct API call should be:
+```json
+{
+  "type": "api",
+  "function": {
+    "name": "notifyUser",
+    "parameters": {
+      "header": {},
+      "query": {
+        "message": "Generate a formal notification about the latest product update."
+      },
+      "path": {},
+      "body": {}
+    }
+  }
+}
+```
+
+### **❌ Incorrect Example**
+An incorrect API call would flatten the parameters instead of using the required four levels:
+```json
+{
+  "type": "api",
+  "function": {
+    "name": "notifyUser",
+    "parameters": {
+      "message": "Generate a formal notification about the latest product update."
+    }
+  }
+}
+```
+This is incorrect because it does not include the required four levels: `header`, `query`, `path`, and `body`.
+
 
 ---"""

@@ -25,15 +25,15 @@ def create_app() -> FastAPI:
     app = FastAPI()
 
     # Add CORS middleware with more specific configuration
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["*"],
-        max_age=600,  # Cache preflight requests for 10 minutes
-    )
+    # app.add_middleware(
+    #     CORSMiddleware,
+    #     allow_origins=["*"],
+    #     allow_credentials=True,
+    #     allow_methods=["*"],
+    #     allow_headers=["*"],
+    #     expose_headers=["*"],
+    #     max_age=600,  # Cache preflight requests for 10 minutes
+    # )
 
     # Add JWT middleware
     app.add_middleware(JWTAuthMiddleware)

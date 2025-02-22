@@ -54,7 +54,7 @@ class ShortMemory(object):
     def get_history_as_string(self):
         return "\n".join(
             [
-                f"{message['role']}: {message['content']}\n\n"
+                f"{message['role']}: {message['content']}\n\n" if message['role'] else f"{message['content']}\n\n"
                 for message in self.conversation_history
             ]
         )
