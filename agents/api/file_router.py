@@ -47,7 +47,7 @@ async def upload_file(
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error uploading file: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error uploading file: {str(e)}", exc_info=True)
         return RestResponse(
@@ -93,7 +93,7 @@ async def get_file(
         )
     except CustomAgentException as e:
         logger.error(f"Error retrieving file {fid}: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error retrieving file {fid}: {str(e)}", exc_info=True)
         return RestResponse(

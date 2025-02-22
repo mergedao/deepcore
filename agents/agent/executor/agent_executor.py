@@ -93,8 +93,10 @@ class DeepAgentExecutor(object):
             ),
         )
 
-        self.short_memory.add(role="agent description", content=self.description)
-        self.short_memory.add(role="agent settings", content=self.role_settings)
+        if self.description:
+            self.short_memory.add(role="agent description", content=self.description)
+        if self.role_settings:
+            self.short_memory.add(role="agent settings", content=self.role_settings)
 
         self.short_memory.add(role="", content=SYTHES_PROMPT)
 

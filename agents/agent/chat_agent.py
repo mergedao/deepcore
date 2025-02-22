@@ -46,6 +46,7 @@ class ChatAgent(AbstractAgent):
             node_massage_enabled=True,
             stop_func=stopping_condition,
             system_prompt=app.description,
+            role_settings=app.role_settings,
         )
 
     async def stream(self, query: str, conversation_id: str) -> AsyncIterator[str]:

@@ -42,6 +42,7 @@ class ModelInfo(BaseModel):
 class AgentInfo():
     name: Optional[str] = Field(None, description="Name of the agent")
     description: Optional[str] = Field(None, description="Description of the agent")
+    role_settings: Optional[str] = Field(None, description="Optional roles for the agent")
     mode: Optional[AgentMode] = Field(None, description='Mode of the agent')
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: Optional[int] = Field(default=None, description="Maximum number of loops the agent can perform")
@@ -69,6 +70,7 @@ class AgentInfo():
         info.mode = AgentMode(dto.mode) if dto.mode else None
         info.tool_prompt = dto.tool_prompt
         info.max_loops = dto.max_loops
+        info.role_settings = dto.role_settings
         info.tools = []
         if dto.tools:
             for tool in dto.tools:

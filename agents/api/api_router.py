@@ -7,6 +7,8 @@ from starlette.responses import StreamingResponse, Response
 from agents.agent.coins_agent import CoinAgent
 from .image_router import router as image_router
 from agents.common.response import RestResponse
+from ..common.error_messages import get_error_message
+from ..exceptions import ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -47,4 +49,7 @@ async def completion(query: str = Query(default=""), conversationId: str = Query
         return StreamingResponse(content=resp, media_type="text/event-stream")
     except Exception as e:
         logger.error(f"Error in chat completion: {e}", exc_info=True)
-        return RestResponse(code=1, msg=str(e))
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )

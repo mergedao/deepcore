@@ -29,7 +29,7 @@ async def login(request: LoginRequest, session: AsyncSession = Depends(get_db)):
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error in user login: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error in user login: {str(e)}", exc_info=True)
         return RestResponse(
@@ -52,7 +52,7 @@ async def register(request: RegisterRequest, session: AsyncSession = Depends(get
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error in user registration: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error in user registration: {str(e)}", exc_info=True)
         return RestResponse(
@@ -76,7 +76,7 @@ async def get_nonce(
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error getting nonce for wallet: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error getting nonce: {str(e)}", exc_info=True)
         return RestResponse(
@@ -101,7 +101,7 @@ async def wallet_login(
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error in wallet login: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error in wallet login: {str(e)}", exc_info=True)
         return RestResponse(
@@ -125,7 +125,7 @@ async def refresh_token(
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error refreshing token: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error refreshing token: {str(e)}", exc_info=True)
         return RestResponse(
