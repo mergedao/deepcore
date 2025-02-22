@@ -146,15 +146,23 @@ async def get_model_with_key(
     Internal method to get model with decrypted API key
     Returns tuple of (model_dto, decrypted_api_key)
     """
-    result = await session.execute(
-        select(Model).where(
-            Model.id == model_id,
-            or_(
-                Model.tenant_id == user.get('tenant_id'),
+    if user:
+        result = await session.execute(
+            select(Model).where(
+                Model.id == model_id,
+                or_(
+                    Model.tenant_id == user.get('tenant_id'),
+                    Model.is_public == True
+                )
+            )
+        )
+    else:
+        result = await session.execute(
+            select(Model).where(
+                Model.id == model_id,
                 Model.is_public == True
             )
         )
-    )
     model = result.scalar_one_or_none()
     if not model:
         return None

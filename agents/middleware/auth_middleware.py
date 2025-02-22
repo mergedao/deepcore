@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+import re
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
@@ -43,15 +44,28 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/"
         ]
         auth_whitelist_startswith = ["/api/files/", "/api/categories/"]
+        
+        # Regex patterns for dynamic paths that don't require authentication
+        auth_whitelist_regex = [
+            r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",  # UUID pattern for agent dialogue
+        ]
 
         # Check if the request path is in the whitelist
         for path in auth_whitelist:
             if request.url.path == path:
+                await try_read_user(request)
                 return await call_next(request)
 
         # Check if the request path starts with any of the whitelist prefixes
         for prefix in auth_whitelist_startswith:
             if request.url.path.startswith(prefix):
+                await try_read_user(request)
+                return await call_next(request)
+
+        # Check if the request path matches any regex pattern
+        for pattern in auth_whitelist_regex:
+            if re.match(pattern, request.url.path):
+                await try_read_user(request)
                 return await call_next(request)
 
         try:
@@ -92,6 +106,13 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         return await call_next(request)
 
+async def try_read_user(request: Request):
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
+        request.state.user = verify_token(token)
+    except Exception:
+        return None
 
 # FastAPI dependency for getting current user in routes
 async def get_current_user(request: Request):
