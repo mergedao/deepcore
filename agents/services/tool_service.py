@@ -1,6 +1,7 @@
 from fastapi import Depends
 from sqlalchemy import update, select, or_, and_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict
 import logging
 import json
@@ -9,7 +10,7 @@ from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import Tool, App, AgentTool
 from agents.protocol.response import ToolModel
-from agents.protocol.schemas import ToolType, AuthConfig
+from agents.protocol.schemas import ToolType, AuthConfig, CategoryDTO
 from agents.utils import openapi
 from agents.utils.openapi_utils import extract_endpoints_info
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 def tool_to_dto(tool: Tool) -> ToolModel:
     """Convert Tool ORM object to DTO"""
     try:
-        return ToolModel(
+        tool_dto = ToolModel(
             id=tool.id,
             name=tool.name,
             type=tool.type,
@@ -33,8 +34,23 @@ def tool_to_dto(tool: Tool) -> ToolModel:
             create_time=tool.create_time,
             update_time=tool.update_time,
             is_stream=tool.is_stream,
-            output_format=tool.output_format
+            output_format=tool.output_format,
+            category_id=tool.category_id
         )
+        
+        if tool.category:
+            tool_dto.category = CategoryDTO(
+                id=tool.category.id,
+                name=tool.category.name,
+                type=tool.category.type,
+                description=tool.category.description,
+                tenant_id=tool.category.tenant_id,
+                sort_order=tool.category.sort_order,
+                create_time=tool.category.create_time.isoformat() if tool.category.create_time else None,
+                update_time=tool.category.update_time.isoformat() if tool.category.update_time else None
+            )
+        
+        return tool_dto
     except Exception as e:
         logger.error(f"Error converting tool to DTO: {e}", exc_info=True)
         raise CustomAgentException(
@@ -304,10 +320,10 @@ async def get_tools(
         # Calculate offset from page number
         offset = (page - 1) * page_size
         
-        # Get paginated results with category join
+        # Get paginated results with category join and preload
         query = (
             select(Tool)
-            .outerjoin(Tool.category)
+            .options(selectinload(Tool.category))
             .where(and_(*conditions))
             .order_by(Tool.create_time.desc())
         )
@@ -317,21 +333,7 @@ async def get_tools(
         )
         tools = result.scalars().all()
         
-        tool_dtos = []
-        for tool in tools:
-            tool_dto = ToolModel.model_validate(tool)
-            if tool.category:
-                tool_dto.category = CategoryDTO(
-                    id=tool.category.id,
-                    name=tool.category.name,
-                    type=tool.category.type,
-                    description=tool.category.description,
-                    tenant_id=tool.category.tenant_id,
-                    sort_order=tool.category.sort_order,
-                    create_time=tool.category.create_time,
-                    update_time=tool.category.update_time
-                )
-            tool_dtos.append(tool_dto)
+        tool_dtos = [tool_to_dto(tool) for tool in tools]
         
         return {
             "items": tool_dtos,
