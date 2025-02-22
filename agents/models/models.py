@@ -42,6 +42,7 @@ class App(Base):
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
     is_public = Column(Boolean, default=False, comment="Whether the agent is public")
     is_official = Column(Boolean, default=False, comment="Whether the agent is official preset")
+    is_hot = Column(Boolean, default=False, comment="Whether the agent is hot")
     create_fee = Column(Numeric(20, 9), default=0.000000000, comment="Fee for creating the agent (tips for creator)")
     price = Column(Numeric(20, 9), default=0.000000000, comment="Fee for using the agent")
     tools = relationship('Tool', secondary='agent_tools', backref='agents')

@@ -18,6 +18,7 @@ CREATE TABLE `app` (
   `model_json` JSON COMMENT 'Additional fields merged into a JSON column',
   `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is public',
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is official preset',
+  `is_hot` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is hot',
   `suggested_questions` JSON COMMENT 'List of suggested questions for the agent',
   `model_id` bigint DEFAULT NULL COMMENT 'ID of the associated model',
   `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
@@ -28,6 +29,7 @@ CREATE TABLE `app` (
   KEY `idx_model` (`model_id`),
   KEY `idx_category` (`category_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
+  KEY `idx_hot` (`is_hot`),
   CONSTRAINT `fk_app_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -199,15 +201,15 @@ VALUES (16, 'grok-2-latest', 'https://api.x.ai/v1', 'gAAAAABnuDiedFNNh5n0LYIILo4
 -- ADD COLUMN `output_format` JSON COMMENT 'JSON configuration for formatting API output';
 
 
-ALTER TABLE `app`
-ADD COLUMN `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
-ADD KEY `idx_category` (`category_id`),
-ADD CONSTRAINT `fk_app_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
-
-ALTER TABLE `tools`
-ADD COLUMN `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
-ADD KEY `idx_category` (`category_id`),
-ADD CONSTRAINT `fk_tool_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
+-- ALTER TABLE `app`
+-- ADD COLUMN `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
+-- ADD KEY `idx_category` (`category_id`),
+-- ADD CONSTRAINT `fk_app_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
+--
+-- ALTER TABLE `tools`
+-- ADD COLUMN `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
+-- ADD KEY `idx_category` (`category_id`),
+-- ADD CONSTRAINT `fk_tool_category` FOREIGN KEY (`category_id`) REFERENCES `categories` (`id`) ON DELETE SET NULL;
 
 -- Insert default agent categories
 INSERT INTO `categories` (`name`, `type`, `description`, `tenant_id`, `sort_order`, `create_time`, `update_time`) VALUES
@@ -230,5 +232,10 @@ INSERT INTO `categories` (`name`, `type`, `description`, `tenant_id`, `sort_orde
 ('Code Generation', 'tool', 'Tools for automatic code generation', NULL, 160, NOW(), NOW()),
 ('Network Tools', 'tool', 'Tools for network diagnostics and management', NULL, 170, NOW(), NOW()),
 ('Security Tools', 'tool', 'Tools for security detection and protection', NULL, 180, NOW(), NOW());
+
+-- Add hot field and index to app table
+ALTER TABLE `app`
+ADD COLUMN `is_hot` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is hot',
+ADD KEY `idx_hot` (`is_hot`);
 
 

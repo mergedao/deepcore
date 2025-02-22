@@ -38,6 +38,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/openapi.json",
             "/api/upload/file",
             "/api/images/generate",
+            "/api/agents/public",
             "/"
         ]
         auth_whitelist_startswith = ["/api/files/",]

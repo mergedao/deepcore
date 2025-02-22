@@ -307,7 +307,7 @@ async def get_tools(
         # Get paginated results with category join
         query = (
             select(Tool)
-            .outerjoin(Tool.category)  # 添加category关联
+            .outerjoin(Tool.category)
             .where(and_(*conditions))
             .order_by(Tool.create_time.desc())
         )
