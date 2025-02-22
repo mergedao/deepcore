@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.common.response import RestResponse
-from agents.middleware.auth_middleware import get_current_user
+from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import CategoryCreate, CategoryUpdate, CategoryDTO, CategoryType
 from agents.services import category_service
@@ -101,7 +101,7 @@ async def delete_category(
 @router.get("/categories", summary="List Categories", response_model=RestResponse[List[CategoryDTO]])
 async def list_categories(
     type: Optional[CategoryType] = Query(None, description="Filter categories by type"),
-    user: dict = Depends(get_current_user),
+    user: Optional[dict] = Depends(get_optional_current_user),
     session: AsyncSession = Depends(get_db)
 ):
     """
@@ -127,7 +127,7 @@ async def list_categories(
 @router.get("/categories/{category_id}", summary="Get Category")
 async def get_category(
     category_id: int,
-    user: dict = Depends(get_current_user),
+    user: Optional[dict] = Depends(get_optional_current_user),
     session: AsyncSession = Depends(get_db)
 ):
     """

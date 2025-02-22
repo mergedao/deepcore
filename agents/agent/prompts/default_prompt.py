@@ -8,7 +8,26 @@ CLARIFY_PROMPT = """If you need to clarify the user's intent or gather more info
 
 Tool Clarify: [Your clarification or question here]"""
 
-TOOLS_PROMPT = """### Decision Flow for Responses  
+TOOLS_PROMPT = """### Tool Usage Guidelines  
+
+#### When Tool Usage is Required:  
+1. **Tool Invocation**:  
+   - Generate JSON outputs compliant with the tool's schema.  
+   - Encapsulate the JSON in markdown within triple backticks (```json).  
+   - **Do not include any commentary or explanations; only provide the JSON output.**  
+
+2. **Tool Responses**:  
+   - If the tool's output directly answers the user's question, provide the Final Answer **only after receiving the tool's output.**  
+   - If additional steps are required or the tool's output is insufficient, focus only on generating the JSON.  
+
+#### When Tool Usage is NOT Required:  
+- Provide a concise and clear response in plain text, labeled as `Final Answer`.  
+
+#### Important Restrictions:  
+- Do not output both tool-related JSON and a Final Answer in the same step.  
+- Avoid invoking tools irrelevant to the user's request.  
+
+### Decision Flow for Responses  
 
 1. **Determine Requirement**:  
    - Assess whether tool usage is necessary based on the user's query and the information provided.  
