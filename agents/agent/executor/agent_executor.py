@@ -11,7 +11,7 @@ from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.short_memory import ShortMemory
-from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT
+from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
 from agents.agent.tools import BaseTool
@@ -95,6 +95,9 @@ class DeepAgentExecutor(object):
 
         self.short_memory.add(role="agent description", content=self.description)
         self.short_memory.add(role="agent settings", content=self.role_settings)
+
+        self.short_memory.add(role="", content=SYTHES_PROMPT)
+
         self._initialize_tools()
         self._initialize_answer()
         self._initialize_clarify()
@@ -120,7 +123,7 @@ class DeepAgentExecutor(object):
                 len(function_tools), len(self.api_tool),
             )
 
-            self.short_memory.add(role="system", content=TOOLS_PROMPT)
+            self.short_memory.add(role="", content=TOOLS_PROMPT)
 
             if self.api_tool:
                 tool_dict = tools_parser.convert_tool_into_openai_schema(self.api_tool)
@@ -132,10 +135,10 @@ class DeepAgentExecutor(object):
                 self.function_map = {tool.__name__: tool for tool in function_tools}
 
     def _initialize_answer(self):
-        self.short_memory.add(role="system", content=ANSWER_PROMPT)
+        self.short_memory.add(role="", content=ANSWER_PROMPT)
 
     def _initialize_clarify(self):
-        self.short_memory.add(role="system", content=CLARIFY_PROMPT)
+        self.short_memory.add(role="", content=CLARIFY_PROMPT)
 
 
     async def stream(
