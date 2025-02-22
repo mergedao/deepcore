@@ -305,6 +305,7 @@ async def list_public_agents(
         limit: int,
         session: AsyncSession,
         only_official: bool = False,
+        only_hot: bool = False,
         category_id: Optional[int] = None
 ):
     """
@@ -316,6 +317,7 @@ async def list_public_agents(
         limit: Number of records per page (page_size)
         session: Database session
         only_official: Whether to only show official agents
+        only_hot: Whether to only show hot agents
         category_id: Optional filter for category ID
 
     Returns:
@@ -331,6 +333,8 @@ async def list_public_agents(
 
     if only_official:
         conditions.append(App.is_official == True)
+    elif only_hot:
+        conditions.append(App.is_hot == True)
     else:
         conditions.append(App.is_public == True)
 
@@ -355,7 +359,7 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
     # Get paginated results with ordering
     query = (
         select(App)
-        .options(selectinload(App.category))  # 预加载 category 数据
+        .options(selectinload(App.category))
         .where(and_(*conditions))
         .order_by(App.create_time.desc())
     )
@@ -394,6 +398,7 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             suggested_questions=agent.suggested_questions,
             model_id=agent.model_id,
             category_id=agent.category_id,
+            is_hot=agent.is_hot,
             tools=[ToolInfo(
                 id=tool.id,
                 name=tool.name,

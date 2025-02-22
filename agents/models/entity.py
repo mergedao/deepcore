@@ -72,7 +72,7 @@ class AgentInfo():
         info.tools = []
         if dto.tools:
             for tool in dto.tools:
-                if not isinstance(tool, str):  # 如果不是字符串ID
+                if not isinstance(tool, str):
                     info.tools.append(ToolInfo(**tool.model_dump()))
         info.id = dto.id
         return info

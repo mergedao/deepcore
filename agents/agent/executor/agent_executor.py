@@ -38,6 +38,8 @@ class DeepAgentExecutor(object):
             llm: Optional[Any] = None,
             system_prompt: Optional[str] = "You are a helpful assistant.",
             tool_system_prompt: str = tool_prompt(),
+            description: str = "",
+            role_settings: str = "",
             api_tool: Optional[List[ToolInfo]] = None,
             tools: Optional[List[Callable]] = None,
             async_tools: Optional[List[Callable]] = None,
@@ -67,6 +69,8 @@ class DeepAgentExecutor(object):
         self.should_send_node = node_massage_enabled
         self.tokenizer = tokenizer
         self.long_term_memory = long_term_memory
+        self.description = description
+        self.role_settings = role_settings
 
         self.agent_executor_id = gen_agent_executor_id()
 
@@ -89,6 +93,8 @@ class DeepAgentExecutor(object):
             ),
         )
 
+        self.short_memory.add(role="agent description", content=self.description)
+        self.short_memory.add(role="agent settings", content=self.role_settings)
         self._initialize_tools()
         self._initialize_answer()
         self._initialize_clarify()
@@ -106,7 +112,7 @@ class DeepAgentExecutor(object):
             tool_system_prompt=self.tool_system_prompt,
         )
 
-        self.short_memory.add(role="system", content=self.tool_system_prompt)
+        # self.short_memory.add(role="system", content=self.tool_system_prompt)
 
         if function_tools or self.api_tool:
             logger.info(

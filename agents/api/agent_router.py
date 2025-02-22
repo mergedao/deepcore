@@ -127,6 +127,7 @@ async def list_personal_agents(
 async def list_public_agents(
         status: Optional[AgentStatus] = Query(None, description="Filter agents by status"),
         only_official: bool = Query(False, description="Show only official agents"),
+        only_hot: bool = Query(False, description="Show only hot agents"),
         category_id: Optional[int] = Query(None, description="Filter agents by category"),
         pagination: PaginationParams = Depends(),
         session: AsyncSession = Depends(get_db)
@@ -136,6 +137,7 @@ async def list_public_agents(
 
     - **status**: Filter agents by their status (active, inactive, or draft)
     - **only_official**: Whether to show only official agents
+    - **only_hot**: Whether to show only hot agents
     - **category_id**: Optional filter for category ID
     - **page**: Page number (starts from 1)
     - **page_size**: Number of items per page (1-100)
@@ -149,6 +151,7 @@ async def list_public_agents(
             skip=offset,
             limit=pagination.page_size,
             only_official=only_official,
+            only_hot=only_hot,
             category_id=category_id,
             session=session
         )
