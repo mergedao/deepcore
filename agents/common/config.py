@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = None
     REDIS_DB: int = 0
+    REDIS_PREFIX: str = "defult"
     LOG_LEVEL: str = "INFO"
     MYSQL_USER: str = "root"
     MYSQL_PASSWORD: str = "password"

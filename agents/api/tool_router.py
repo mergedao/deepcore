@@ -8,7 +8,7 @@ from agents.common.response import RestResponse
 from agents.middleware.auth_middleware import get_current_user
 from agents.models.db import get_db
 from agents.protocol.response import ToolModel
-from agents.protocol.schemas import ToolCreate, ToolUpdate, AgentToolsRequest, CreateOpenAPIToolRequest, CreateToolsBatchRequest
+from agents.protocol.schemas import ToolCreate, ToolUpdate, AgentToolsRequest, CreateOpenAPIToolRequest, CreateToolsBatchRequest, OpenAPIParseRequest
 from agents.services import tool_service
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.common.error_messages import get_error_message
@@ -293,17 +293,17 @@ async def get_agent_tools(
 
 @router.post("/tools/parse-openapi", summary="Parse OpenAPI Content")
 async def parse_openapi(
-    content: str = Body(..., description="OpenAPI content to parse"),
+    request: OpenAPIParseRequest,
     user: dict = Depends(get_current_user)
 ):
     """
     Parse OpenAPI content and return API information
     
     Parameters:
-    - **content**: OpenAPI specification content (JSON or YAML format)
+    - **request**: Request body containing OpenAPI specification content
     """
     try:
-        api_info = await tool_service.parse_openapi_content(content)
+        api_info = await tool_service.parse_openapi_content(request.content)
         return RestResponse(data=api_info)
     except CustomAgentException as e:
         logger.error(f"Error parsing OpenAPI content: {str(e)}", exc_info=True)

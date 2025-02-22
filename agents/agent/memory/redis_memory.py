@@ -1,4 +1,5 @@
 from agents.agent.memory.memory import MemoryStore, MemoryObject
+from agents.common.config import SETTINGS
 from agents.common.redis_utils import redis_utils
 
 
@@ -20,4 +21,4 @@ class RedisMemoryStore(MemoryStore):
         redis_utils.push_to_list(redis_key, memory.to_dict(), self.memory_size, self.max_ttl)
 
     def _get_redis_key(self, conversation_id: str):
-        return f"{self.prefix}.{conversation_id}"
+        return f"{SETTINGS.REDIS_PREFIX}.{self.prefix}.{conversation_id}"
