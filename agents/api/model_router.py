@@ -32,7 +32,10 @@ async def create_model(
         return RestResponse(data=result)
     except Exception as e:
         logger.error(f"Error while creating model: {e}", exc_info=True)
-        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e))
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 @router.put("/models/{model_id}", summary="Update Model", response_model=RestResponse[ModelDTO])
 async def update_model(
@@ -55,7 +58,10 @@ async def update_model(
         return RestResponse(data=result)
     except Exception as e:
         logger.error(f"Error while updating model {model_id}: {e}", exc_info=True)
-        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e))
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 @router.get("/models/list", summary="List Models", response_model=RestResponse[List[ModelDTO]])
 async def list_models(
@@ -76,7 +82,10 @@ async def list_models(
         return RestResponse(data=models)
     except Exception as e:
         logger.error(f"Error while listing models: {e}", exc_info=True)
-        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e))
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
 
 @router.get("/models/{model_id}", summary="Get Model", response_model=RestResponse[ModelDTO])
 async def get_model(
@@ -95,4 +104,7 @@ async def get_model(
         return RestResponse(data=model)
     except Exception as e:
         logger.error(f"Error while getting model {model_id}: {e}", exc_info=True)
-        return RestResponse(code=ErrorCode.API_CALL_ERROR, msg=str(e)) 
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )

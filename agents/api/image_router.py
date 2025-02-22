@@ -3,6 +3,8 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..common.error_messages import get_error_message
+from ..exceptions import ErrorCode
 from ..services.image_service import ImageService
 from ..models.db import get_db
 from agents.common.response import RestResponse
@@ -66,4 +68,7 @@ async def generate_image(
         return RestResponse(data=result)
         
     except Exception as e:
-        return RestResponse(code=1, msg=str(e)) 
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )

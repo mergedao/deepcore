@@ -307,7 +307,7 @@ async def parse_openapi(
         return RestResponse(data=api_info)
     except CustomAgentException as e:
         logger.error(f"Error parsing OpenAPI content: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error parsing OpenAPI content: {str(e)}", exc_info=True)
         return RestResponse(
@@ -337,7 +337,7 @@ async def create_tools_batch(
         return RestResponse(data=tools)
     except CustomAgentException as e:
         logger.error(f"Error creating tools in batch: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error creating tools in batch: {str(e)}", exc_info=True)
         return RestResponse(
@@ -367,7 +367,7 @@ async def upload_openapi(
         })
     except CustomAgentException as e:
         logger.error(f"Error uploading OpenAPI file: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error uploading OpenAPI file: {str(e)}", exc_info=True)
         return RestResponse(

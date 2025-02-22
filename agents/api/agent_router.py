@@ -71,7 +71,7 @@ async def create_agent(
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error in agent creation: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error in agent creation: {str(e)}", exc_info=True)
         return RestResponse(
@@ -253,7 +253,7 @@ async def ai_create_agent(
         logger.error(f"Error in AI agent creation: {e}", exc_info=True)
         return RestResponse(
             code=ErrorCode.API_CALL_ERROR,
-            msg=f"Failed to create AI agent: {str(e)}"
+            msg=f"Failed to create AI"
         )
 
 @router.post("/agents/{agent_id}/dialogue")
@@ -274,7 +274,7 @@ async def dialogue(
         return StreamingResponse(content=resp, media_type="text/event-stream")
     except CustomAgentException as e:
         logger.error(f"Error in dialogue: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error in dialogue: {str(e)}", exc_info=True)
         return RestResponse(
@@ -317,7 +317,7 @@ async def dialogue_get(
         return StreamingResponse(content=resp, media_type="text/event-stream")
     except CustomAgentException as e:
         logger.error(f"Error in dialogue: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error in dialogue: {str(e)}", exc_info=True)
         return RestResponse(
@@ -349,7 +349,7 @@ async def publish_agent(
         return RestResponse(data="ok")
     except CustomAgentException as e:
         logger.error(f"Error publishing agent: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error publishing agent: {str(e)}", exc_info=True)
         return RestResponse(

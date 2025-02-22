@@ -34,7 +34,7 @@ async def create_category(
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error creating category: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error creating category: {str(e)}", exc_info=True)
         return RestResponse(
@@ -63,7 +63,7 @@ async def update_category(
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error updating category: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error updating category: {str(e)}", exc_info=True)
         return RestResponse(
@@ -89,7 +89,7 @@ async def delete_category(
         return RestResponse(data="ok")
     except CustomAgentException as e:
         logger.error(f"Error deleting category: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error deleting category: {str(e)}", exc_info=True)
         return RestResponse(
@@ -115,7 +115,7 @@ async def list_categories(
         return RestResponse(data=categories)
     except CustomAgentException as e:
         logger.error(f"Error listing categories: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error listing categories: {str(e)}", exc_info=True)
         return RestResponse(
@@ -141,7 +141,7 @@ async def get_category(
         return RestResponse(data=category)
     except CustomAgentException as e:
         logger.error(f"Error getting category: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error getting category: {str(e)}", exc_info=True)
         return RestResponse(
