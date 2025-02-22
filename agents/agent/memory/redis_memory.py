@@ -21,4 +21,4 @@ class RedisMemoryStore(MemoryStore):
         redis_utils.push_to_list(redis_key, memory.to_dict(), self.memory_size, self.max_ttl)
 
     def _get_redis_key(self, conversation_id: str):
-        return f"{SETTINGS.REDIS_PREFIX}.{self.prefix}.{conversation_id}"
+        return f"{self.prefix}.{SETTINGS.REDIS_PREFIX}.{conversation_id}"

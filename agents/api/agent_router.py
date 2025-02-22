@@ -310,7 +310,7 @@ async def dialogue_get(
             
         dialogue_request = DialogueRequest(
             query=query,
-            conversation_id=conversation_id
+            conversationId=conversation_id
         )
         
         resp = agent_service.dialogue(agent_id, dialogue_request, user, session)

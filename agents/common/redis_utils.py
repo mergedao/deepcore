@@ -1,10 +1,12 @@
 import json
+import logging
 from typing import Any, Optional, List, Dict
 
 import redis
 
 from agents.common.config import SETTINGS
 
+logger = logging.getLogger(__name__)
 
 class RedisUtils:
     def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0, password: Optional[str] = None):
@@ -49,7 +51,7 @@ class RedisUtils:
         try:
             return self.client.get(key)
         except redis.RedisError as e:
-            print(f"Error getting value: {e}")
+            logger.error(f"Error getting value: {e}", exc_info=True)
             return None
 
     def delete_key(self, key: str) -> int:
@@ -62,7 +64,7 @@ class RedisUtils:
         try:
             return self.client.delete(key)
         except redis.RedisError as e:
-            print(f"Error deleting key: {e}")
+            logger.error(f"Error deleting key: {e}", exc_info=True)
             return 0
 
     def push_to_list(self, key: str, value: Any, max_length: Optional[int] = None, ttl: int = None) -> None:
@@ -84,7 +86,7 @@ class RedisUtils:
                 pipe.ltrim(key, -max_length, -1)
             pipe.execute()
         except redis.RedisError as e:
-            print(f"Error pushing to list: {e}")
+            logger.error(f"Error pushing to list: {e}", exc_info=True)
 
     def get_list(self, key: str, start: int = 0, end: int = -1) -> List[Any]:
         """
@@ -99,10 +101,10 @@ class RedisUtils:
             raw_list = self.client.lrange(key, start, end)
             return [json.loads(item) for item in raw_list]  # Deserialize JSON
         except redis.RedisError as e:
-            print(f"Error getting list: {e}")
+            logger.error(f"Error getting list: {e}", exc_info=True)
             return []
         except json.JSONDecodeError as e:
-            print(f"Error decoding JSON: {e}")
+            logger.error(f"Error deserializing list: {e}", exc_info=True)
             return []
 
     def set_hash(self, key: str, mapping: Dict[str, Any]) -> bool:
@@ -116,7 +118,7 @@ class RedisUtils:
         try:
             return self.client.hmset(key, mapping)
         except redis.RedisError as e:
-            print(f"Error setting hash: {e}")
+            logger.error(f"Error setting hash: {e}", exc_info=True)
             return False
 
     def get_hash(self, key: str) -> Optional[Dict[str, Any]]:
@@ -129,7 +131,7 @@ class RedisUtils:
         try:
             return self.client.hgetall(key)
         except redis.RedisError as e:
-            print(f"Error getting hash: {e}")
+            logger.error(f"Error getting hash: {e}", exc_info=True)
             return None
 
     def add_to_set(self, key: str, *values: Any) -> int:
@@ -143,7 +145,7 @@ class RedisUtils:
         try:
             return self.client.sadd(key, *values)
         except redis.RedisError as e:
-            print(f"Error adding to set: {e}")
+            logger.error(f"Error adding to set: {e}", exc_info=True)
             return 0
 
     def get_set_members(self, key: str) -> Optional[set]:
@@ -156,7 +158,7 @@ class RedisUtils:
         try:
             return self.client.smembers(key)
         except redis.RedisError as e:
-            print(f"Error getting set members: {e}")
+            logger.error(f"Error getting set members: {e}", exc_info=True)
             return None
 
 

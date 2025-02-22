@@ -1,91 +1,79 @@
 
 
-ANSWER_PROMPT = """If you are confident in your answer, respond with:
+SYTHES_PROMPT = """
+## **Response Guidelines**  
 
-Final Answer: [Your answer here]"""
+### **1. Determining Response Type**  
+- If the question **requires tool usage**, generate a **JSON output** following the tool’s schema.  
+- If the question **can be answered directly** (common-sense or basic questions), provide a `Final Answer` in plain text.  
+- If **clarification is needed**, request details using `Tool Clarify` before proceeding.  
 
-CLARIFY_PROMPT = """If you need to clarify the user's intent or gather more information before providing a confident answer, respond with:
+---"""
 
-Tool Clarify: [Your clarification or question here]"""
 
-TOOLS_PROMPT = """### Tool Usage Guidelines  
+ANSWER_PROMPT = """
+### **✅ When Answering Directly (No Tool Needed)**  
+Final Answer: The capital of France is Paris.  
 
-#### When Tool Usage is Required:  
-1. **Tool Invocation**:  
-   - Generate JSON outputs compliant with the tool's schema.  
-   - Encapsulate the JSON in markdown within triple backticks (```json).  
-   - **Do not include any commentary or explanations; only provide the JSON output.**  
+---"""
 
-2. **Tool Responses**:  
-   - If the tool's output directly answers the user's question, provide the Final Answer **only after receiving the tool's output.**  
-   - If additional steps are required or the tool's output is insufficient, focus only on generating the JSON.  
+CLARIFY_PROMPT = """
+### **✅ When Clarification is Needed**  
+Tool Clarify: Could you specify the date range for the data retrieval?  
 
-#### When Tool Usage is NOT Required:  
-- Provide a concise and clear response in plain text, labeled as `Final Answer`.  
+---"""
 
-#### Important Restrictions:  
-- Do not output both tool-related JSON and a Final Answer in the same step.  
-- Avoid invoking tools irrelevant to the user's request.  
-
-### Decision Flow for Responses  
-
-1. **Determine Requirement**:  
-   - Assess whether tool usage is necessary based on the user's query and the information provided.  
-
-2. **Generate Output**:  
-   - **If Tool Usage is Required**: Generate JSON output first, adhering to the tool's schema, without including a Final Answer at this stage.  
-   - **If Tool Usage is NOT Required**: Directly provide a Final Answer in plain text.  
-
-3. **If Clarification is Needed**:  
-   - Provide a response labeled as `Tool Clarify` to request additional details from the user.  
-   - This can be included alongside a `Final Answer` in plain text if applicable.  
+TOOLS_PROMPT = """
+### **2. Tool Invocation Rules**  
+- **Format**:  
+  - The JSON **must** be enclosed in triple backticks (```json).  
+  - **Do not include explanations**—only provide the JSON.  
+- **Response Handling**:  
+  - If the tool output directly answers the query, provide a **Final Answer** after retrieving the tool response.  
+  - If additional processing is needed, generate the JSON first before formulating a response.  
+- **Restrictions**:  
+  - Do **not** output JSON and a Final Answer in the same step.  
+  - Only invoke relevant tools based on the query.  
 
 ---
 
-### Output Examples  
+### **3. Clarification Handling**  
+- If **tool parameters are unclear and have no default value**, respond with:  
+  **Tool Clarify:** [Clarification question]  
+- A **Final Answer** can accompany a clarification if necessary.  
 
-#### **When Using a Tool**:  
-If the tool's output can directly satisfy the user's question:  
+---
+
+## **Response Format Examples**  
+
+### **✅ When Using a Tool**  
+If the tool can directly satisfy the request:  
 ```json
 {
-    "type": "api",
-    "function": {
-        "name": "example_tool",
-        "parameters": {
-            "header": {},
-            "query": {},
-            "path": {},
-            "body": {}
-        }
+  "type": "function",
+  "function": {
+    "name": "example_tool",
+    "parameters": {
+      "param1": "value1",
+      "param2": "value2"
     }
+  }
 }
 ```
-- **header**: Extract relevant header information if present in the input.
-- **query**: Identify and extract query parameters from the input.
-- **path**: Capture the API path variables based on the user's intent.
-- **body**: Extract the request body, ensuring it matches the expected API payload.
-
-or
-
+or  
 ```json
 {
-    "type": "function",
-    "function": {
-        "name": "example_tool",
-        "parameters": {
-            "param1": "value1",
-            "param2": "value2"
-        }
+  "type": "api",
+  "function": {
+    "name": "example_tool",
+    "parameters": {
+      "header": {},
+      "query": {},
+      "path": {},
+      "body": {}
     }
+  }
 }
 ```
-### Error Handling  
 
-1. **When Input is Insufficient for Tool Invocation**:  
-   - Generate a response to request clarification:  
-      Tool Clarify: <Specific details about what clarification is needed>.
-
-2. **When Tool Usage Fails**:  
-   - Provide an error response indicating the failure and possible reasons.  
-
-"""
+---"""
