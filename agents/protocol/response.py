@@ -3,7 +3,7 @@ from typing import Optional, List, Dict
 
 from pydantic import BaseModel
 
-from agents.protocol.schemas import ToolType, AgentMode, AgentStatus
+from agents.protocol.schemas import ToolType, AgentMode, AgentStatus, CategoryDTO
 
 
 class ToolModel(BaseModel):
@@ -23,6 +23,8 @@ class ToolModel(BaseModel):
     create_time: Optional[datetime] = None
     is_stream: bool = False
     output_format: Optional[Dict] = None
+    category_id: Optional[int] = None
+    category: Optional[CategoryDTO] = None
 
     class Config:
         from_attributes = True
