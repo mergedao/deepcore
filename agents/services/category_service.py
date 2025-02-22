@@ -105,19 +105,23 @@ async def delete_category(
 
 async def get_categories(
     type: Optional[CategoryType],
-    user: dict,
+    user: Optional[dict],
     session: AsyncSession
 ) -> List[CategoryDTO]:
     """Get all categories by type"""
     try:
         conditions = []
-        if user.get('tenant_id'):
+        if user and user.get('tenant_id'):
             conditions.append(
                 or_(
                     Category.tenant_id == user.get('tenant_id'),
                     Category.tenant_id.is_(None)
                 )
             )
+        else:
+            # For non-logged-in users, only show public categories (tenant_id is None)
+            conditions.append(Category.tenant_id.is_(None))
+            
         if type:
             conditions.append(Category.type == type)
 
@@ -148,19 +152,25 @@ async def get_categories(
 
 async def get_category(
     category_id: int,
-    user: dict,
+    user: Optional[dict],
     session: AsyncSession
 ) -> CategoryDTO:
     """Get a specific category"""
     try:
-        result = await session.execute(
-            select(Category).where(
-                Category.id == category_id,
+        conditions = [Category.id == category_id]
+        if user and user.get('tenant_id'):
+            conditions.append(
                 or_(
                     Category.tenant_id == user.get('tenant_id'),
                     Category.tenant_id.is_(None)
                 )
             )
+        else:
+            # For non-logged-in users, only show public categories
+            conditions.append(Category.tenant_id.is_(None))
+            
+        result = await session.execute(
+            select(Category).where(and_(*conditions))
         )
         category = result.scalar_one_or_none()
         if not category:

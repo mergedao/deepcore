@@ -39,9 +39,10 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             "/api/upload/file",
             "/api/images/generate",
             "/api/agents/public",
+            "/api/categories",  # Categories list endpoint
             "/"
         ]
-        auth_whitelist_startswith = ["/api/files/",]
+        auth_whitelist_startswith = ["/api/files/", "/api/categories/"]
 
         # Check if the request path is in the whitelist
         for path in auth_whitelist:
