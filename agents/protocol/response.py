@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, List, Dict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agents.protocol.schemas import ToolType, AgentMode, AgentStatus, CategoryDTO
 
@@ -34,7 +34,10 @@ class AppModel(BaseModel):
     id: str  # UUID string
     name: str
     description: Optional[str] = None
-    mode: Optional[AgentMode] = None  # Enum type for agent mode
+    mode: Optional[AgentMode] = Field(
+        default=AgentMode.REACT,
+        description="Agent execution mode: ReAct (complex tasks), Prompt (simple conversation), or call (legacy)"
+    )
     icon: Optional[str] = None
     status: Optional[AgentStatus] = None  # Enum type for agent status
     role_settings: Optional[str] = None

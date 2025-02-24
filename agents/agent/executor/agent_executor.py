@@ -1,6 +1,5 @@
 import json
 import logging
-import uuid
 from typing import Optional, AsyncIterator, List, Callable, Any
 
 import yaml
@@ -9,6 +8,7 @@ from langchain_core.messages import BaseMessageChunk
 from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
+from agents.agent.executor.executor import AgentExecutor
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.short_memory import ShortMemory
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
@@ -25,11 +25,7 @@ from agents.utils.parser import parse_and_execute_json, extract_md_code
 logger = logging.getLogger(__name__)
 
 
-def gen_agent_executor_id() -> str:
-    return uuid.uuid4().hex
-
-
-class DeepAgentExecutor(object):
+class DeepAgentExecutor(AgentExecutor):
 
     def __init__(
             self,
@@ -54,29 +50,26 @@ class DeepAgentExecutor(object):
             *args,
             **kwargs,
     ):
-        self.agent_name = name
-        self.llm = llm
-        self.tool_system_prompt = tool_system_prompt
-        self.user_name = user_name
-        self.output_type = output_type
-        self.return_step_meta = output_detail_enabled
-        self.max_loops = max_loops
-        self.retry_attempts = retry
-        self.stop_func = stop_func
-        self.tools = tools or []
-        self.api_tool = api_tool or []
-        self.async_tools = async_tools or []
-        self.should_send_node = node_massage_enabled
-        self.tokenizer = tokenizer
-        self.long_term_memory = long_term_memory
-        self.description = description
-        self.role_settings = role_settings
 
-        self.agent_executor_id = gen_agent_executor_id()
-
-        self.short_memory = ShortMemory(
-            system_prompt=system_prompt,
+        super().__init__(
+            name=name,
             user_name=user_name,
+            llm=llm,
+            system_prompt=system_prompt,
+            tool_system_prompt=tool_system_prompt,
+            description=description,
+            role_settings=role_settings,
+            api_tool=api_tool,
+            tools=tools,
+            async_tools=async_tools,
+            node_massage_enabled=node_massage_enabled,
+            output_type=output_type,
+            output_detail_enabled=output_detail_enabled,
+            max_loops=max_loops,
+            retry=retry,
+            stop_func=stop_func,
+            tokenizer=tokenizer,
+            long_term_memory=long_term_memory,
             *args,
             **kwargs,
         )
@@ -417,13 +410,6 @@ class DeepAgentExecutor(object):
         """Send a node message to the agent."""
         if self.should_send_node:
             yield NodeMessage(message=message)
-
-    def add_memory_object(self, memory: MemoryObject):
-        """Add a memory object to the agent's memory."""
-        self.short_memory.add(
-            role="History data",
-            content=f"user: {memory.input}\n\nassistant: {memory.output}",
-        )
 
     def _handle_run_error(self, error: any):
         logger.info(
