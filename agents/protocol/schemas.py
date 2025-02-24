@@ -210,6 +210,7 @@ class AgentToolsRequest(BaseModel):
 class ModelDTO(BaseModel):
     id: Optional[int] = Field(None, description="ID of the model")
     name: str = Field(..., description="Name of the model")
+    model_name: str = Field(..., description="Name of the underlying model (e.g. gpt-4, claude-3)")
     endpoint: str = Field(..., description="API endpoint of the model")
     is_official: Optional[bool] = Field(False, description="Whether the model is official preset")
     is_public: Optional[bool] = Field(False, description="Whether the model is public")
@@ -219,12 +220,14 @@ class ModelDTO(BaseModel):
 
 class ModelCreate(BaseModel):
     name: str = Field(..., description="Name of the model")
+    model_name: str = Field(..., description="Name of the underlying model (e.g. gpt-4, claude-3)")
     endpoint: str = Field(..., description="API endpoint of the model")
     api_key: Optional[str] = Field(None, description="API key for the model")
 
 
 class ModelUpdate(BaseModel):
     name: Optional[str] = Field(None, description="Name of the model")
+    model_name: Optional[str] = Field(None, description="Name of the underlying model (e.g. gpt-4, claude-3)")
     endpoint: Optional[str] = Field(None, description="API endpoint of the model")
     api_key: Optional[str] = Field(None, description="API key for the model")
 

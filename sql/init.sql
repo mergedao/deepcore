@@ -100,6 +100,7 @@ CREATE TABLE `agent_tools` (
 CREATE TABLE `models` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the model',
+  `model_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the underlying model (e.g. gpt-4, claude-3)',
   `endpoint` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'API endpoint of the model',
   `api_key` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API key for the model',
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the model is official preset',
@@ -144,3 +145,9 @@ CREATE TABLE `open_platform_keys` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+
+
+-- ALTER TABLE models
+-- ADD COLUMN model_name varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
+-- COMMENT 'Name of the underlying model (e.g. gpt-4, claude-3)'
+-- AFTER name;

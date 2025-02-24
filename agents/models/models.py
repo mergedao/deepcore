@@ -143,8 +143,9 @@ class Model(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False, comment="Name of the model")
+    model_name = Column(String(255), nullable=False, comment="Name of the underlying model (e.g. gpt-4, claude-3)")
     endpoint = Column(String(255), nullable=False, comment="API endpoint of the model")
-    api_key = Column(String(255), comment="API key for the model")
+    api_key = Column(String(1000), comment="API key for the model")
     is_official = Column(Boolean, default=False, comment="Whether the model is official preset")
     is_public = Column(Boolean, default=False, comment="Whether the model is public")
     tenant_id = Column(String(255), comment="Tenant ID")
