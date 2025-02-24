@@ -41,7 +41,7 @@ async def get_session():
     try:
         yield session
         await session.commit()
-    except Exception as e:
+    except Exception:
         await session.rollback()
         raise
     finally:
@@ -49,15 +49,18 @@ async def get_session():
 
 async def get_db():
     """Dependency for providing database session for each request."""
-    session = SessionLocal()
+    session = None
     try:
+        session = SessionLocal()
         yield session
         await session.commit()
-    except Exception as e:
-        await session.rollback()
+    except Exception:
+        if session:
+            await session.rollback()
         raise
     finally:
-        await session.close()
+        if session:
+            await session.close()
 
 async def init_db(engine: AsyncEngine):
     """Initialize database tables."""

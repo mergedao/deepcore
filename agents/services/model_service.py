@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from fastapi import Depends
 from sqlalchemy import select, update, or_, and_
@@ -12,6 +13,8 @@ from agents.protocol.schemas import ModelDTO, ModelCreate, ModelUpdate
 
 
 cipher_suite = Fernet(SETTINGS.ENCRYPTION_KEY.encode())
+
+logger = logging.getLogger(__name__)
 
 def encrypt_api_key(api_key: str) -> str:
     """Encrypt API key before storing"""
@@ -44,7 +47,7 @@ async def create_model(
         session: AsyncSession = Depends(get_db)
 ):
     """Create a new model"""
-    async with session.begin():
+    try:
         # Encrypt API key before storing
         encrypted_api_key = encrypt_api_key(model.api_key) if model.api_key else None
         
@@ -60,6 +63,12 @@ async def create_model(
         
         # Return DTO without API key
         return model_to_dto(new_model)
+    except Exception as e:
+        logger.error(f"Error creating model: {str(e)}")
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to create model: {str(e)}"
+        )
 
 async def update_model(
         model_id: int,
@@ -68,14 +77,14 @@ async def update_model(
         session: AsyncSession = Depends(get_db)
 ):
     """Update an existing model"""
-    async with session.begin():
-        db_model = await session.execute(
+    try:
+        result = await session.execute(
             select(Model).where(
                 Model.id == model_id,
                 Model.tenant_id == user.get('tenant_id')
             )
         )
-        db_model = db_model.scalar_one_or_none()
+        db_model = result.scalar_one_or_none()
         if not db_model:
             raise CustomAgentException(ErrorCode.INVALID_PARAMETERS, "Model not found or no permission")
 
@@ -87,9 +96,19 @@ async def update_model(
         
         for key, value in update_data.items():
             setattr(db_model, key, value)
-
+        
+        await session.flush()
+        
         # Return DTO without API key
         return model_to_dto(db_model)
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating model: {str(e)}")
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to update model: {str(e)}"
+        )
 
 async def list_models(
         user: dict,
@@ -148,28 +167,34 @@ async def get_model_with_key(
     Internal method to get model with decrypted API key
     Returns tuple of (model_dto, decrypted_api_key)
     """
-    if user:
-        result = await session.execute(
-            select(Model).where(
+    try:
+        if user:
+            stmt = select(Model).where(
                 Model.id == model_id,
                 or_(
                     Model.tenant_id == user.get('tenant_id'),
                     Model.is_public == True
                 )
             )
-        )
-    else:
-        result = await session.execute(
-            select(Model).where(
+        else:
+            stmt = select(Model).where(
                 Model.id == model_id,
                 Model.is_public == True
             )
-        )
-    model = result.scalar_one_or_none()
-    if not model:
-        return None
+            
+        result = await session.execute(stmt)
+        model = result.scalar_one_or_none()
         
-    return (
-        model_to_dto(model),
-        decrypt_api_key(model.api_key) if model.api_key else None
-    ) 
+        if not model:
+            return None
+            
+        return (
+            model_to_dto(model),
+            decrypt_api_key(model.api_key) if model.api_key else None
+        )
+    except Exception as e:
+        logger.error(f"Error getting model with key: {str(e)}")
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to get model: {str(e)}"
+        )
