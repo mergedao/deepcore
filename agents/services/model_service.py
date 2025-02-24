@@ -30,6 +30,7 @@ def model_to_dto(model: Model) -> ModelDTO:
     return ModelDTO(
         id=model.id,
         name=model.name,
+        model_name=model.model_name,
         endpoint=model.endpoint,
         is_official=model.is_official,
         is_public=model.is_public,
@@ -49,6 +50,7 @@ async def create_model(
         
         new_model = Model(
             name=model.name,
+            model_name=model.model_name,
             endpoint=model.endpoint,
             api_key=encrypted_api_key,  # Store encrypted key
             tenant_id=user.get('tenant_id')

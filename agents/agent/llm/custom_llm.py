@@ -11,7 +11,7 @@ class CustomChat(Model):
         self.model = ChatOpenAI(
             openai_api_key=model.api_key,
             base_url=model.endpoint,
-            model_name=model.name
+            model_name=model.model_name
         )
 
     def get_model(self):
