@@ -1,15 +1,8 @@
-from typing import Optional, List, Tuple, Dict
-from enum import Enum
-from datetime import datetime
-
+from typing import Optional, List, Dict
 from pydantic import Field, BaseModel
 
+from agents.agent.entity.agent_mode import AgentMode
 from agents.protocol.schemas import AgentDTO
-
-
-class AgentMode(str, Enum):
-    REACT = "ReAct"
-    CALL = "call"
 
 
 class ToolInfo(BaseModel):

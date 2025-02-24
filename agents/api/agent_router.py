@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 defaults = {
     'id': uuid.uuid4().hex,
-    'mode': AgentMode.REACT,
+    'mode': AgentMode.REACT,  # Default to ReAct mode, but PROMPT is also valid
     'status': AgentStatus.ACTIVE,
     'max_loops': 3,
     'name': "",
@@ -49,7 +49,7 @@ async def create_agent(
     Parameters:
     - **name**: Name of the agent
     - **description**: Description of the agent
-    - **mode**: Mode of the agent (ReAct or call)
+    - **mode**: Mode of the agent (ReAct/Prompt/call)
     - **tools**: Optional list of tools to associate
     - **model_id**: Optional ID of the model to use
     - **suggested_questions**: Optional list of suggested questions

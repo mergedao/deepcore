@@ -56,7 +56,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         path = request.url.path
-        
+
         # Check public paths
         if (path in AuthConfig.PUBLIC_PATHS or
             any(path.startswith(prefix) for prefix in AuthConfig.PUBLIC_PREFIXES)):
@@ -91,35 +91,55 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             if not self._verify_timestamp(timestamp):
                 return False
 
-            async with request.app.state.db() as session:
-                credentials = await open_service.get_credentials(access_key, session)
-                if not credentials or not open_service.verify_signature(
-                    access_key, credentials.secret_key, timestamp, signature
-                ):
-                    return False
+            session = None
+            try:
+                async with request.app.state.db() as session:
+                    credentials = await open_service.get_credentials(access_key, session)
+                    if not credentials:
+                        logger.warning(f"Invalid access_key: {access_key}")
+                        return False
 
-                request.state.user = {
-                    "id": credentials.user_id,
-                    "type": "api_key",
-                    "access_key": access_key
-                }
-                return True
-        except Exception:
-            logger.error("Open API authentication failed", exc_info=True)
+                    if not open_service.verify_signature(
+                        access_key, credentials.secret_key, timestamp, signature
+                    ):
+                        logger.warning(f"Invalid signature for access_key: {access_key}")
+                        return False
+
+                    request.state.user = {
+                        "id": credentials.user_id,
+                        "type": "api_key",
+                        "access_key": access_key
+                    }
+                    return True
+            except Exception as e:
+                logger.error(f"Database operation failed: {str(e)}", exc_info=True)
+                return False
+            finally:
+                if session:
+                    try:
+                        await session.close()
+                    except Exception as e:
+                        logger.error(f"Error closing database session: {str(e)}", exc_info=True)
+        except Exception as e:
+            logger.error(f"Open API authentication failed: {str(e)}", exc_info=True)
             return False
 
     async def _authenticate_jwt(self, request: Request):
         """Authenticate using JWT token"""
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            raise AuthError(ErrorCode.TOKEN_MISSING)
+        try:
+            auth_header = request.headers.get("Authorization")
+            if not auth_header:
+                raise AuthError(ErrorCode.TOKEN_MISSING)
 
-        token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
-        payload = verify_token(token)
-        if not payload:
-            raise AuthError(ErrorCode.TOKEN_EXPIRED)
+            token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
+            payload = verify_token(token)
+            if not payload:
+                raise AuthError(ErrorCode.TOKEN_EXPIRED)
 
-        request.state.user = payload
+            request.state.user = payload
+        except (IndexError, AttributeError) as e:
+            logger.error(f"JWT token parsing error: {str(e)}")
+            raise AuthError(ErrorCode.TOKEN_INVALID)
 
     def _verify_timestamp(self, timestamp: str, max_age: int = 300) -> bool:
         """Verify if timestamp is within allowed range"""

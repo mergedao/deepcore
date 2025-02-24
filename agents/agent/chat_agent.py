@@ -6,6 +6,7 @@ from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.agent_executor import DeepAgentExecutor
+from agents.agent.factory.agent_factory import AgentExecutorFactory
 from agents.agent.llm.custom_llm import CustomChat
 from agents.agent.llm.default_llm import openai
 from agents.agent.memory.memory import MemoryObject
@@ -36,7 +37,8 @@ class ChatAgent(AbstractAgent):
                     return True
             return False
 
-        self.agent_executor = DeepAgentExecutor(
+        self.agent_executor = AgentExecutorFactory.create_executor(
+            mode=app.mode,
             name=app.name,
             llm=CustomChat(app.model).get_model() if app.model else openai.get_model(),
             api_tool=app.tools,

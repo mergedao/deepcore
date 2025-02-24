@@ -29,17 +29,24 @@ async def dialogue(
     # Add tenant filter
     agent = await get_agent(agent_id, user, session)
     agent_info = AgentInfo.from_dto(agent)
+    
+    # Set up model info if specified
     if agent.model_id:
         model_dto, api_key = await get_model_with_key(agent.model_id, user, session)
         model_info = ModelInfo(**model_dto.model_dump())
         model_info.api_key = api_key
         agent_info.set_model(model_info)
+    
     if not agent:
         raise CustomAgentException(
             ErrorCode.RESOURCE_NOT_FOUND,
             "Agent not found or no permission"
         )
+
+    # Create appropriate agent based on mode
     agent = ChatAgent(agent_info)
+    
+    # Stream the response
     async for response in agent.stream(request.query, request.conversation_id):
         yield response
 
