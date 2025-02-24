@@ -1,130 +1,145 @@
 import logging
 from typing import Optional
 import re
+import time
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from starlette.status import HTTP_401_UNAUTHORIZED
 
 from agents.common.http_utils import add_cors_headers
 from agents.utils.jwt_utils import verify_token
 from agents.exceptions import ErrorCode
 from agents.common.response import RestResponse
 from agents.common.error_messages import get_error_message
+from agents.services import open_service
 
 security = HTTPBearer()
-
 logger = logging.getLogger(__name__)
 
+class AuthConfig:
+    """Authentication configuration"""
+    PUBLIC_PATHS = [
+        "/api/auth/login", "/api/auth/register",
+        "/api/auth/wallet/nonce", "/api/auth/wallet/login",
+        "/api/auth/refresh", "/api/auth/reset-password",
+        "/api/auth/verify-email", "/docs", "/redoc",
+        "/api/health", "/openapi.json", "/api/upload/file",
+        "/api/images/generate", "/api/agents/public",
+        "/api/categories", "/"
+    ]
+    PUBLIC_PREFIXES = ["/api/files/", "/api/categories/"]
+    OPEN_API_PATHS = [
+        r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"
+    ]
+
+class AuthResponse:
+    """Authentication response helper"""
+    @staticmethod
+    def error(error_code: ErrorCode) -> JSONResponse:
+        return add_cors_headers(JSONResponse(
+            status_code=200,
+            content=RestResponse(
+                code=error_code,
+                msg=get_error_message(error_code)
+            ).model_dump(exclude_none=True)
+        ))
+
+class AuthError(Exception):
+    def __init__(self, error_code: ErrorCode):
+        self.error_code = error_code
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.method == "OPTIONS":
             return await call_next(request)
 
-        # Whitelist paths that don't require authentication
-        auth_whitelist = [
-            "/api/auth/login",
-            "/api/auth/register",
-            "/api/auth/wallet/nonce",  # Wallet nonce endpoint
-            "/api/auth/wallet/login",  # Wallet login endpoint
-            "/api/auth/refresh",  # Token refresh endpoint
-            "/api/auth/reset-password",
-            "/api/auth/verify-email",
-            "/docs",
-            "/redoc",
-            "/api/health",
-            "/openapi.json",
-            "/api/upload/file",
-            "/api/images/generate",
-            "/api/agents/public",
-            "/api/categories",  # Categories list endpoint
-            "/"
-        ]
-        auth_whitelist_startswith = ["/api/files/", "/api/categories/"]
+        path = request.url.path
         
-        # Regex patterns for dynamic paths that don't require authentication
-        auth_whitelist_regex = [
-            r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",  # UUID pattern for agent dialogue
-        ]
-
-        # Check if the request path is in the whitelist
-        for path in auth_whitelist:
-            if request.url.path == path:
-                await try_read_user(request)
-                return await call_next(request)
-
-        # Check if the request path starts with any of the whitelist prefixes
-        for prefix in auth_whitelist_startswith:
-            if request.url.path.startswith(prefix):
-                await try_read_user(request)
-                return await call_next(request)
-
-        # Check if the request path matches any regex pattern
-        for pattern in auth_whitelist_regex:
-            if re.match(pattern, request.url.path):
-                await try_read_user(request)
-                return await call_next(request)
+        # Check public paths
+        if (path in AuthConfig.PUBLIC_PATHS or
+            any(path.startswith(prefix) for prefix in AuthConfig.PUBLIC_PREFIXES)):
+            return await call_next(request)
 
         try:
-            auth_header = request.headers.get("Authorization")
-            if not auth_header:
-                return add_cors_headers(JSONResponse(
-                    status_code=200,
-                    content=RestResponse(
-                        code=ErrorCode.TOKEN_MISSING,
-                        msg=get_error_message(ErrorCode.TOKEN_MISSING)
-                    ).model_dump(exclude_none=True)
-                ))
+            # Handle Open API paths
+            if any(re.match(pattern, path) for pattern in AuthConfig.OPEN_API_PATHS):
+                if await self._authenticate_open_api(request):
+                    return await call_next(request)
 
-            token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
-
-            payload = verify_token(token)
-            if not payload:
-                return add_cors_headers(JSONResponse(
-                    status_code=200,
-                    content=RestResponse(
-                        code=ErrorCode.TOKEN_EXPIRED,
-                        msg=get_error_message(ErrorCode.TOKEN_EXPIRED)
-                    ).model_dump(exclude_none=True)
-                ))
-
-            # Add user information to request state
-            request.state.user = payload
-
+            # Try JWT authentication
+            await self._authenticate_jwt(request)
+            return await call_next(request)
+        except AuthError as e:
+            return AuthResponse.error(e.error_code)
         except Exception as e:
-            logger.error("Error verifying token", e, exc_info=True)
-            return add_cors_headers(JSONResponse(
-                status_code=200,
-                content=RestResponse(
-                    code=ErrorCode.TOKEN_INVALID,
-                    msg=get_error_message(ErrorCode.TOKEN_INVALID)
-                ).model_dump(exclude_none=True)
-            ))
+            logger.error("Authentication error", exc_info=True)
+            return AuthResponse.error(ErrorCode.TOKEN_INVALID)
 
-        return await call_next(request)
+    async def _authenticate_open_api(self, request: Request) -> bool:
+        """Authenticate using Open API credentials"""
+        try:
+            headers = request.headers
+            access_key = headers.get("X-Access-Key")
+            timestamp = headers.get("X-Timestamp")
+            signature = headers.get("X-Signature")
 
-async def try_read_user(request: Request):
-    try:
-        auth_header = request.headers.get("Authorization", "")
+            if not all([access_key, timestamp, signature]):
+                return False
+
+            if not self._verify_timestamp(timestamp):
+                return False
+
+            async with request.app.state.db() as session:
+                credentials = await open_service.get_credentials(access_key, session)
+                if not credentials or not open_service.verify_signature(
+                    access_key, credentials.secret_key, timestamp, signature
+                ):
+                    return False
+
+                request.state.user = {
+                    "id": credentials.user_id,
+                    "type": "api_key",
+                    "access_key": access_key
+                }
+                return True
+        except Exception:
+            logger.error("Open API authentication failed", exc_info=True)
+            return False
+
+    async def _authenticate_jwt(self, request: Request):
+        """Authenticate using JWT token"""
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            raise AuthError(ErrorCode.TOKEN_MISSING)
+
         token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
-        request.state.user = verify_token(token)
-    except Exception:
-        return None
+        payload = verify_token(token)
+        if not payload:
+            raise AuthError(ErrorCode.TOKEN_EXPIRED)
 
-# FastAPI dependency for getting current user in routes
-async def get_current_user(request: Request):
+        request.state.user = payload
+
+    def _verify_timestamp(self, timestamp: str, max_age: int = 300) -> bool:
+        """Verify if timestamp is within allowed range"""
+        try:
+            current_time = int(time.time())
+            request_time = int(timestamp)
+            return abs(current_time - request_time) <= max_age
+        except ValueError:
+            return False
+
+async def get_current_user(request: Request) -> dict:
+    """Get authenticated user from request"""
     user = getattr(request.state, "user", None)
-    if user is None:
+    if not user:
         raise HTTPException(
-            status_code=HTTP_401_UNAUTHORIZED,
+            status_code=401,
             detail=get_error_message(ErrorCode.UNAUTHORIZED)
         )
     return user
 
 async def get_optional_current_user(request: Request) -> Optional[dict]:
-    """Dependency for optional user authentication"""
-    user = getattr(request.state, "user", None)
-    return user
+    """Get optional user from request"""
+    return getattr(request.state, "user", None)
