@@ -5,13 +5,14 @@ import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router, image_router, category_router
+from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router, image_router, category_router, open_router
 from agents.common.config import SETTINGS
 from agents.common.log import Log
 from agents.common.otel import Otel, OtelFastAPI
 from agents.middleware.gobal import exception_handler
 from agents.middleware.auth_middleware import JWTAuthMiddleware
 from agents.api.auth_router import router as auth_router
+from agents.models.db import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,9 @@ def create_app() -> FastAPI:
     logger.info("Server started.")
 
     app = FastAPI()
+
+    # Add database session to app state
+    app.state.db = SessionLocal
 
     # Add CORS middleware with more specific configuration
     # app.add_middleware(
@@ -52,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(prompt_router.router, prefix="/api", tags=["prompt"])
     app.include_router(image_router.router, prefix="/api", tags=["images"])
     app.include_router(category_router.router, prefix="/api", tags=["category"])
+    app.include_router(open_router.router, prefix="/api/open", tags=["open"])
 
     # Initialize OpenTelemetry
     OtelFastAPI.init(app)

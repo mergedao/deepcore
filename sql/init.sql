@@ -129,4 +129,18 @@ CREATE TABLE `categories` (
   KEY `idx_sort` (`sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `open_platform_keys` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the API key',
+  `access_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Access key for API authentication',
+  `secret_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Secret key for API authentication',
+  `user_id` bigint NOT NULL COMMENT 'ID of the associated user',
+  `created_at` datetime DEFAULT (now()) COMMENT 'Creation time',
+  `is_deleted` tinyint(1) DEFAULT 0 COMMENT 'Logical deletion flag',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_access_key` (`access_key`),
+  KEY `idx_user` (`user_id`),
+  CONSTRAINT `fk_open_platform_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 

@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, func, JSON, Text, Larg
 from sqlalchemy.orm import declarative_base, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
-Base = declarative_base()
+from agents.models.base import Base
 
 
 class Category(Base):
@@ -91,17 +91,20 @@ class FileStorage(Base):
 
 
 class User(Base):
-    """User Model for storing user related details"""
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(120), unique=True, nullable=False)
-    email = Column(String(120), unique=True, nullable=True)  # Make email optional
-    password = Column(String(255), nullable=True)
-    wallet_address = Column(String(42), unique=True, nullable=True)  # ETH address is 42 chars with '0x'
-    tenant_id = Column(String(255), comment="Tenant ID")
-    create_time = Column(DateTime, server_default=func.now(), comment="Registration time")
-    update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")
+    email = Column(String(120), unique=True)
+    password = Column(String(255))
+    wallet_address = Column(String(42), unique=True)
+    nonce = Column(String(32))
+    tenant_id = Column(String(255))
+    create_time = Column(DateTime, default=datetime.utcnow)
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    open_platform_keys = relationship("OpenPlatformKey", back_populates="user")
 
     def set_password(self, password):
         """Set password."""
@@ -147,3 +150,18 @@ class Model(Base):
     tenant_id = Column(String(255), comment="Tenant ID")
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
     update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")
+
+
+class OpenPlatformKey(Base):
+    __tablename__ = "open_platform_keys"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    access_key = Column(String(255), unique=True, nullable=False)
+    secret_key = Column(String(255), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_deleted = Column(Boolean, default=False)
+
+    # Relationships
+    user = relationship("User", back_populates="open_platform_keys")
