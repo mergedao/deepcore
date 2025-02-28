@@ -113,8 +113,10 @@ class ChatAgent(AbstractAgent):
         self.agent_executor.short_memory.add(role="System Time", content=f"UTC Now: {current_time}")
 
         # Load conversation-specific memory into the agent
+        history = ''
         for memory in memory_list:
-            self.agent_executor.add_memory_object(memory)
+            history += f'user: {memory.input}\nassistant: {memory.output}\n\n'
+        self.agent_executor.add_memory_object(history)
 
     def send_message(self, event: str, message: dict) -> str:
         """

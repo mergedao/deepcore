@@ -95,7 +95,7 @@ class DeepAgentExecutor(AgentExecutor):
 
         self._initialize_tools()
         self._initialize_answer()
-        self._initialize_clarify()
+        # self._initialize_clarify()
         self.should_stop = False
 
 
@@ -149,7 +149,7 @@ class DeepAgentExecutor(AgentExecutor):
             self.agent_output.task = task
 
             # Add task to memory
-            self.short_memory.add(role=self.user_name, content=task)
+            self.short_memory.add(role="Now Question", content=task)
 
             # Set the loop count
             loop_count = 0

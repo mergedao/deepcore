@@ -16,9 +16,21 @@ from agents.utils.openapi_utils import extract_endpoints_info
 
 logger = logging.getLogger(__name__)
 
-def tool_to_dto(tool: Tool) -> ToolModel:
-    """Convert Tool ORM object to DTO"""
+def tool_to_dto(tool: Tool, user: Optional[dict] = None) -> ToolModel:
+    """
+    Convert Tool ORM object to DTO
+    
+    Args:
+        tool: Tool ORM object
+        user: Current user information. If provided, will check tenant_id match
+             to determine whether to include auth_config
+    """
     try:
+        should_include_auth = (
+            user is not None and 
+            user.get('tenant_id') == tool.tenant_id
+        )
+        
         tool_dto = ToolModel(
             id=tool.id,
             name=tool.name,
@@ -27,7 +39,7 @@ def tool_to_dto(tool: Tool) -> ToolModel:
             path=tool.path,
             method=tool.method,
             parameters=tool.parameters,
-            auth_config=tool.auth_config,
+            auth_config=tool.auth_config if should_include_auth else None,
             is_public=tool.is_public,
             is_official=tool.is_official,
             tenant_id=tool.tenant_id,
@@ -96,7 +108,7 @@ async def create_tool(
 
         session.add(new_tool)
         await session.commit()
-        return tool_to_dto(new_tool)
+        return tool_to_dto(new_tool, user)
     except CustomAgentException:
         raise
     except Exception as e:
@@ -141,7 +153,7 @@ async def create_tools_batch(
         )
 
 async def update_tool(
-        tool_id: int,
+        tool_id: str,
         user: dict,
         session: AsyncSession,
         name: Optional[str] = None,
@@ -220,7 +232,7 @@ async def update_tool(
         )
 
 async def delete_tool(
-        tool_id: int, 
+        tool_id: str, 
         user: dict,
         session: AsyncSession = Depends(get_db)
 ):
@@ -254,7 +266,7 @@ async def delete_tool(
         )
 
 async def get_tool(
-        tool_id: int, 
+        tool_id: str, 
         user: dict,
         session: AsyncSession = Depends(get_db)
 ):
@@ -271,7 +283,7 @@ async def get_tool(
                 ErrorCode.RESOURCE_NOT_FOUND,
                 "Tool not found or no permission"
             )
-        return ToolModel.model_validate(tool)
+        return tool_to_dto(tool, user)
     except CustomAgentException:
         raise
     except Exception as e:
@@ -333,7 +345,7 @@ async def get_tools(
         )
         tools = result.scalars().all()
         
-        tool_dtos = [tool_to_dto(tool) for tool in tools]
+        tool_dtos = [tool_to_dto(tool, user) for tool in tools]
         
         return {
             "items": tool_dtos,
@@ -361,7 +373,7 @@ async def check_oepnapi_validity(type: ToolType, name: str, content: str):
         )
 
 async def publish_tool(
-        tool_id: int,
+        tool_id: str,
         is_public: bool,
         user: dict,
         session: AsyncSession):
@@ -402,7 +414,7 @@ async def publish_tool(
         )
 
 async def assign_tool_to_agent(
-        tool_id: int,
+        tool_id: str,
         agent_id: str,
         user: dict,
         session: AsyncSession
@@ -460,7 +472,7 @@ async def assign_tool_to_agent(
         )
 
 async def remove_tool_from_agent(
-        tool_id: int,
+        tool_id: str,
         agent_id: str,
         user: dict,
         session: AsyncSession
@@ -500,6 +512,30 @@ async def remove_tool_from_agent(
             f"Failed to remove tool from agent: {str(e)}"
         )
 
+async def get_tools_by_agent(
+        agent_id: str,
+        session: AsyncSession,
+        user: dict,
+):
+    """
+    Get all tools associated with a specific agent
+    """
+    try:
+        result = await session.execute(
+            select(Tool).join(AgentTool).where(
+                AgentTool.agent_id == agent_id,
+                AgentTool.tenant_id == user.get('tenant_id')
+            )
+        )
+        tools = result.scalars().all()
+        return [tool_to_dto(tool, user) for tool in tools]
+    except Exception as e:
+        logger.error(f"Error getting tools by agent: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to get tools by agent: {str(e)}"
+        )
+
 async def get_agent_tools(
         agent_id: str,
         user: dict,
@@ -516,7 +552,7 @@ async def get_agent_tools(
             )
         )
         tools = result.scalars().all()
-        return [ToolModel.model_validate(tool) for tool in tools]
+        return [tool_to_dto(tool, user) for tool in tools]
     except Exception as e:
         logger.error(f"Error getting agent tools: {e}", exc_info=True)
         raise CustomAgentException(
@@ -525,7 +561,7 @@ async def get_agent_tools(
         )
 
 async def assign_tools_to_agent(
-        tool_ids: List[int],
+        tool_ids: List[str],
         agent_id: str,
         user: dict,
         session: AsyncSession
@@ -585,7 +621,7 @@ async def assign_tools_to_agent(
         )
 
 async def remove_tools_from_agent(
-        tool_ids: List[int],
+        tool_ids: List[str],
         agent_id: str,
         user: dict,
         session: AsyncSession
@@ -624,30 +660,6 @@ async def remove_tools_from_agent(
         raise CustomAgentException(
             ErrorCode.API_CALL_ERROR,
             f"Failed to remove tools from agent: {str(e)}"
-        )
-
-async def get_tools_by_agent(
-        agent_id: str,
-        session: AsyncSession,
-        user: dict,
-):
-    """
-    Get all tools associated with a specific agent
-    """
-    try:
-        result = await session.execute(
-            select(Tool).join(AgentTool).where(
-                AgentTool.agent_id == agent_id,
-                AgentTool.tenant_id == user.get('tenant_id')
-            )
-        )
-        tools = result.scalars().all()
-        return [ToolModel.model_validate(tool) for tool in tools]
-    except Exception as e:
-        logger.error(f"Error getting tools by agent: {e}", exc_info=True)
-        raise CustomAgentException(
-            ErrorCode.API_CALL_ERROR,
-            f"Failed to get tools by agent: {str(e)}"
         )
 
 def flatten_api_info(api_info: dict) -> list:
