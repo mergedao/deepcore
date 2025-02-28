@@ -274,7 +274,8 @@ async def get_tool(
         result = await session.execute(
             select(Tool).where(
                 Tool.id == tool_id,
-                Tool.tenant_id == user.get('tenant_id')
+                Tool.tenant_id == user.get('tenant_id'),
+                Tool.is_deleted == False
             )
         )
         tool = result.scalar_one_or_none()
@@ -306,7 +307,7 @@ async def get_tools(
     List tools with filters for public and official tools
     """
     try:
-        conditions = []
+        conditions = [Tool.is_deleted == False]
         
         if only_official:
             conditions.append(Tool.is_official == True)
@@ -430,7 +431,8 @@ async def assign_tool_to_agent(
                     Tool.tenant_id == user.get('tenant_id'),
                     Tool.is_public == True
                 ),
-                Tool.id == tool_id
+                Tool.id == tool_id,
+                Tool.is_deleted == False
             )
         )
         tool = tool.scalar_one_or_none()
@@ -524,7 +526,8 @@ async def get_tools_by_agent(
         result = await session.execute(
             select(Tool).join(AgentTool).where(
                 AgentTool.agent_id == agent_id,
-                AgentTool.tenant_id == user.get('tenant_id')
+                AgentTool.tenant_id == user.get('tenant_id'),
+                Tool.is_deleted == False
             )
         )
         tools = result.scalars().all()
@@ -548,7 +551,8 @@ async def get_agent_tools(
         result = await session.execute(
             select(Tool).join(AgentTool).where(
                 AgentTool.agent_id == agent_id,
-                AgentTool.tenant_id == user.get('tenant_id')
+                AgentTool.tenant_id == user.get('tenant_id'),
+                Tool.is_deleted == False
             )
         )
         tools = result.scalars().all()

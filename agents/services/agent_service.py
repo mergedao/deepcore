@@ -81,7 +81,7 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
         )
 
     # Get associated tools
-    tool_conditions = [AgentTool.agent_id == id]
+    tool_conditions = [AgentTool.agent_id == id, Tool.is_deleted == False]
     if user and user.get('tenant_id'):
         tool_conditions.append(or_(
             AgentTool.tenant_id == user.get('tenant_id'),
@@ -382,6 +382,7 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
         tools_result = await session.execute(
             select(Tool).join(AgentTool).where(
                 AgentTool.agent_id == agent.id,
+                Tool.is_deleted == False,
                 # Only filter by tenant_id for personal tools
                 *([AgentTool.tenant_id == user.get('tenant_id')] if user else [])
             )
