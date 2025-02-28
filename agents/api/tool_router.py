@@ -115,7 +115,7 @@ async def get_tool(
 
 @router.put("/tools/{tool_id}", summary="Update Tool")
 async def update_tool(
-        tool_id: int, 
+        tool_id: str, 
         tool: ToolUpdate, 
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
@@ -162,7 +162,7 @@ async def update_tool(
 
 @router.delete("/tools/{tool_id}", summary="Delete Tool")
 async def delete_tool(
-        tool_id: int, 
+        tool_id: str, 
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):

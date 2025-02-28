@@ -73,9 +73,9 @@ class AgentExecutor(ABC):
         pass
 
 
-    def add_memory_object(self, memory: MemoryObject):
+    def add_memory_object(self, memory: str):
         """Add a memory object to the agent's memory."""
         self.short_memory.add(
-            role="History data",
-            content=f"user: {memory.input}\n\nassistant: {memory.output}",
+            role="History Question",
+            content=memory,
         )

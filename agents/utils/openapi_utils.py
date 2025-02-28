@@ -107,12 +107,15 @@ def parse_parameters(parameters: List[Dict[str, Any]]) -> Tuple[Dict, Dict, Dict
         param_name = param.get('name')
         if not param_name:
             continue
+        schema = param.get('schema', {})
         param_definition = {
-            'type': param.get('schema', {}).get('type', 'string'),
+            'type': schema.get('type', 'string'),
             'description': param.get('description', '')
         }
-        if 'default' in param.get('schema', {}):
-            param_definition['default'] = param.get('schema', {}).get('default')
+        if 'default' in schema:
+            param_definition['default'] = schema.get('default')
+        # elif 'example' in schema:
+        #     param_definition['default'] = schema.get('example')
         if param.get('required'):
             param_definition['required'] = True
 
@@ -127,6 +130,7 @@ def parse_parameters(parameters: List[Dict[str, Any]]) -> Tuple[Dict, Dict, Dict
             query_params[param_name] = param_definition
 
     return header_params, query_params, path_params
+
 
 
 def process_openapi_paths(openapi_spec: Dict[str, Any]) -> Tuple[Dict, Dict, Dict, Dict]:

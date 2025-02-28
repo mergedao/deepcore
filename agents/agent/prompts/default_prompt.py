@@ -25,25 +25,35 @@ Tool Clarify: Could you specify the date range for the data retrieval?
 
 TOOLS_PROMPT = """
 ### **2. Tool Invocation Rules**  
+
+- **Decision Making**:  
+  - Determine whether to **invoke a tool, combine multiple tool results step by step, or respond directly** based on the query.  
+  - If multiple tools are needed, **invoke them sequentially**, making a decision after each tool's response.  
+  - **If a single tool can fulfill the request, invoke it directly before considering additional tools.**  
+
 - **Format**:  
   - The JSON **must** be enclosed in triple backticks (```json).  
   - **Do not include explanations**—only provide the JSON.  
+
 - **Response Handling**:  
-  - If the tool output directly answers the query, provide a **Final Answer** after retrieving the tool response.  
-  - If additional processing is needed, generate the JSON first before formulating a response.  
+  - If a tool’s output fully answers the query, return a **Final Answer** after retrieving the response.  
+  - If additional processing is required, invoke the necessary tool first, then construct the next step.  
+
 - **Restrictions**:  
   - Do **not** output JSON and a Final Answer in the same step.  
-  - Only invoke relevant tools based on the query.  
-- **For tools of type API**:
-  - When the tool type is **api**, the extracted parameters **must** include the following four levels: `header`, `query`, `path`, and `body`.
-  - Parameter extraction **cannot** be flattened into a single level.
+  - Only invoke **one tool at a time**—each tool's output should be analyzed before deciding on the next step.  
+
+- **For API Tools**:  
+  - When the tool type is **api**, extracted parameters **must** be structured into four levels: `header`, `query`, `path`, and `body`.  
+  - Do **not** flatten these parameters into a single level.  
 
 ---
 
 ### **3. Clarification Handling**  
-- If **tool parameters are unclear and have no default value**, respond with:  
-  **Tool Clarify:** [Clarification question]  
-- A **Final Answer** can accompany a clarification if necessary.  
+- **Only ask for clarification if an essential parameter is missing and cannot be reasonably inferred from the user’s query.**  
+- **If the required parameter can be inferred, use the inferred value instead of asking for clarification.**  
+- If clarification is needed, format the response as follows:  Tool Clarify: [Clarification question]
+- **Avoid unnecessary clarifications**—prioritize efficiency in tool invocation.  
 
 ---
 

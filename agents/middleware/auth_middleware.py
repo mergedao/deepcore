@@ -91,7 +91,6 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             if not self._verify_timestamp(timestamp):
                 return False
 
-            session = None
             try:
                 async with request.app.state.db() as session:
                     credentials = await open_service.get_credentials(access_key, session)
@@ -114,12 +113,6 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             except Exception as e:
                 logger.error(f"Database operation failed: {str(e)}", exc_info=True)
                 return False
-            finally:
-                if session:
-                    try:
-                        await session.close()
-                    except Exception as e:
-                        logger.error(f"Error closing database session: {str(e)}", exc_info=True)
         except Exception as e:
             logger.error(f"Open API authentication failed: {str(e)}", exc_info=True)
             return False
