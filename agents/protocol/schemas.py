@@ -79,6 +79,17 @@ class CategoryDTO(BaseModel):
     update_time: Optional[str] = Field(None, description="Last update time")
 
 
+class ModelDTO(BaseModel):
+    id: Optional[int] = Field(None, description="ID of the model")
+    name: str = Field(..., description="Name of the model")
+    model_name: str = Field(..., description="Name of the underlying model (e.g. gpt-4, claude-3)")
+    endpoint: Optional[str] = Field(None, description="API endpoint of the model")
+    is_official: Optional[bool] = Field(False, description="Whether the model is official preset")
+    is_public: Optional[bool] = Field(False, description="Whether the model is public")
+    create_time: Optional[datetime] = None
+    update_time: Optional[datetime] = None
+
+
 class AgentDTO(BaseModel):
     id: Optional[str] = Field(default=None, description="ID of the agent")
     name: str = Field(..., description="Name of the agent")
@@ -101,8 +112,12 @@ class AgentDTO(BaseModel):
         description="List of suggested questions for users to ask"
     )
     model_id: Optional[int] = Field(None, description="ID of the associated model")
+    model: Optional[ModelDTO] = Field(None, description="Associated model information")
     category_id: Optional[int] = Field(None, description="ID of the category")
     category: Optional[CategoryDTO] = Field(None, description="Category information")
+    is_public: Optional[bool] = Field(False, description="Whether the agent is public")
+    is_official: Optional[bool] = Field(False, description="Whether the agent is official")
+    is_hot: Optional[bool] = Field(False, description="Whether the agent is hot")
 
     class Config:
         from_attributes = True
@@ -205,17 +220,6 @@ class WalletLoginResponse(BaseModel):
 
 class AgentToolsRequest(BaseModel):
     tool_ids: List[str] = Field(..., description="List of tool UUIDs to assign/remove")
-
-
-class ModelDTO(BaseModel):
-    id: Optional[int] = Field(None, description="ID of the model")
-    name: str = Field(..., description="Name of the model")
-    model_name: str = Field(..., description="Name of the underlying model (e.g. gpt-4, claude-3)")
-    endpoint: str = Field(..., description="API endpoint of the model")
-    is_official: Optional[bool] = Field(False, description="Whether the model is official preset")
-    is_public: Optional[bool] = Field(False, description="Whether the model is public")
-    create_time: Optional[datetime] = None
-    update_time: Optional[datetime] = None
 
 
 class ModelCreate(BaseModel):

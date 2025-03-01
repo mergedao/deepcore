@@ -28,13 +28,24 @@ def decrypt_api_key(encrypted_key: str) -> str:
         return None
     return cipher_suite.decrypt(encrypted_key.encode()).decode()
 
-def model_to_dto(model: Model) -> ModelDTO:
-    """Convert Model ORM object to DTO"""
+def model_to_dto(model: Model, user: Optional[dict] = None) -> ModelDTO:
+    """
+    Convert Model ORM object to DTO
+    
+    Args:
+        model: Model ORM object
+        user: Optional user info to check permissions
+    """
+    should_include_endpoint = (
+        not model.is_public or 
+        (user and user.get('tenant_id') == model.tenant_id)
+    )
+    
     return ModelDTO(
         id=model.id,
         name=model.name,
         model_name=model.model_name,
-        endpoint=model.endpoint,
+        endpoint=model.endpoint if should_include_endpoint else None,
         is_official=model.is_official,
         is_public=model.is_public,
         create_time=model.create_time,
@@ -62,7 +73,7 @@ async def create_model(
         await session.flush()
         
         # Return DTO without API key
-        return model_to_dto(new_model)
+        return model_to_dto(new_model, user)
     except Exception as e:
         logger.error(f"Error creating model: {str(e)}")
         raise CustomAgentException(
@@ -100,7 +111,7 @@ async def update_model(
         await session.flush()
         
         # Return DTO without API key
-        return model_to_dto(db_model)
+        return model_to_dto(db_model, user)
     except CustomAgentException:
         raise
     except Exception as e:
@@ -136,7 +147,7 @@ async def list_models(
         select(Model).where(and_(*conditions))
     )
     models = result.scalars().all()
-    return [model_to_dto(model) for model in models]
+    return [model_to_dto(model, user) for model in models]
 
 async def get_model(
         model_id: int,
@@ -144,19 +155,27 @@ async def get_model(
         session: AsyncSession = Depends(get_db)
 ):
     """Get a specific model"""
-    result = await session.execute(
-        select(Model).where(
-            Model.id == model_id,
-            or_(
-                Model.tenant_id == user.get('tenant_id'),
+    if user and user.get('tenant_id'):
+        result = await session.execute(
+            select(Model).where(
+                Model.id == model_id,
+                or_(
+                    Model.tenant_id == user.get('tenant_id'),
+                    Model.is_public == True
+                )
+            )
+        )
+    else:
+        result = await session.execute(
+            select(Model).where(
+                Model.id == model_id,
                 Model.is_public == True
             )
         )
-    )
     model = result.scalar_one_or_none()
     if not model:
         raise CustomAgentException(ErrorCode.INVALID_PARAMETERS, "Model not found or no permission")
-    return model_to_dto(model)
+    return model_to_dto(model, user)
 
 async def get_model_with_key(
         model_id: int,
@@ -187,9 +206,20 @@ async def get_model_with_key(
         
         if not model:
             return None
-            
+
+        model_dto = ModelDTO(
+            id=model.id,
+            name=model.name,
+            model_name=model.model_name,
+            endpoint=model.endpoint,
+            is_official=model.is_official,
+            is_public=model.is_public,
+            create_time=model.create_time,
+            update_time=model.update_time
+        )
+        
         return (
-            model_to_dto(model),
+            model_dto,
             decrypt_api_key(model.api_key) if model.api_key else None
         )
     except Exception as e:

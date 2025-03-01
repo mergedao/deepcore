@@ -15,7 +15,7 @@ from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO
-from agents.services.model_service import get_model_with_key
+from agents.services.model_service import get_model_with_key, get_model
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +95,14 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
     )
     tools = tools_result.scalars().all()
 
+    # Get model info if model_id exists
+    model = None
+    if agent.model_id:
+        try:
+            model = await get_model(agent.model_id, user, session)
+        except Exception as e:
+            logger.warning(f"Failed to get model info for agent {agent.id}: {e}")
+
     # Convert to DTO
     try:
         # Convert App model to AgentDTO
@@ -113,6 +121,7 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
             max_loops=agent.max_loops,
             suggested_questions=agent.suggested_questions,
             model_id=agent.model_id,
+            model=model,  # Add model info to DTO
             is_public=agent.is_public,
             is_official=agent.is_official
         )
@@ -389,6 +398,14 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
         )
         tools = tools_result.scalars().all()
 
+        # Get model info if model_id exists
+        model = None
+        if agent.model_id:
+            try:
+                model = await get_model(agent.model_id, user, session)
+            except Exception as e:
+                logger.warning(f"Failed to get model info for agent {agent.id}: {e}")
+
         # Convert to DTO
         agent_dto = AgentDTO(
             id=agent.id,
@@ -405,6 +422,7 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             max_loops=agent.max_loops,
             suggested_questions=agent.suggested_questions,
             model_id=agent.model_id,
+            model=model,  # Add model info to DTO
             category_id=agent.category_id,
             is_hot=agent.is_hot,
             tools=[ToolInfo(
