@@ -10,12 +10,16 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from agents.agent.chat_agent import ChatAgent
+from agents.common.config import SETTINGS
+from agents.common.encryption_utils import encryption_utils
+from agents.common.redis_utils import redis_utils
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO
 from agents.services.model_service import get_model_with_key, get_model
+from agents.services.open_service import get_or_create_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +109,11 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
 
     # Convert to DTO
     try:
+        # Process telegram bot token if exists
+        masked_token = None
+        if agent.telegram_bot_token:
+            masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
+            
         # Convert App model to AgentDTO
         agent_dto = AgentDTO(
             id=agent.id,
@@ -117,6 +126,8 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
             welcome_message=agent.welcome_message,
             twitter_link=agent.twitter_link,
             telegram_bot_id=agent.telegram_bot_id,
+            telegram_bot_name=agent.telegram_bot_name,
+            telegram_bot_token=masked_token,
             tool_prompt=agent.tool_prompt,
             max_loops=agent.max_loops,
             suggested_questions=agent.suggested_questions,
@@ -322,7 +333,8 @@ async def list_public_agents(
         session: AsyncSession,
         only_official: bool = False,
         only_hot: bool = False,
-        category_id: Optional[int] = None
+        category_id: Optional[int] = None,
+        user: Optional[dict] = None
 ):
     """
     List public or official agents
@@ -335,6 +347,7 @@ async def list_public_agents(
         only_official: Whether to only show official agents
         only_hot: Whether to only show hot agents
         category_id: Optional filter for category ID
+        user: Optional user information for token decryption
 
     Returns:
         dict: {
@@ -360,7 +373,7 @@ async def list_public_agents(
     if category_id:
         conditions.append(App.category_id == category_id)
 
-    return await _get_paginated_agents(conditions, skip, limit, None, session)
+    return await _get_paginated_agents(conditions, skip, limit, user, session)
 
 
 async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: Optional[dict], session: AsyncSession):
@@ -406,6 +419,11 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             except Exception as e:
                 logger.warning(f"Failed to get model info for agent {agent.id}: {e}")
 
+        # Process telegram bot token if exists
+        masked_token = None
+        if agent.telegram_bot_token:
+            masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
+
         # Convert to DTO
         agent_dto = AgentDTO(
             id=agent.id,
@@ -418,6 +436,8 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             welcome_message=agent.welcome_message,
             twitter_link=agent.twitter_link,
             telegram_bot_id=agent.telegram_bot_id,
+            telegram_bot_name=agent.telegram_bot_name,
+            telegram_bot_token=masked_token,
             tool_prompt=agent.tool_prompt,
             max_loops=agent.max_loops,
             suggested_questions=agent.suggested_questions,
@@ -640,4 +660,143 @@ async def publish_agent(
         raise CustomAgentException(
             ErrorCode.API_CALL_ERROR,
             f"Failed to publish agent: {str(e)}"
+        )
+
+# Encryption function
+def encrypt_token(token: str) -> str:
+    """Encrypt Telegram bot token"""
+    return encryption_utils.encrypt(token)
+
+# Decryption function
+def decrypt_token(encrypted_token: str) -> str:
+    """Decrypt Telegram bot token"""
+    return encryption_utils.decrypt(encrypted_token)
+
+# Masking function, used to hide the middle part of the token
+def mask_token(token: str) -> str:
+    """Mask the middle part of the token with asterisks"""
+    return encryption_utils.mask_token(token)
+
+async def register_telegram_bot(
+        agent_id: str,
+        bot_name: str,
+        token: str,
+        user: dict,
+        session: AsyncSession = Depends(get_db)
+):
+    """
+    Register an agent as a Telegram bot
+    
+    Args:
+        agent_id: Agent ID
+        bot_name: Telegram bot name
+        token: Telegram bot token
+        user: Current user information
+        session: Database session
+    """
+    try:
+        # Verify if agent exists and belongs to current user
+        result = await session.execute(
+            select(App).where(
+                App.id == agent_id,
+                App.tenant_id == user.get('tenant_id')
+            )
+        )
+        agent = result.scalar_one_or_none()
+        if not agent:
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                "Agent not found or no permission"
+            )
+        
+        # Encrypt token
+        encrypted_token = encrypt_token(token)
+        
+        # Update agent table with telegram bot info
+        stmt = update(App).where(
+            App.id == agent_id,
+            App.tenant_id == user.get('tenant_id')
+        ).values(
+            telegram_bot_name=bot_name,
+            telegram_bot_token=encrypted_token
+        )
+        await session.execute(stmt)
+        await session.commit()
+        
+        # Update bot information in Redis
+        await update_telegram_bots_redis(user, session)
+        
+        # Return masked token
+        masked_token = mask_token(token)
+        
+        return {
+            "agent_id": agent_id,
+            "bot_name": bot_name,
+            "token": masked_token
+        }
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error registering Telegram bot: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to register Telegram bot: {str(e)}"
+        )
+
+async def update_telegram_bots_redis(user: dict,session: AsyncSession):
+    """
+    Update Telegram bot information in Redis
+    """
+    try:
+        import json
+        from agents.services.open_service import get_or_create_credentials
+        
+        # Query all agents with Telegram bot token
+        result = await session.execute(
+            select(App).where(
+                App.telegram_bot_token.is_not(None)
+            )
+        )
+        agents = result.scalars().all()
+        
+        bots_info = []
+        for agent in agents:
+            # Decrypt token
+            token = decrypt_token(agent.telegram_bot_token)
+            if not token:
+                continue
+                
+            # Get open platform credentials for the agent's tenant
+            try:
+                credentials = await get_or_create_credentials(user, session)
+                access_key = credentials.get("access_key")
+                secret_key = credentials.get("secret_key")
+                
+                # Build agent URL
+                agent_url = f"{SETTINGS.API_BASE_URL}/api/agents/{agent.id}/dialogue"
+                
+                bot_info = {
+                    "token": token,
+                    "access_key": access_key,
+                    "secret_key": secret_key,
+                    "agent_url": agent_url,
+                    "agent_name": agent.name,
+                    "agent_description": agent.description or ""
+                }
+                bots_info.append(bot_info)
+            except Exception as e:
+                logger.error(f"Error getting credentials for agent {agent.id}: {e}")
+                continue
+        
+        # Store bot information in Redis
+        if bots_info:
+            redis_key = f"{SETTINGS.TELEGRAM_REDIS_KEY}_{SETTINGS.REDIS_PREFIX}"
+            redis_utils.set_value(redis_key, json.dumps(bots_info))
+            logger.info(f"Updated {len(bots_info)} Telegram bots in Redis")
+        
+    except Exception as e:
+        logger.error(f"Error updating Telegram bots in Redis: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to update Telegram bots in Redis: {str(e)}"
         )
