@@ -3,30 +3,23 @@ from typing import List, Optional
 from fastapi import Depends
 from sqlalchemy import select, update, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
-from cryptography.fernet import Fernet
 
 from agents.common.config import SETTINGS
+from agents.common.encryption_utils import encryption_utils
 from agents.models.db import get_db
 from agents.models.models import Model
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.protocol.schemas import ModelDTO, ModelCreate, ModelUpdate
 
-
-cipher_suite = Fernet(SETTINGS.ENCRYPTION_KEY.encode())
-
 logger = logging.getLogger(__name__)
 
 def encrypt_api_key(api_key: str) -> str:
     """Encrypt API key before storing"""
-    if not api_key:
-        return None
-    return cipher_suite.encrypt(api_key.encode()).decode()
+    return encryption_utils.encrypt(api_key)
 
 def decrypt_api_key(encrypted_key: str) -> str:
     """Decrypt API key for internal use"""
-    if not encrypted_key:
-        return None
-    return cipher_suite.decrypt(encrypted_key.encode()).decode()
+    return encryption_utils.decrypt(encrypted_key)
 
 def model_to_dto(model: Model, user: Optional[dict] = None) -> ModelDTO:
     """

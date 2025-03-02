@@ -47,5 +47,9 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_TIME: int = 1  # default one day
     ENCRYPTION_KEY: str = ""
 
+    API_BASE_URL: str = "" # base url
+    TELEGRAM_REDIS_KEY: str = "deepcore_tg_bot_conf_all"
+
+
 
 SETTINGS = Settings()

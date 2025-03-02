@@ -11,7 +11,7 @@ from agents.common.response import RestResponse
 from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueResponse, DialogueRequest, AgentStatus, \
-    PaginationParams, AgentMode
+    PaginationParams, AgentMode, TelegramBotRequest
 from agents.services import agent_service
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.common.error_messages import get_error_message
@@ -130,6 +130,7 @@ async def list_public_agents(
         only_hot: bool = Query(False, description="Show only hot agents"),
         category_id: Optional[int] = Query(None, description="Filter agents by category"),
         pagination: PaginationParams = Depends(),
+        user: Optional[dict] = Depends(get_optional_current_user),
         session: AsyncSession = Depends(get_db)
 ):
     """
@@ -153,6 +154,7 @@ async def list_public_agents(
             only_official=only_official,
             only_hot=only_hot,
             category_id=category_id,
+            user=user,
             session=session
         )
         return RestResponse(data=agents)
@@ -352,6 +354,36 @@ async def publish_agent(
         return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error publishing agent: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/agents/{agent_id}/telegram", summary="Register Telegram Bot")
+async def register_telegram_bot(
+        agent_id: str,
+        bot_data: TelegramBotRequest,
+        user: dict = Depends(get_current_user),
+        session: AsyncSession = Depends(get_db)
+):
+    """
+    Register an agent as a Telegram bot
+    
+    Parameters:
+    - **agent_id**: ID of the agent to register
+    - **bot_data**: JSON body containing:
+      - **bot_name**: Name of the Telegram bot
+      - **token**: Telegram bot token
+    """
+    try:
+        result = await agent_service.register_telegram_bot(agent_id, bot_data.bot_name, bot_data.token, user, session)
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error registering Telegram bot: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=e.message)
+    except Exception as e:
+        logger.error(f"Unexpected error registering Telegram bot: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

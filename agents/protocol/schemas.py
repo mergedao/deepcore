@@ -100,6 +100,8 @@ class AgentDTO(BaseModel):
     welcome_message: Optional[str] = Field(None, description="Optional welcome message for the agent")
     twitter_link: Optional[str] = Field(None, description="Optional twitter link for the agent")
     telegram_bot_id: Optional[str] = Field(None, description="Optional telegram bot id for the agent")
+    telegram_bot_name: Optional[str] = Field(None, description="Optional telegram bot name for the agent")
+    telegram_bot_token: Optional[str] = Field(None, description="Optional masked telegram bot token")
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
@@ -118,6 +120,8 @@ class AgentDTO(BaseModel):
     is_public: Optional[bool] = Field(False, description="Whether the agent is public")
     is_official: Optional[bool] = Field(False, description="Whether the agent is official")
     is_hot: Optional[bool] = Field(False, description="Whether the agent is hot")
+    create_fee: Optional[float] = Field(None, description="Creation fee for the agent")
+    price: Optional[float] = Field(None, description="Price for the agent")
 
     class Config:
         from_attributes = True
@@ -284,3 +288,9 @@ class CreateToolsBatchRequest(BaseModel):
 class OpenAPIParseRequest(BaseModel):
     """Request model for parsing OpenAPI content"""
     content: str = Field(..., description="OpenAPI specification content (JSON or YAML format)")
+
+
+class TelegramBotRequest(BaseModel):
+    """Request model for registering a Telegram bot"""
+    bot_name: str = Field(..., description="Name of the Telegram bot")
+    token: str = Field(..., description="Telegram bot token")

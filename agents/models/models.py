@@ -34,6 +34,8 @@ class App(Base):
     welcome_message = Column(Text, comment="Welcome message for the agent")
     twitter_link = Column(String(255), comment="Twitter link for the agent")
     telegram_bot_id = Column(String(255), comment="Telegram bot ID for the agent")
+    telegram_bot_name = Column(String(255), comment="Telegram bot name")
+    telegram_bot_token = Column(String(1000), comment="Encrypted Telegram bot token")
     tool_prompt = Column(Text, comment="Tool prompt for the agent")
     max_loops = Column(Integer, default=3, comment="Maximum number of loops the agent can perform")
     model_json = Column(JSON, comment="Additional fields merged into a JSON column")
