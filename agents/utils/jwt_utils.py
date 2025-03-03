@@ -1,8 +1,8 @@
 import logging
-
-import jwt
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
+
+import jwt
 
 from agents.common.config import SETTINGS
 

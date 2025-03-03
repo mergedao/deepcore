@@ -1,6 +1,8 @@
 import secrets
-from eth_account.messages import encode_defunct
+
 from eth_account import Account
+from eth_account.messages import encode_defunct
+
 
 def generate_nonce() -> str:
     """Generate random nonce for wallet signature"""

@@ -1,23 +1,22 @@
+import json
+import logging
+import re
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-import re
-import json
-import eth_account
-import logging
 
 from agents.common.config import SETTINGS
+from agents.common.redis_utils import redis_utils
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import User
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, \
     WalletLoginRequest, WalletLoginResponse, TokenResponse
 from agents.utils.jwt_utils import (
-    generate_token, generate_token_pair, verify_refresh_token, generate_access_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
+    generate_token_pair, verify_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 )
 from agents.utils.web3_utils import generate_nonce, get_message_to_sign, verify_signature
-from agents.common.redis_utils import redis_utils
 
 logger = logging.getLogger(__name__)
 

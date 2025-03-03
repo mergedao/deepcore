@@ -1,15 +1,15 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agents.common.error_messages import get_error_message
+from agents.common.response import RestResponse
+from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, \
     WalletLoginRequest, WalletLoginResponse, RefreshTokenRequest, TokenResponse
 from agents.services import auth_service
-from agents.common.response import RestResponse
-from agents.exceptions import CustomAgentException, ErrorCode
-from agents.common.error_messages import get_error_message
 
 router = APIRouter()
 

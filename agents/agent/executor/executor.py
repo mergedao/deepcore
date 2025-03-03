@@ -6,7 +6,8 @@ from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.short_memory import ShortMemory
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
-from agents.models.entity import ToolInfo
+from agents.models.entity import ToolInfo, ChatContext
+
 
 def gen_agent_executor_id() -> str:
     return uuid.uuid4().hex
@@ -15,6 +16,7 @@ class AgentExecutor(ABC):
 
     def __init__(
             self,
+            chat_context: ChatContext,
             name: str,
             user_name: Optional[str] = "User",
             llm: Optional[Any] = None,
@@ -36,6 +38,7 @@ class AgentExecutor(ABC):
             *args,
             **kwargs,
     ):
+        self.chat_context = chat_context
         self.agent_name = name
         self.llm = llm
         self.tool_system_prompt = tool_system_prompt
@@ -73,9 +76,12 @@ class AgentExecutor(ABC):
         pass
 
 
-    def add_memory_object(self, memory: str):
+    def add_memory_object(self, memory_list: list[MemoryObject]):
         """Add a memory object to the agent's memory."""
+        history = ''
+        for memory in memory_list:
+            history += f'user: {memory.input}\nassistant: {memory.output}\n\n'
         self.short_memory.add(
             role="History Question",
-            content=memory,
+            content=history,
         )

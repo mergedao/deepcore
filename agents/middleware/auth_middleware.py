@@ -1,19 +1,19 @@
 import logging
-from typing import Optional
 import re
 import time
+from typing import Optional
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from agents.common.http_utils import add_cors_headers
-from agents.utils.jwt_utils import verify_token
-from agents.exceptions import ErrorCode
-from agents.common.response import RestResponse
 from agents.common.error_messages import get_error_message
+from agents.common.http_utils import add_cors_headers
+from agents.common.response import RestResponse
+from agents.exceptions import ErrorCode
 from agents.services import open_service
+from agents.utils.jwt_utils import verify_token
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)

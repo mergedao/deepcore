@@ -1,10 +1,10 @@
+import logging
+from typing import List, Optional, Dict
+
 from fastapi import Depends
 from sqlalchemy import update, select, or_, and_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from typing import List, Optional, Dict
-import logging
-import json
 
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db

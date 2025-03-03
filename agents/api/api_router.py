@@ -5,8 +5,8 @@ from fastapi import Query, APIRouter
 from starlette.responses import StreamingResponse, Response
 
 from agents.agent.coins_agent import CoinAgent
-from .image_router import router as image_router
 from agents.common.response import RestResponse
+from .image_router import router as image_router
 from ..common.error_messages import get_error_message
 from ..exceptions import ErrorCode
 

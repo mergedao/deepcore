@@ -9,14 +9,12 @@ from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.executor import AgentExecutor
-from agents.agent.memory.memory import MemoryObject
-from agents.agent.memory.short_memory import ShortMemory
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
 from agents.agent.tools import BaseTool
 from agents.agent.tools.tool_executor import async_execute
-from agents.models.entity import ToolInfo
+from agents.models.entity import ToolInfo, ChatContext
 from agents.utils import tools_parser
 from agents.utils.common import dict_to_csv, exists, concat_strings
 from agents.utils.http_client import async_client
@@ -29,6 +27,7 @@ class DeepAgentExecutor(AgentExecutor):
 
     def __init__(
             self,
+            chat_context: ChatContext,
             name: str,
             user_name: Optional[str] = "User",
             llm: Optional[Any] = None,
@@ -52,6 +51,7 @@ class DeepAgentExecutor(AgentExecutor):
     ):
 
         super().__init__(
+            chat_context=chat_context,
             name=name,
             user_name=user_name,
             llm=llm,
@@ -86,10 +86,10 @@ class DeepAgentExecutor(AgentExecutor):
             ),
         )
 
-        if self.description:
-            self.short_memory.add(role="agent description", content=self.description)
+        # if self.description:
+        #     self.short_memory.add(role="agent description", content=self.description)
         if self.role_settings:
-            self.short_memory.add(role="agent settings", content=self.role_settings)
+            self.short_memory.add(role="Agent Settings", content=self.role_settings)
 
         self.short_memory.add(role="", content=SYTHES_PROMPT)
 

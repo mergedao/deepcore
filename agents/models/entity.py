@@ -1,4 +1,5 @@
 from typing import Optional, List, Dict
+
 from pydantic import Field, BaseModel
 
 from agents.agent.entity.agent_mode import AgentMode
@@ -82,3 +83,7 @@ class AgentInfo():
             api_key: API key for the model
         """
         self.model = model_info
+
+
+class ChatContext(BaseModel):
+    initFlag: Optional[bool] = Field(False, description="Flag to indicate if this is an initialization dialogue")

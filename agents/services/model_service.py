@@ -1,14 +1,14 @@
 import logging
-from typing import List, Optional
+from typing import Optional
+
 from fastapi import Depends
-from sqlalchemy import select, update, or_, and_
+from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents.common.config import SETTINGS
 from agents.common.encryption_utils import encryption_utils
+from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import Model
-from agents.exceptions import CustomAgentException, ErrorCode
 from agents.protocol.schemas import ModelDTO, ModelCreate, ModelUpdate
 
 logger = logging.getLogger(__name__)
