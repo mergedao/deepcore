@@ -1,6 +1,7 @@
 import logging
 from typing import Optional, List
-from sqlalchemy import select, update, and_, or_
+
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.exceptions import CustomAgentException, ErrorCode

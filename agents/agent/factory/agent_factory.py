@@ -1,15 +1,16 @@
-from typing import Optional, Any, List, Callable
+from typing import Any
 
 from agents.agent.entity.agent_mode import AgentMode
 from agents.agent.executor.agent_executor import DeepAgentExecutor
 from agents.agent.executor.prompt_executor import PromptAgentExecutor
-from agents.models.entity import ToolInfo
+from agents.models.entity import ChatContext
+
 
 class AgentExecutorFactory:
     """Agent executor factory class"""
     
     @staticmethod
-    def create_executor(mode: AgentMode, **kwargs) -> Any:
+    def create_executor(mode: AgentMode, chat_context: ChatContext, **kwargs) -> Any:
         """
         Create an agent executor based on the specified mode.
         
@@ -43,11 +44,11 @@ class AgentExecutorFactory:
 
         if mode == AgentMode.PROMPT:
             # Prompt mode: Simple conversation without tool calling
-            return PromptAgentExecutor(**kwargs)
+            return PromptAgentExecutor(chat_context=chat_context, **kwargs)
             
         elif mode == AgentMode.REACT:
             # ReAct mode: Full agent capabilities
-            return DeepAgentExecutor(**kwargs)
+            return DeepAgentExecutor(chat_context=chat_context, **kwargs)
             
         elif mode == AgentMode.FUNCTION:
             # Function mode: Focused on API and function calls

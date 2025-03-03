@@ -1,8 +1,8 @@
-import logging
-import os
-import httpx
 import base64
-from typing import Optional, Dict, Any
+import logging
+from typing import Dict, Any
+
+import httpx
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 

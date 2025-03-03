@@ -1,5 +1,5 @@
-import uuid
 import logging
+import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request, Body
@@ -7,14 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
 from agents.agent.factory.gen_agent import gen_agent
+from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
+from agents.exceptions import CustomAgentException, ErrorCode
 from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
-from agents.protocol.schemas import AgentDTO, DialogueResponse, DialogueRequest, AgentStatus, \
+from agents.protocol.schemas import AgentDTO, DialogueRequest, AgentStatus, \
     PaginationParams, AgentMode, TelegramBotRequest
 from agents.services import agent_service
-from agents.exceptions import CustomAgentException, ErrorCode
-from agents.common.error_messages import get_error_message
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -53,6 +53,7 @@ async def create_agent(
     - **tools**: Optional list of tools to associate
     - **model_id**: Optional ID of the model to use
     - **suggested_questions**: Optional list of suggested questions
+    - **shouldInitializeDialog**: Optional boolean to indicate whether to initialize dialog when creating the agent
     """
     try:
         logger.info(f"Creating agent with data: {agent.model_dump()}")
@@ -270,6 +271,7 @@ async def dialogue(
 
     - **agent_id**: ID of the agent to interact with
     - **message**: Message from the user
+    - **initFlag**: Flag to indicate if this is an initialization dialogue (optional, default: False)
     """
     try:
         resp = agent_service.dialogue(agent_id, request, user, session)
@@ -295,6 +297,11 @@ async def dialogue_get(
             alias="conversationId",
             description="ID of the conversation"
         ),
+        init_flag: bool = Query(
+            default=False,
+            alias="initFlag",
+            description="Flag to indicate if this is an initialization dialogue"
+        ),
         user: Optional[dict] = Depends(get_optional_current_user),
         session: AsyncSession = Depends(get_db)
 ):
@@ -304,6 +311,7 @@ async def dialogue_get(
     - **agent_id**: ID of the agent to interact with
     - **query**: Query message from the user
     - **conversation_id**: ID of the conversation (optional, auto-generated if not provided)
+    - **initFlag**: Flag to indicate if this is an initialization dialogue (optional, default: False)
     """
     try:
         # Create a new DialogueRequest with default conversation_id if not provided
@@ -312,7 +320,8 @@ async def dialogue_get(
             
         dialogue_request = DialogueRequest(
             query=query,
-            conversationId=conversation_id
+            conversationId=conversation_id,
+            initFlag=init_flag
         )
         
         resp = agent_service.dialogue(agent_id, dialogue_request, user, session)

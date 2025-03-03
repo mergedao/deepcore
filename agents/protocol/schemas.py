@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any, Literal, Union
+from typing import List, Optional, Dict, Union
 
 from pydantic import BaseModel, Field, EmailStr
 
@@ -122,6 +122,7 @@ class AgentDTO(BaseModel):
     is_hot: Optional[bool] = Field(False, description="Whether the agent is hot")
     create_fee: Optional[float] = Field(None, description="Creation fee for the agent")
     price: Optional[float] = Field(None, description="Price for the agent")
+    shouldInitializeDialog: Optional[bool] = Field(False, description="Whether to initialize dialog when creating the agent")
 
     class Config:
         from_attributes = True
@@ -165,6 +166,7 @@ class ToolUpdate(BaseModel):
 class DialogueRequest(BaseModel):
     query: str = Field(..., description="Query message from the user")
     conversation_id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), alias="conversationId")
+    initFlag: Optional[bool] = Field(False, description="Flag to indicate if this is an initialization dialogue")
 
 
 class DialogueResponse(BaseModel):

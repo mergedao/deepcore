@@ -1,14 +1,15 @@
-import uuid
-import hmac
 import hashlib
+import hmac
+import uuid
 from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agents.models.models import OpenPlatformKey
 from agents.exceptions import CustomAgentException, ErrorCode
+from agents.models.models import OpenPlatformKey
+
 
 def generate_key_pair():
     """Generate a new access key and secret key pair for open platform"""

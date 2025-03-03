@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
+from urllib.parse import quote
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
 from sqlalchemy.orm import sessionmaker
-from urllib.parse import quote
 
 from agents.common.config import SETTINGS
 from agents.models.models import Base

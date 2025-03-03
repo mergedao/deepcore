@@ -5,13 +5,12 @@ from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
+from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
+from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.services import file_service
 from agents.services.file_service import FileInfo
-from agents.exceptions import CustomAgentException, ErrorCode
-from agents.common.error_messages import get_error_message
-from agents.middleware.auth_middleware import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

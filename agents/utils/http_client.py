@@ -1,8 +1,7 @@
-from typing import Optional
-from agents.protocol.schemas import AuthConfig
-import json
 import logging
 from typing import Dict, Any, AsyncGenerator, Union
+from typing import Optional
+
 import aiohttp
 from aiohttp import ClientTimeout
 from tenacity import retry, stop_after_attempt, wait_exponential

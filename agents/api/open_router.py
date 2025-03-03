@@ -1,16 +1,16 @@
 import logging
-import time
 from typing import Optional
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
+from fastapi import APIRouter, Depends
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
+from agents.exceptions import CustomAgentException, ErrorCode
 from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
 from agents.services import open_service
-from agents.exceptions import CustomAgentException, ErrorCode
-from agents.common.error_messages import get_error_message
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

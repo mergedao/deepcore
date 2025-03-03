@@ -12,7 +12,7 @@ from agents.agent.llm.default_llm import openai
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt
-from agents.models.entity import AgentInfo
+from agents.models.entity import AgentInfo, ChatContext
 from agents.models.models import App
 
 
@@ -23,7 +23,7 @@ class ChatAgent(AbstractAgent):
 
     redis_memory: RedisMemoryStore = RedisMemoryStore()
 
-    def __init__(self, app: AgentInfo):
+    def __init__(self, app: AgentInfo, chat_context: ChatContext):
         """"
         Initialize the ChatAgent with the given app.
         Args:
@@ -39,6 +39,7 @@ class ChatAgent(AbstractAgent):
 
         self.agent_executor = AgentExecutorFactory.create_executor(
             mode=app.mode,
+            chat_context=chat_context,
             name=app.name,
             llm=CustomChat(app.model).get_model() if app.model else openai.get_model(),
             api_tool=app.tools,
@@ -47,7 +48,8 @@ class ChatAgent(AbstractAgent):
             output_type="list",
             node_massage_enabled=True,
             stop_func=stopping_condition,
-            system_prompt=app.description,
+            # system_prompt=app.description,
+            description=app.description,
             role_settings=app.role_settings,
         )
 
@@ -57,6 +59,7 @@ class ChatAgent(AbstractAgent):
         Args:
             query (str): The user's query or question.
             conversation_id (str): The unique identifier of the conversation.
+            init_flag (bool): Flag to indicate if this is an initialization dialogue.
         Returns:
             AsyncIterator[str]: An iterator that yields responses to the user's query.
         """
@@ -113,10 +116,7 @@ class ChatAgent(AbstractAgent):
         self.agent_executor.short_memory.add(role="System Time", content=f"UTC Now: {current_time}")
 
         # Load conversation-specific memory into the agent
-        history = ''
-        for memory in memory_list:
-            history += f'user: {memory.input}\nassistant: {memory.output}\n\n'
-        self.agent_executor.add_memory_object(history)
+        self.agent_executor.add_memory_object(memory_list)
 
     def send_message(self, event: str, message: dict) -> str:
         """

@@ -1,12 +1,12 @@
+import json
 import logging
 from typing import Optional, AsyncIterator, List
-import json
 
 from fastapi import Depends
+from sqlalchemy import func
 from sqlalchemy import update, delete, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
 from agents.agent.chat_agent import ChatAgent
@@ -15,11 +15,10 @@ from agents.common.encryption_utils import encryption_utils
 from agents.common.redis_utils import redis_utils
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
-from agents.models.entity import AgentInfo, ModelInfo
+from agents.models.entity import AgentInfo, ModelInfo, ChatContext
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO
 from agents.services.model_service import get_model_with_key, get_model
-from agents.services.open_service import get_or_create_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +46,12 @@ async def dialogue(
             "Agent not found or no permission"
         )
 
+    # Get the initialization flag
+    chat_context = ChatContext(
+        init_flag=request.initFlag if hasattr(request, 'initFlag') else False
+    )
     # Create appropriate agent based on mode
-    agent = ChatAgent(agent_info)
+    agent = ChatAgent(agent_info, chat_context)
     
     # Stream the response
     async for response in agent.stream(request.query, request.conversation_id):
@@ -114,6 +117,15 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
         if agent.telegram_bot_token:
             masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
             
+        # Parse model_json if exists
+        shouldInitializeDialog = False
+        if agent.model_json:
+            try:
+                model_json_data = json.loads(agent.model_json)
+                shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Failed to parse model_json for agent {agent.id}")
+            
         # Convert App model to AgentDTO
         agent_dto = AgentDTO(
             id=agent.id,
@@ -134,7 +146,8 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
             model_id=agent.model_id,
             model=model,  # Add model info to DTO
             is_public=agent.is_public,
-            is_official=agent.is_official
+            is_official=agent.is_official,
+            shouldInitializeDialog=shouldInitializeDialog
         )
 
         # Add tools to the DTO
@@ -220,18 +233,10 @@ async def create_agent(
                 tool_ids = agent.tools
                 await verify_tool_permissions(tool_ids, user, session)
 
-            # Extract extra configurations for model_json
-            extra_config = {}
-            agent_dict = agent.model_dump()
-            base_fields = {
-                'id', 'name', 'description', 'mode', 'icon', 'status',
-                'role_settings', 'welcome_message', 'twitter_link',
-                'telegram_bot_id', 'tool_prompt', 'max_loops',
-                'suggested_questions', 'model_id', 'tools', 'category_id'
-            }
-            for key, value in agent_dict.items():
-                if key not in base_fields:
-                    extra_config[key] = value
+            # Extract specific fields for model_json
+            model_json_data = {}
+            if agent.shouldInitializeDialog is not None:
+                model_json_data["shouldInitializeDialog"] = agent.shouldInitializeDialog
 
             new_agent = App(
                 id=agent.id,
@@ -249,7 +254,7 @@ async def create_agent(
                 suggested_questions=agent.suggested_questions,
                 model_id=agent.model_id,
                 category_id=agent.category_id,
-                model_json=json.dumps(extra_config) if extra_config else None,
+                model_json=json.dumps(model_json_data) if model_json_data else None,
                 tenant_id=user.get('tenant_id')
             )
             session.add(new_agent)
@@ -418,7 +423,16 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
                 model = await get_model(agent.model_id, user, session)
             except Exception as e:
                 logger.warning(f"Failed to get model info for agent {agent.id}: {e}")
-
+                
+        # Parse model_json if exists
+        shouldInitializeDialog = False
+        if agent.model_json:
+            try:
+                model_json_data = json.loads(agent.model_json)
+                shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Failed to parse model_json for agent {agent.id}")
+                
         # Process telegram bot token if exists
         masked_token = None
         if agent.telegram_bot_token:
@@ -444,7 +458,12 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             model_id=agent.model_id,
             model=model,  # Add model info to DTO
             category_id=agent.category_id,
+            is_public=agent.is_public,
+            is_official=agent.is_official,
             is_hot=agent.is_hot,
+            create_fee=float(agent.create_fee) if agent.create_fee else None,
+            price=float(agent.price) if agent.price else None,
+            shouldInitializeDialog=shouldInitializeDialog,
             tools=[ToolInfo(
                 id=tool.id,
                 name=tool.name,
@@ -487,31 +506,80 @@ async def update_agent(
         user: dict,
         session: AsyncSession = Depends(get_db)
 ):
+    """
+    Update an existing agent
+    """
+    if not agent.id:
+        raise CustomAgentException(
+            ErrorCode.INVALID_REQUEST,
+            "Agent ID is required for update"
+        )
+
     try:
         async with session.begin():
-            # Verify agent ownership
-            existing_agent = await get_agent(agent.id, user, session)
+            # Check if agent exists and belongs to the user's tenant
+            result = await session.execute(
+                select(App).where(
+                    App.id == agent.id,
+                    App.tenant_id == user.get('tenant_id')
+                )
+            )
+            existing_agent = result.scalar_one_or_none()
+            
             if not existing_agent:
                 raise CustomAgentException(
-                    ErrorCode.PERMISSION_DENIED,
+                    ErrorCode.RESOURCE_NOT_FOUND,
                     "Agent not found or no permission to update"
                 )
 
-            # Verify tool permissions if tools are being updated
-            if agent.tools is not None:
-                tool_ids = agent.tools
-                await verify_tool_permissions(tool_ids, user, session)
+            # Verify tool permissions if tools are specified
+            if agent.tools:
+                await verify_tool_permissions(agent.tools, user, session)
 
-                # Remove existing associations
+            # Extract specific fields for model_json
+            model_json_data = {}
+            if agent.shouldInitializeDialog is not None:
+                model_json_data["shouldInitializeDialog"] = agent.shouldInitializeDialog
+            
+            # If there was existing model_json data, preserve it and update only what's needed
+            if existing_agent.model_json:
+                try:
+                    existing_model_json = json.loads(existing_agent.model_json)
+                    # Update with new values, keeping any existing values not being updated
+                    existing_model_json.update(model_json_data)
+                    model_json_data = existing_model_json
+                except (json.JSONDecodeError, TypeError):
+                    # If existing model_json is invalid, just use the new data
+                    pass
+
+            # Update agent fields
+            existing_agent.name = agent.name
+            existing_agent.description = agent.description
+            existing_agent.mode = agent.mode
+            existing_agent.icon = agent.icon
+            existing_agent.status = agent.status
+            existing_agent.role_settings = agent.role_settings
+            existing_agent.welcome_message = agent.welcome_message
+            existing_agent.twitter_link = agent.twitter_link
+            existing_agent.tool_prompt = agent.tool_prompt
+            existing_agent.max_loops = agent.max_loops
+            existing_agent.suggested_questions = agent.suggested_questions
+            existing_agent.model_id = agent.model_id
+            existing_agent.category_id = agent.category_id
+            existing_agent.model_json = json.dumps(model_json_data) if model_json_data else None
+
+            # Update tool associations
+            if agent.tools:
+                # Remove existing tool associations
                 await session.execute(
                     delete(AgentTool).where(
                         AgentTool.agent_id == agent.id,
                         AgentTool.tenant_id == user.get('tenant_id')
                     )
                 )
-
-                # Create new associations
-                for tool_id in tool_ids:
+                
+                # Create new tool associations
+                for tool_id in agent.tools:
                     agent_tool = AgentTool(
                         agent_id=agent.id,
                         tool_id=tool_id,
@@ -519,48 +587,7 @@ async def update_agent(
                     )
                     session.add(agent_tool)
 
-            # Extract extra configurations for model_json
-            extra_config = {}
-            agent_dict = agent.model_dump()
-            base_fields = {
-                'id', 'name', 'description', 'mode', 'icon', 'status',
-                'role_settings', 'welcome_message', 'twitter_link',
-                'telegram_bot_id', 'tool_prompt', 'max_loops',
-                'suggested_questions', 'model_id', 'tools'
-            }
-            for key, value in agent_dict.items():
-                if key not in base_fields and value is not None:
-                    extra_config[key] = value
-
-            # Update agent fields
-            update_values = {
-                'name': agent.name,
-                'description': agent.description,
-                'mode': agent.mode,
-                'icon': agent.icon,
-                'status': agent.status,
-                'role_settings': agent.role_settings,
-                'welcome_message': agent.welcome_message,
-                'twitter_link': agent.twitter_link,
-                'telegram_bot_id': agent.telegram_bot_id,
-                'tool_prompt': agent.tool_prompt,
-                'max_loops': agent.max_loops,
-                'suggested_questions': agent.suggested_questions,
-                'model_id': agent.model_id,
-                'model_json': json.dumps(extra_config) if extra_config else None
-            }
-
-            # Filter out None values
-            update_values = {k: v for k, v in update_values.items() if v is not None}
-
-            stmt = update(App).where(
-                App.id == existing_agent.id,
-                App.tenant_id == user.get('tenant_id')
-            ).values(**update_values).execution_options(synchronize_session="fetch")
-
-            await session.execute(stmt)
-
-        return existing_agent
+            return agent
     except CustomAgentException:
         logger.error(f"Error updating agent: ", exc_info=True)
         raise
