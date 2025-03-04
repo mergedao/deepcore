@@ -13,6 +13,7 @@ from agents.protocol.response import ToolModel
 from agents.protocol.schemas import ToolType, AuthConfig, CategoryDTO
 from agents.utils import openapi
 from agents.utils.openapi_utils import extract_endpoints_info
+from agents.common.config import SETTINGS
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ def tool_to_dto(tool: Tool, user: Optional[dict] = None) -> ToolModel:
             method=tool.method,
             parameters=tool.parameters,
             auth_config=tool.auth_config if should_include_auth else None,
+            icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON,
             is_public=tool.is_public,
             is_official=tool.is_official,
             tenant_id=tool.tenant_id,
@@ -50,7 +52,7 @@ def tool_to_dto(tool: Tool, user: Optional[dict] = None) -> ToolModel:
             category_id=tool.category_id
         )
         
-        if tool.category:
+        if tool.category_id and hasattr(tool, 'category') and tool.category is not None:
             tool_dto.category = CategoryDTO(
                 id=tool.category.id,
                 name=tool.category.name,
@@ -99,6 +101,7 @@ async def create_tool(
             method=tool_data['method'],
             parameters=tool_data['parameters'],
             auth_config=tool_data.get('auth_config'),
+            icon=tool_data.get('icon') or SETTINGS.DEFAULT_TOOL_ICON,
             is_public=False,
             is_official=False,
             tenant_id=user.get('tenant_id'),
@@ -162,6 +165,7 @@ async def update_tool(
         method: Optional[str] = None,
         parameters: Optional[Dict] = None,
         auth_config: Optional[AuthConfig] = None,
+        icon: Optional[str] = None,
         is_stream: Optional[bool] = None,
         output_format: Optional[Dict] = None
 ):
@@ -178,6 +182,7 @@ async def update_tool(
         method: Optional new HTTP method
         parameters: Optional new API parameters
         auth_config: Optional new authentication configuration
+        icon: Optional new icon URL for the tool
         is_stream: Optional boolean indicating if the API returns a stream response
         output_format: Optional JSON configuration for formatting API output
     """
@@ -209,6 +214,8 @@ async def update_tool(
             values_to_update['parameters'] = parameters
         if auth_config is not None:
             values_to_update['auth_config'] = auth_config.model_dump()
+        if icon is not None:
+            values_to_update['icon'] = icon or SETTINGS.DEFAULT_TOOL_ICON
         if is_stream is not None:
             values_to_update['is_stream'] = is_stream
         if output_format is not None:
@@ -272,7 +279,7 @@ async def get_tool(
 ):
     try:
         result = await session.execute(
-            select(Tool).where(
+            select(Tool).options(selectinload(Tool.category)).where(
                 Tool.id == tool_id,
                 Tool.tenant_id == user.get('tenant_id'),
                 Tool.is_deleted == False
@@ -524,7 +531,7 @@ async def get_tools_by_agent(
     """
     try:
         result = await session.execute(
-            select(Tool).join(AgentTool).where(
+            select(Tool).options(selectinload(Tool.category)).join(AgentTool).where(
                 AgentTool.agent_id == agent_id,
                 AgentTool.tenant_id == user.get('tenant_id'),
                 Tool.is_deleted == False
@@ -549,7 +556,7 @@ async def get_agent_tools(
     """
     try:
         result = await session.execute(
-            select(Tool).join(AgentTool).where(
+            select(Tool).options(selectinload(Tool.category)).join(AgentTool).where(
                 AgentTool.agent_id == agent_id,
                 AgentTool.tenant_id == user.get('tenant_id'),
                 Tool.is_deleted == False
