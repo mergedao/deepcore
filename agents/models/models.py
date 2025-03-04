@@ -70,6 +70,7 @@ class Tool(Base):
     parameters = Column(JSON, comment="API parameters including header, query, path, and body")
     # Common fields
     auth_config = Column(JSON)
+    icon = Column(String(255), comment="Icon URL of the tool")
     is_deleted = Column(Boolean, default=False)
     tenant_id = Column(String(36))
     is_public = Column(Boolean, default=False)

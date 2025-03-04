@@ -62,6 +62,7 @@ CREATE TABLE `tools` (
   `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the tool is public',
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the tool is official preset',
   `auth_config` JSON COMMENT 'Authentication configuration in JSON format',
+  `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the tool',
   `is_stream` BOOLEAN DEFAULT FALSE COMMENT 'Whether the API returns a stream response',
   `output_format` JSON COMMENT 'JSON configuration for formatting API output',
   `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
@@ -158,3 +159,7 @@ CREATE TABLE `open_platform_keys` (
 ALTER TABLE app
 ADD COLUMN telegram_bot_name varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Telegram bot name' AFTER telegram_bot_id,
 ADD COLUMN telegram_bot_token varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted Telegram bot token' AFTER telegram_bot_name;
+
+-- Add icon field to tools table
+ALTER TABLE tools
+ADD COLUMN icon varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the tool' AFTER auth_config;

@@ -139,7 +139,7 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
             twitter_link=agent.twitter_link,
             telegram_bot_id=agent.telegram_bot_id,
             telegram_bot_name=agent.telegram_bot_name,
-            telegram_bot_token=masked_token,
+            # telegram_bot_token=masked_token,
             tool_prompt=agent.tool_prompt,
             max_loops=agent.max_loops,
             suggested_questions=agent.suggested_questions,
@@ -161,6 +161,7 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
             method=tool.method,
             parameters=tool.parameters,
             auth_config=tool.auth_config,
+            icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON,
             is_public=tool.is_public,
             is_official=tool.is_official,
             tenant_id=tool.tenant_id,
@@ -451,7 +452,7 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
             twitter_link=agent.twitter_link,
             telegram_bot_id=agent.telegram_bot_id,
             telegram_bot_name=agent.telegram_bot_name,
-            telegram_bot_token=masked_token,
+            # telegram_bot_token=masked_token,
             tool_prompt=agent.tool_prompt,
             max_loops=agent.max_loops,
             suggested_questions=agent.suggested_questions,
@@ -471,7 +472,8 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
                 origin=tool.origin,
                 path=tool.path,
                 method=tool.method,
-                parameters=tool.parameters
+                parameters=tool.parameters,
+                icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON
             ) for tool in tools]
         )
 

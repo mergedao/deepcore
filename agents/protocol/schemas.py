@@ -44,6 +44,7 @@ class ToolInfo(BaseModel):
     auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
     parameters: Dict = Field(default_factory=dict, description="API parameters including header, query, path, and body")
     description: Optional[str] = Field(None, description="Description of the tool")
+    icon: Optional[str] = Field(None, description="Icon URL of the tool")
     is_public: Optional[bool] = Field(False, description="Whether the tool is public")
     tenant_id: Optional[str] = Field(None, description="Tenant ID that owns this tool")
     is_stream: Optional[bool] = Field(False, description="Whether the API returns a stream response")
@@ -101,7 +102,7 @@ class AgentDTO(BaseModel):
     twitter_link: Optional[str] = Field(None, description="Optional twitter link for the agent")
     telegram_bot_id: Optional[str] = Field(None, description="Optional telegram bot id for the agent")
     telegram_bot_name: Optional[str] = Field(None, description="Optional telegram bot name for the agent")
-    telegram_bot_token: Optional[str] = Field(None, description="Optional masked telegram bot token")
+    # telegram_bot_token: Optional[str] = Field(None, description="Optional masked telegram bot token")
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
@@ -141,6 +142,7 @@ class APIToolData(BaseModel):
     method: str = Field(..., description="HTTP method")
     parameters: Dict = Field(default_factory=dict, description="API parameters including header, query, path, and body")
     auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
+    icon: Optional[str] = Field(None, description="Icon URL of the tool")
     is_stream: Optional[bool] = Field(False, description="Whether the API returns a stream response")
     output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
 
@@ -159,6 +161,7 @@ class ToolUpdate(BaseModel):
     method: Optional[str] = Field(None, description="Optional new HTTP method")
     parameters: Optional[Dict] = Field(None, description="Optional new API parameters")
     auth_config: Optional[AuthConfig] = Field(None, description="Optional new authentication configuration")
+    icon: Optional[str] = Field(None, description="Icon URL of the tool")
     is_stream: Optional[bool] = Field(None, description="Whether the API returns a stream response")
     output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
 
@@ -252,6 +255,7 @@ class ToolModel(BaseModel):
     method: str
     parameters: Dict
     auth_config: Optional[Dict] = None
+    icon: Optional[str] = Field(None, description="Icon URL of the tool")
     is_public: bool = False
     is_official: bool = False
     tenant_id: Optional[str] = None

@@ -49,7 +49,9 @@ class Settings(BaseSettings):
 
     API_BASE_URL: str = "" # base url
     TELEGRAM_REDIS_KEY: str = "deepcore_tg_bot_conf_all"
-
+    
+    # Default tool icon URL
+    DEFAULT_TOOL_ICON: str = "https://deepweb3.s3.ap-southeast-2.amazonaws.com/static_images/icons/default.webp"
 
 
 SETTINGS = Settings()

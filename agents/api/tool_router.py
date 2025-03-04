@@ -132,6 +132,7 @@ async def update_tool(
     - **method**: Optional new HTTP method
     - **parameters**: Optional new API parameters
     - **auth_config**: Optional new authentication configuration
+    - **icon**: Optional new icon URL for the tool
     - **is_stream**: Optional boolean indicating if the API returns a stream response
     - **output_format**: Optional JSON configuration for formatting API output
     """
@@ -146,6 +147,7 @@ async def update_tool(
             method=tool.method,
             parameters=tool.parameters,
             auth_config=tool.auth_config,
+            icon=tool.icon,
             is_stream=tool.is_stream,
             output_format=tool.output_format
         )
