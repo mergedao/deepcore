@@ -5,6 +5,7 @@ from typing import AsyncIterator
 from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
+from agents.agent.entity.inner.wallet_output import WalletOutput
 from agents.agent.executor.agent_executor import DeepAgentExecutor
 from agents.agent.factory.agent_factory import AgentExecutorFactory
 from agents.agent.llm.custom_llm import CustomChat
@@ -12,6 +13,8 @@ from agents.agent.llm.default_llm import openai
 from agents.agent.memory.memory import MemoryObject
 from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt
+from agents.agent.tools.function.local_tool_manager import get_local_tool
+from agents.agent.tools.message_tool import send_message
 from agents.models.entity import AgentInfo, ChatContext
 from agents.models.models import App
 
@@ -42,7 +45,8 @@ class ChatAgent(AbstractAgent):
             chat_context=chat_context,
             name=app.name,
             llm=CustomChat(app.model).get_model() if app.model else openai.get_model(),
-            api_tool=app.tools,
+            api_tools=app.tools,
+            local_tools=get_local_tool(),
             tool_system_prompt=app.tool_prompt if app.tool_prompt else tool_prompt(),
             max_loops=app.max_loops if app.max_loops else 5,
             output_type="list",
@@ -71,10 +75,10 @@ class ChatAgent(AbstractAgent):
             final_response: list = []
             async for output in self.agent_executor.stream(query):
                 if isinstance(output, NodeMessage):
-                    yield self.send_message("status", output.to_dict())
+                    yield output.to_stream()
                     continue
-                elif isinstance(output, ToolOutput):
-                    yield output.get_output()
+                elif isinstance(output, (ToolOutput, WalletOutput)):
+                    yield output.to_stream()
                     is_finalized = True
                     continue
                 elif isinstance(output, list):
@@ -90,14 +94,14 @@ class ChatAgent(AbstractAgent):
                 response_buffer += output
                 is_finalized = True
                 if output:
-                    yield self.send_message("message", {"type": "markdown", "text": output})
+                    yield send_message("message", {"type": "markdown", "text": output})
 
             # Handle the case where no final response was generated
             if not is_finalized:
                 if final_response:
-                    yield self.send_message("message", {"type": "markdown", "text": final_response[-1]})
+                    yield send_message("message", {"type": "markdown", "text": final_response[-1]})
                 else:
-                    yield self.send_message("message", {"type": "markdown", "text": self.default_final_answer})
+                    yield send_message("message", {"type": "markdown", "text": self.default_final_answer})
         except Exception as e:
             print("Error occurred:", e)
             raise e
@@ -117,9 +121,3 @@ class ChatAgent(AbstractAgent):
 
         # Load conversation-specific memory into the agent
         self.agent_executor.add_memory_object(memory_list)
-
-    def send_message(self, event: str, message: dict) -> str:
-        """
-        Send a message to the client.
-        """
-        return f'event: {event}\ndata: {json.dumps(message, ensure_ascii=False)}\n\n'
