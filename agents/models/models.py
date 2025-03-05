@@ -89,8 +89,10 @@ class FileStorage(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="Auto-incrementing ID")
     file_name = Column(String(255), nullable=False, comment="Name of the file")
     file_uuid = Column(String(255), nullable=False, comment="file UUID")
-    file_content = Column(LargeBinary, nullable=False, comment="Content of the file")
+    file_content = Column(LargeBinary, nullable=True, comment="Content of the file (null for S3 storage)")
     size = Column(BigInteger, nullable=False, comment="Size of the file")
+    storage_type = Column(String(50), default="database", comment="Storage type: database or s3")
+    storage_location = Column(String(1000), nullable=True, comment="Storage location for external storage")
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
 
 

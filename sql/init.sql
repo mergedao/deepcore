@@ -170,3 +170,11 @@ ADD COLUMN icon varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DE
 ALTER TABLE `open_platform_keys`
 ADD COLUMN `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
 ADD COLUMN `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time';
+
+
+ALTER TABLE `file_storage`
+    MODIFY COLUMN `file_content` LONGBLOB NULL COMMENT 'Content of the file (null for S3 storage)',
+    ADD COLUMN `storage_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'database' COMMENT 'Storage type: database or s3',
+    ADD COLUMN `storage_location` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT 'Storage location for external storage';
+
+UPDATE `file_storage` SET `storage_type` = 'database' WHERE `storage_type` IS NULL;
