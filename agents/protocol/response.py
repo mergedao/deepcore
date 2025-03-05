@@ -45,6 +45,9 @@ class AppModel(BaseModel):
     welcome_message: Optional[str] = None
     twitter_link: Optional[str] = None
     telegram_bot_id: Optional[str] = None
+    token: Optional[str] = None
+    symbol: Optional[str] = None
+    photos: Optional[List[str]] = None
     tool_prompt: Optional[str] = None
     max_loops: int = 3
     is_deleted: bool = False

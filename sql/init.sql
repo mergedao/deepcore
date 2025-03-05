@@ -11,6 +11,9 @@ CREATE TABLE `app` (
   `telegram_bot_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Telegram bot ID for the agent',
   `telegram_bot_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Telegram bot name',
   `telegram_bot_token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted Telegram bot token',
+  `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Token symbol for the agent',
+  `symbol` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Symbol for the agent token',
+  `photos` JSON COMMENT 'Photos for the agent',
   `tool_prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Tool prompt for the agent',
   `max_loops` int DEFAULT 3 COMMENT 'Maximum number of loops the agent can perform',
   `is_deleted` tinyint(1) DEFAULT NULL COMMENT 'Logical deletion flag',
@@ -39,9 +42,11 @@ CREATE TABLE `file_storage` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the file',
   `file_uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'file UUID',
-  `file_content` LONGBLOB NOT NULL COMMENT 'Content of the file',
+  `file_content` LONGBLOB NULL COMMENT 'Content of the file (null for S3 storage)',
   `size` bigint NOT NULL COMMENT 'Size of the file',
   `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
+  `storage_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'database' COMMENT 'Storage type: database or s3',
+  `storage_location` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT 'Storage location for external storage',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -172,9 +177,9 @@ ADD COLUMN `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_c
 ADD COLUMN `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time';
 
 
-ALTER TABLE `file_storage`
-    MODIFY COLUMN `file_content` LONGBLOB NULL COMMENT 'Content of the file (null for S3 storage)',
-    ADD COLUMN `storage_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'database' COMMENT 'Storage type: database or s3',
-    ADD COLUMN `storage_location` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT 'Storage location for external storage';
-
 UPDATE `file_storage` SET `storage_type` = 'database' WHERE `storage_type` IS NULL;
+
+-- Add token, symbol, and photos columns to app table if they don't exist
+ALTER TABLE `app` ADD COLUMN `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Token symbol for the agent';
+ALTER TABLE `app` ADD COLUMN `symbol` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Symbol for the agent token';
+ALTER TABLE `app` ADD COLUMN `photos` JSON COMMENT 'Photos for the agent';

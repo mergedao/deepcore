@@ -103,6 +103,9 @@ class AgentDTO(BaseModel):
     telegram_bot_id: Optional[str] = Field(None, description="Optional telegram bot id for the agent")
     telegram_bot_name: Optional[str] = Field(None, description="Optional telegram bot name for the agent")
     # telegram_bot_token: Optional[str] = Field(None, description="Optional masked telegram bot token")
+    token: Optional[str] = Field(None, description="Optional token for the agent")
+    symbol: Optional[str] = Field(None, description="Optional symbol for the agent token")
+    photos: Optional[List[str]] = Field(default_factory=list, description="Optional photos for the agent")
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
@@ -300,3 +303,12 @@ class TelegramBotRequest(BaseModel):
     """Request model for registering a Telegram bot"""
     bot_name: str = Field(..., description="Name of the Telegram bot")
     token: str = Field(..., description="Telegram bot token")
+
+
+class AgentSettingRequest(BaseModel):
+    """Request model for agent settings"""
+    token: Optional[str] = Field(None, description="Token for the agent")
+    symbol: Optional[str] = Field(None, description="Symbol for the agent token")
+    photos: Optional[List[str]] = Field(default_factory=list, description="Photos for the agent")
+    telegram_bot_name: Optional[str] = Field(None, description="Name of the Telegram bot")
+    telegram_bot_token: Optional[str] = Field(None, description="Telegram bot token")
