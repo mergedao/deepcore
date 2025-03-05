@@ -24,8 +24,6 @@ class AgentExecutorFactory:
                 - description: Agent description
                 - role_settings: Role configuration
                 - api_tool: List of API tools
-                - tools: List of function tools
-                - async_tools: List of async function tools
                 - node_massage_enabled: Enable node messages
                 - output_type: Type of output
                 - output_detail_enabled: Enable detailed output

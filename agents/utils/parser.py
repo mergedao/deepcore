@@ -6,6 +6,7 @@ import re
 from typing import Any, List, Callable, get_origin, Annotated, Dict, get_args, Type, Optional, Literal, ForwardRef, \
     Union, Tuple, Set
 
+import asyncio
 from docstring_parser import parse
 from pydantic import BaseModel, Field, schema_of
 from pydantic.json_schema import JsonSchemaValue
@@ -448,45 +449,54 @@ def pydantic_to_function_call(
         "functions": functions,
     }
 
+import json
+import asyncio
+from typing import Any, Callable, List, Union, AsyncIterator
 
-def parse_and_execute_json(
-        functions: List[Callable[..., Any]],
-        json_string: str,
-        parse_md: bool = False,
-        verbose: bool = False,
-        return_str: bool = True,
-) -> dict:
+async def parse_and_execute_json(
+    functions: List[Callable[..., Any]],
+    json_string: str,
+    parse_md: bool = False,
+    verbose: bool = False,
+    return_str: bool = False,
+) -> AsyncIterator[Union[str, dict]]:
+    """
+    Asynchronously parses a JSON string, executes functions based on the JSON data,
+    and yields results as an asynchronous iterator.
+
+    Supports both synchronous and asynchronous functions.
+    If a function returns an iterator, its items are yielded one by one (pass-through).
+    If return_str is True, each yielded result is JSON serialized as a string.
+    """
+    # Ensure that functions and json_string are provided
     if not functions or not json_string:
         raise ValueError("Functions and JSON string are required")
 
     if parse_md:
+        # Assume extract_md_code is defined elsewhere
         json_string = extract_md_code(json_string)
 
     try:
-        # Create function name to function mapping
+        # Build a mapping from function names to function objects
         function_dict = {func.__name__: func for func in functions}
 
         if verbose:
-            logger.info(
-                f"Available functions: {list(function_dict.keys())}"
-            )
+            logger.info(f"Available functions: {list(function_dict.keys())}")
             logger.info(f"Processing JSON: {json_string}")
 
-        # Parse JSON data
+        # Parse the JSON data
         data = json.loads(json_string)
 
-        # Handle both single function and function list formats
-        function_list = []
+        # Determine function list format:
+        # Supports "functions", "function", or the entire object as a single function call.
         if "functions" in data:
             function_list = data["functions"]
         elif "function" in data:
             function_list = [data["function"]]
         else:
-            function_list = [
-                data
-            ]  # Assume entire object is single function
+            function_list = [data]
 
-        # Ensure function_list is a list and filter None values
+        # Ensure function_list is a list and filter out any None values
         if isinstance(function_list, dict):
             function_list = [function_list]
         function_list = [f for f in function_list if f]
@@ -494,7 +504,7 @@ def parse_and_execute_json(
         if verbose:
             logger.info(f"Processing {len(function_list)} functions")
 
-        results = {}
+        # Iterate over each function specification and yield results
         for function_data in function_list:
             function_name = function_data.get("name")
             parameters = function_data.get("parameters", {})
@@ -504,51 +514,58 @@ def parse_and_execute_json(
                 continue
 
             if verbose:
-                logger.info(
-                    f"Executing {function_name} with params: {parameters}"
-                )
+                logger.info(f"Executing {function_name} with params: {parameters}")
 
             if function_name not in function_dict:
                 logger.warning(f"Function {function_name} not found")
-                results[function_name] = None
-                continue
+                result = None
+            else:
+                func = function_dict[function_name]
+                try:
+                    # Check if the function is asynchronous; if so, await it
+                    if asyncio.iscoroutinefunction(func):
+                        result = await func(**parameters)
+                    else:
+                        result = func(**parameters)
+                        # If the result is a coroutine, await it
+                        if asyncio.iscoroutine(result):
+                            result = await result
+                except Exception as e:
+                    logger.error(f"Error executing {function_name}: {str(e)}")
+                    result = f"Error: {str(e)}"
 
-            try:
-                result = function_dict[function_name](**parameters)
-                results[function_name] = str(result)
-                if verbose:
-                    logger.info(
-                        f"Result for {function_name}: {result}"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Error executing {function_name}: {str(e)}"
-                )
-                results[function_name] = f"Error: {str(e)}"
-
-        # Format final results
-        if len(results) == 1:
-            # Return single result directly
-            data = {"result": next(iter(results.values()))}
-        else:
-            # Return all results
-            data = {
-                "results": results,
-                "summary": "\n".join(
-                    f"{k}: {v}" for k, v in results.items()
-                ),
-            }
-
-        if return_str:
-            return json.dumps(data)
-        else:
-            return data
+            # Yield results. If the result is an iterator, yield its items one by one.
+            # For asynchronous iterators:
+            if hasattr(result, '__aiter__'):
+                async for item in result:
+                    if return_str:
+                        yield str(item)
+                    else:
+                        yield item
+            # For synchronous iterators (but not str or bytes):
+            elif hasattr(result, '__iter__') and not isinstance(result, (str, bytes)):
+                for item in result:
+                    if return_str:
+                        yield str(item)
+                    else:
+                        yield item
+            else:
+                if return_str:
+                    yield str(result)
+                else:
+                    yield result
 
     except json.JSONDecodeError as e:
         error = f"Invalid JSON format: {str(e)}"
         logger.error(error)
-        return {"error": error}
+        if return_str:
+            yield json.dumps({"error": error})
+        else:
+            yield {"error": error}
     except Exception as e:
         error = f"Error parsing and executing JSON: {str(e)}"
         logger.error(error)
-        return {"error": error}
+        if return_str:
+            yield json.dumps({"error": error})
+        else:
+            yield {"error": error}

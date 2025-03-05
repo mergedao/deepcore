@@ -6,15 +6,16 @@ import yaml
 from langchain_core.messages import BaseMessageChunk
 
 from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
+from agents.agent.entity.inner.finish import FinishOutput
+from agents.agent.entity.inner.inner_output import Output
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.executor import AgentExecutor
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
-from agents.agent.tools import BaseTool
 from agents.agent.tools.tool_executor import async_execute
-from agents.models.entity import ToolInfo, ChatContext
+from agents.models.entity import ToolInfo, ChatContext, ToolType
 from agents.utils import tools_parser
 from agents.utils.common import dict_to_csv, exists, concat_strings
 from agents.utils.http_client import async_client
@@ -35,9 +36,8 @@ class DeepAgentExecutor(AgentExecutor):
             tool_system_prompt: str = tool_prompt(),
             description: str = "",
             role_settings: str = "",
-            api_tool: Optional[List[ToolInfo]] = None,
-            tools: Optional[List[Callable]] = None,
-            async_tools: Optional[List[Callable]] = None,
+            api_tools: Optional[List[ToolInfo]] = None,
+            local_tools: Optional[List[Callable]] = None,
             node_massage_enabled: Optional[bool] = False,
             output_type: str = "str",
             output_detail_enabled: Optional[bool] = False,
@@ -59,9 +59,8 @@ class DeepAgentExecutor(AgentExecutor):
             tool_system_prompt=tool_system_prompt,
             description=description,
             role_settings=role_settings,
-            api_tool=api_tool,
-            tools=tools,
-            async_tools=async_tools,
+            api_tools=api_tools,
+            local_tools=local_tools,
             node_massage_enabled=node_massage_enabled,
             output_type=output_type,
             output_detail_enabled=output_detail_enabled,
@@ -100,34 +99,24 @@ class DeepAgentExecutor(AgentExecutor):
 
 
     def _initialize_tools(self) -> None:
-        function_tools = self.tools + self.async_tools
-
-        if not exists(function_tools):
-            return
-
-        self.tool_struct = BaseTool(
-            tools=function_tools,
-            tool_system_prompt=self.tool_system_prompt,
-        )
 
         # self.short_memory.add(role="system", content=self.tool_system_prompt)
-
-        if function_tools or self.api_tool:
+        if self.api_tools:
             logger.info(
-                "Tools provided: Accessing fucntion: %d api: %d tools. Ensure functions have documentation and type hints.",
-                len(function_tools), len(self.api_tool),
+                "Tools provided: Accessing api: %d tools. Ensure functions have documentation and type hints.",
+                 len(self.api_tools),
             )
 
             self.short_memory.add(role="", content=TOOLS_PROMPT)
 
-            if self.api_tool:
-                tool_dict = tools_parser.convert_tool_into_openai_schema(self.api_tool)
-                self.short_memory.add(role="api tool", content=tool_dict)
-
-            if function_tools:
-                tool_dict = self.tool_struct.convert_tool_into_openai_schema()
-                self.short_memory.add(role="function tool", content=tool_dict)
-                self.function_map = {tool.__name__: tool for tool in function_tools}
+            self.function_map = {}
+            if self.api_tools:
+                api_schemas,  function_schemas = tools_parser.convert_tool_into_openai_schema(self.api_tools)
+                if api_schemas:
+                    self.short_memory.add(role="api tool", content=json.dumps(api_schemas, ensure_ascii=False))
+                if function_schemas:
+                    self.short_memory.add(role="function tool", content=json.dumps(function_schemas, ensure_ascii=False))
+                    self.function_map = {tool.__name__: tool for tool in self.local_tools}
 
     def _initialize_answer(self):
         self.short_memory.add(role="", content=ANSWER_PROMPT)
@@ -246,26 +235,8 @@ class DeepAgentExecutor(AgentExecutor):
 
                         # Check and execute tools
                         if not self.should_stop:
-                            async for data in self.parse_and_execute_api_tools(response):
-                                yield ToolOutput(data)
-
-
-                            # is_finished = False
-                            # if self.async_tools is not None:
-                            #     async for resp in self.execute_tools_astream(response, direct_output=True):
-                            #         yield ToolOutput(resp)
-                            #         is_finished = True
-                            #     if is_finished:
-                            #         self.should_stop = True
-                            #         success = True
-                            #         break
-                            # try:
-                            #     if self.tools is not None:
-                            #         self.parse_and_execute_tools(response)
-                            # except Exception as e:
-                            #     logger.error(
-                            #         f"Error executing tools: {e}"
-                            #     )
+                            async for data in self.parse_and_execute_tools(response):
+                                yield data
 
                         # Add to all responses
                         all_responses.append(response)
@@ -476,34 +447,7 @@ class DeepAgentExecutor(AgentExecutor):
                 response
             )  # Return string representation as fallback
 
-    def parse_and_execute_tools(self, response: str, *args, **kwargs):
-        try:
-            logger.info("Executing tool...")
-
-            # try to Execute the tool and return a string
-            out = parse_and_execute_json(
-                functions=self.tools,
-                json_string=response,
-                parse_md=True,
-                *args,
-                **kwargs,
-            )
-
-            out = str(out)
-
-            logger.info(f"Tool Output: {out}")
-
-            # Add the output to the memory
-            self.short_memory.add(
-                role="Tool Executor",
-                content=out,
-            )
-
-        except Exception as error:
-            logger.error(f"Error executing tool: {error}")
-            raise error
-
-    async def parse_and_execute_api_tools(self, json_string):
+    async def parse_and_execute_tools(self, json_string) -> AsyncIterator[Output]:
         try:
             json_string = extract_md_code(json_string)
             tool_data = json.loads(json_string)
@@ -513,28 +457,14 @@ class DeepAgentExecutor(AgentExecutor):
                 return
 
             tool_info, parameters = result
-            resp = async_client.request(
-                method=tool_info.method,
-                base_url=tool_info.origin,
-                path=tool_info.path,
-                params=parameters["query"],
-                headers=parameters["header"],
-                json_data=parameters["body"],
-                auth_config=tool_info.auth_config,
-                stream=tool_info.is_stream
-            )
-            if tool_info.is_stream:
-                async for response in resp:
-                    yield response
-                self.should_stop = True
+            if tool_info.type == ToolType.FUNCTION.value:
+                async for output in self.call_function(tool_info, parameters):
+                    yield output
+            elif tool_info.type == ToolType.OPENAPI.value:
+                async for output in self.call_api(tool_info, parameters):
+                    yield output
             else:
-                answer = ""
-                async for response in resp:
-                    answer = response
-                self.short_memory.add(
-                    role="Tool Executor",
-                    content=answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
-                )
+                logger.error(f"Unknown tool type: {tool_info.type}")
         except Exception as error:
             logger.error(f"Error executing tool: {error}", exc_info=True)
 
@@ -567,11 +497,6 @@ class DeepAgentExecutor(AgentExecutor):
                 logger.error("Input must be a dictionary")
                 return None
                 
-            # Check if it's an API tool call
-            if input_dict.get("type") != "api":
-                logger.error("Only API type tools are supported")
-                return None
-                
             function_data = input_dict.get("function")
             if not function_data:
                 logger.error("No function data found")
@@ -584,7 +509,7 @@ class DeepAgentExecutor(AgentExecutor):
                 
             # Find matching tool in self.api_tool
             matching_tool = None
-            for tool in self.api_tool:
+            for tool in self.api_tools:
                 if tool.name == tool_name:
                     matching_tool = tool
                     break
@@ -592,29 +517,33 @@ class DeepAgentExecutor(AgentExecutor):
             if not matching_tool:
                 logger.error(f"No matching tool found for name: {tool_name}")
                 return None
-                
-            # Extract parameters
-            parameters = function_data.get("parameters", {})
-            extracted_params = {
-                "header": parameters.get("header", {}),
-                "query": parameters.get("query", {}),
-                "path": parameters.get("path", {}),
-                "body": parameters.get("body", {})
-            }
-            
-            # Validate required parameters based on tool definition
-            tool_params = matching_tool.parameters
-            for param_type in ["header", "query", "path"]:
-                required_params = [
-                    p["name"] for p in tool_params.get(param_type, [])
-                    if p.get("required", False)
-                ]
-                provided_params = extracted_params[param_type].keys()
-                missing_params = set(required_params) - set(provided_params)
-                
-                if missing_params:
-                    logger.error(f"Missing required {param_type} parameters: {missing_params}")
-                    return None
+
+            extracted_params = {}
+            if matching_tool.type == ToolType.FUNCTION.value:
+                extracted_params = function_data.get("parameters", {})
+            elif matching_tool.type == ToolType.OPENAPI.value:
+                # Extract parameters
+                parameters = function_data.get("parameters", {})
+                extracted_params = {
+                    "header": parameters.get("header", {}),
+                    "query": parameters.get("query", {}),
+                    "path": parameters.get("path", {}),
+                    "body": parameters.get("body", {})
+                }
+
+                # Validate required parameters based on tool definition
+                tool_params = matching_tool.parameters
+                for param_type in ["header", "query", "path"]:
+                    required_params = [
+                        p["name"] for p in tool_params.get(param_type, [])
+                        if p.get("required", False)
+                    ]
+                    provided_params = extracted_params[param_type].keys()
+                    missing_params = set(required_params) - set(provided_params)
+
+                    if missing_params:
+                        logger.error(f"Missing required {param_type} parameters: {missing_params}")
+                        return None
             
             # Return the matched tool and extracted parameters
             return matching_tool, extracted_params
@@ -622,3 +551,59 @@ class DeepAgentExecutor(AgentExecutor):
         except Exception as e:
             logger.error(f"Error parsing tool data: {str(e)}")
             return None
+
+    async def call_api(self, tool_info: ToolInfo, parameters: dict):
+        """
+        Call the API tool with the given parameters
+        Args:
+        tool_info: ToolInfo object representing the tool to call
+        parameters: Dictionary of parameter values to pass to the tool
+        Returns:
+        The output from the tool execution
+        """
+        resp = async_client.request(
+            method=tool_info.method,
+            base_url=tool_info.origin,
+            path=tool_info.path,
+            params=parameters["query"],
+            headers=parameters["header"],
+            json_data=parameters["body"],
+            auth_config=tool_info.auth_config,
+            stream=tool_info.is_stream
+        )
+        if tool_info.is_stream:
+            async for response in resp:
+                yield ToolOutput(response)
+            self.should_stop = True
+        else:
+            answer = ""
+            async for response in resp:
+                answer = response
+            self.short_memory.add(
+                role="Tool Executor",
+                content=answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
+            )
+
+    async def call_function(self, tool_info: ToolInfo, parameters: dict):
+        """
+        Call a Python function with the given parameters
+        Args:
+        tool_info: ToolInfo object representing the function to call
+        parameters: Dictionary of parameter values to pass to the function
+        Returns:
+        The output from the function execution
+        """
+        data = {
+            "type": "function",
+            "function": {
+                "name": tool_info.name,
+                "parameters": parameters
+            }
+        }
+        function = self.function_map[tool_info.name]
+        async for response in (
+                parse_and_execute_json([function], json.dumps(data, ensure_ascii=False))):
+            if isinstance(response, FinishOutput):
+                self.should_stop = True
+                continue
+            yield response

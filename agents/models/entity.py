@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Optional, List, Dict
 
 from pydantic import Field, BaseModel
@@ -5,6 +6,10 @@ from pydantic import Field, BaseModel
 from agents.agent.entity.agent_mode import AgentMode
 from agents.protocol.schemas import AgentDTO
 
+
+class ToolType(str, Enum):
+    OPENAPI = "openapi"
+    FUNCTION = "function"
 
 class ToolInfo(BaseModel):
     id: str

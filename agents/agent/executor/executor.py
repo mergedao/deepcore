@@ -24,9 +24,8 @@ class AgentExecutor(ABC):
             tool_system_prompt: str = tool_prompt(),
             description: str = "",
             role_settings: str = "",
-            api_tool: Optional[List[ToolInfo]] = None,
-            tools: Optional[List[Callable]] = None,
-            async_tools: Optional[List[Callable]] = None,
+            api_tools: Optional[List[ToolInfo]] = None,
+            local_tools: Optional[List[Callable]] = None,
             node_massage_enabled: Optional[bool] = False,
             output_type: str = "str",
             output_detail_enabled: Optional[bool] = False,
@@ -48,9 +47,8 @@ class AgentExecutor(ABC):
         self.max_loops = max_loops
         self.retry_attempts = retry
         self.stop_func = stop_func
-        self.tools = tools or []
-        self.api_tool = api_tool or []
-        self.async_tools = async_tools or []
+        self.api_tools = api_tools or []
+        self.local_tools = local_tools or []
         self.should_send_node = node_massage_enabled
         self.tokenizer = tokenizer
         self.long_term_memory = long_term_memory
