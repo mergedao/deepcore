@@ -164,6 +164,8 @@ class OpenPlatformKey(Base):
     name = Column(String(255), nullable=False)
     access_key = Column(String(255), unique=True, nullable=False)
     secret_key = Column(String(255), nullable=False)
+    token = Column(String(1000), nullable=True)
+    token_created_at = Column(DateTime, nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     is_deleted = Column(Boolean, default=False)

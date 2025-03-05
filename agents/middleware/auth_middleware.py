@@ -65,6 +65,11 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         try:
             # Handle Open API paths
             if any(re.match(pattern, path) for pattern in AuthConfig.OPEN_API_PATHS):
+                # First try to authenticate using Open Platform token
+                if await self._authenticate_open_api_token(request):
+                    return await call_next(request)
+                    
+                # If token authentication fails, try signature authentication
                 if await self._authenticate_open_api(request):
                     return await call_next(request)
 
@@ -76,6 +81,54 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error("Authentication error", exc_info=True)
             return AuthResponse.error(ErrorCode.TOKEN_INVALID)
+
+    async def _authenticate_open_api_token(self, request: Request) -> bool:
+        """Authenticate using Open API token"""
+        try:
+            # Use X-API-Token header instead of Authorization to avoid conflicts
+            token_header = request.headers.get("X-API-Token")
+            if not token_header:
+                return False
+
+            token = token_header
+            
+            # First validate token format is valid
+            payload = open_service.verify_token(token)
+            if not payload:
+                return False
+                
+            # Get access_key
+            access_key = payload.get("access_key")
+            if not access_key:
+                return False
+                
+            # Verify token matches stored token in database
+            try:
+                async with request.app.state.db() as session:
+                    # Verify token matches stored token
+                    if not await open_service.verify_stored_token(access_key, token, session):
+                        logger.warning(f"Token does not match stored token for access_key: {access_key}")
+                        return False
+                        
+                    # Get credential information
+                    credentials = await open_service.get_credentials(access_key, session)
+                    if not credentials:
+                        logger.warning(f"Invalid access_key: {access_key}")
+                        return False
+                    
+                    # Set user information
+                    request.state.user = {
+                        "id": credentials.user_id,
+                        "type": "api_token",
+                        "access_key": access_key
+                    }
+                    return True
+            except Exception as e:
+                logger.error(f"Database operation failed: {str(e)}", exc_info=True)
+                return False
+        except Exception as e:
+            logger.error(f"Open API token authentication failed: {str(e)}", exc_info=True)
+            return False
 
     async def _authenticate_open_api(self, request: Request) -> bool:
         """Authenticate using Open API credentials"""
