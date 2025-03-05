@@ -74,7 +74,15 @@ async def get_file(
         #         "User must belong to a tenant to access files"
         #     )
 
-        file_record: FileInfo = await file_service.query_file(fid, session)
+        result = await file_service.query_file(fid, session)
+        
+        # Check if result is RedirectResponse (S3 presigned URL redirect)
+        if hasattr(result, 'status_code') and hasattr(result, 'headers') and 'location' in result.headers:
+            logger.info(f"Redirecting to S3 presigned URL for file: {fid}")
+            return result  # Return RedirectResponse object directly
+            
+        # If it's a regular FileInfo object, process as usual
+        file_record = result
         if not file_record:
             raise CustomAgentException(
                 ErrorCode.RESOURCE_NOT_FOUND,

@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     MYSQL_PORT: int = 3306
     MYSQL_DB: str = "mydatabase"
 
+    # AWS S3 Configuration
+    STORAGE_TYPE: str = "s3"  # Options: "database", "s3"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "ap-southeast-2"
+    AWS_S3_BUCKET: str = ""
+    AWS_S3_PREFIX: str = "uploads/"
+    AWS_S3_ENDPOINT_URL: Optional[str] = None  # For custom S3-compatible storage
+    AWS_S3_URL_EXPIRATION: int = 3600  # Presigned URL expiration time (seconds), default 1 hour
+
     OPENAPI_FITTER_FIELDS: list[str] = []
 
     JWT_SECRET: str = ""
