@@ -138,6 +138,8 @@ CREATE TABLE `open_platform_keys` (
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the API key',
   `access_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Access key for API authentication',
   `secret_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Secret key for API authentication',
+  `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
+  `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time',
   `user_id` bigint NOT NULL COMMENT 'ID of the associated user',
   `created_at` datetime DEFAULT (now()) COMMENT 'Creation time',
   `is_deleted` tinyint(1) DEFAULT 0 COMMENT 'Logical deletion flag',
@@ -163,3 +165,8 @@ ADD COLUMN telegram_bot_token varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb
 -- Add icon field to tools table
 ALTER TABLE tools
 ADD COLUMN icon varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the tool' AFTER auth_config;
+
+-- Add token and token_created_at columns to open_platform_keys table
+ALTER TABLE `open_platform_keys`
+ADD COLUMN `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
+ADD COLUMN `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time';
