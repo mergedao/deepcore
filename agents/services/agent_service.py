@@ -813,6 +813,7 @@ async def _convert_to_agent_dto(agent: App) -> AgentDTO:
         photos=agent.photos,
         tool_prompt=agent.tool_prompt,
         max_loops=agent.max_loops,
+        custom_config=agent.custom_config,
         suggested_questions=agent.suggested_questions,
         model_id=agent.model_id,
         category_id=agent.category_id,

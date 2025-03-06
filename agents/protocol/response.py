@@ -50,6 +50,7 @@ class AppModel(BaseModel):
     photos: Optional[List[str]] = None
     tool_prompt: Optional[str] = None
     max_loops: int = 3
+    custom_config: Optional[Dict] = None
     is_deleted: bool = False
     tenant_id: Optional[str] = None
     is_public: bool = False
