@@ -109,6 +109,7 @@ class AgentDTO(BaseModel):
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
+    custom_config: Optional[Dict] = Field(None, description="Custom configuration for the agent")
     tools: Optional[List[Union[str, ToolInfo]]] = Field(
         default_factory=list, 
         description="List of tool UUIDs to associate with the agent when creating/updating, or list of ToolInfo when getting agent details"

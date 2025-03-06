@@ -43,6 +43,7 @@ class App(Base):
     tool_prompt = Column(Text, comment="Tool prompt for the agent")
     max_loops = Column(Integer, default=3, comment="Maximum number of loops the agent can perform")
     model_json = Column(JSON, comment="Additional fields merged into a JSON column")
+    custom_config = Column(JSON, comment="Custom configuration for the agent stored as JSON")
     tenant_id = Column(String(255), default=None, comment="Tenant ID")
     update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
