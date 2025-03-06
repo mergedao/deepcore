@@ -577,8 +577,16 @@ class DeepAgentExecutor(AgentExecutor):
             self.should_stop = True
         else:
             answer = ""
-            async for response in resp:
-                answer = response
+            try:
+                async for response in resp:
+                    answer = response
+            except Exception as e:
+                logger.error("call_api Exception", exc_info=True)
+                self.short_memory.add(
+                    role="Tool Call failed",
+                    content=f" tool name: {tool_info.name}. API call failed. Please try again. Exception: {str(e)}"
+                )
+                return
             self.short_memory.add(
                 role="Tool Executor",
                 content=answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)

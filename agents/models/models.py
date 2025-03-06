@@ -37,6 +37,9 @@ class App(Base):
     telegram_bot_id = Column(String(255), comment="Telegram bot ID for the agent")
     telegram_bot_name = Column(String(255), comment="Telegram bot name")
     telegram_bot_token = Column(String(1000), comment="Encrypted Telegram bot token")
+    token = Column(String(255), comment="Token symbol for the agent")
+    symbol = Column(String(50), comment="Symbol for the agent token")
+    photos = Column(JSON, comment="Photos for the agent")
     tool_prompt = Column(Text, comment="Tool prompt for the agent")
     max_loops = Column(Integer, default=3, comment="Maximum number of loops the agent can perform")
     model_json = Column(JSON, comment="Additional fields merged into a JSON column")
@@ -89,8 +92,10 @@ class FileStorage(Base):
     id = Column(BigInteger, primary_key=True, autoincrement=True, comment="Auto-incrementing ID")
     file_name = Column(String(255), nullable=False, comment="Name of the file")
     file_uuid = Column(String(255), nullable=False, comment="file UUID")
-    file_content = Column(LargeBinary, nullable=False, comment="Content of the file")
+    file_content = Column(LargeBinary, nullable=True, comment="Content of the file (null for S3 storage)")
     size = Column(BigInteger, nullable=False, comment="Size of the file")
+    storage_type = Column(String(50), default="database", comment="Storage type: database or s3")
+    storage_location = Column(String(1000), nullable=True, comment="Storage location for external storage")
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
 
 

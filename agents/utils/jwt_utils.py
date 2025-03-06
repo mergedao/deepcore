@@ -45,31 +45,39 @@ def verify_token(token: str) -> Optional[Dict]:
         logger.error("Invalid token", e, exc_info=True)
         return None
 
-def generate_token_pair(user_id: str, username: str, tenant_id: str) -> Tuple[str, str]:
+def generate_token_pair(user_id: str, username: str, tenant_id: str, wallet_address: str = None) -> Tuple[str, str]:
     """
-    Generate both access token and refresh token
+    Generate a pair of tokens (access token and refresh token)
+    :param user_id: User ID
+    :param username: Username
+    :param tenant_id: Tenant ID
+    :param wallet_address: Wallet address
+    :return: Tuple of access token and refresh token
     """
-    # Generate access token
-    access_token = generate_access_token(user_id, username, tenant_id)
-    
-    # Generate refresh token with longer expiry
+    access_token = generate_access_token(user_id, username, tenant_id, wallet_address)
     refresh_token = generate_refresh_token(user_id)
-    
     return access_token, refresh_token
 
-def generate_access_token(user_id: str, username: str, tenant_id: str) -> str:
+def generate_access_token(user_id: str, username: str, tenant_id: str, wallet_address: str = None) -> str:
     """
-    Generate access token with user info and short expiry
+    Generate a short-lived JWT token containing user information
+    :param user_id: User ID
+    :param username: Username
+    :param tenant_id: Tenant ID
+    :param wallet_address: Wallet address
+    :return: JWT token
     """
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {
-        "exp": expire,
+    payload = {
         "user_id": user_id,
         "username": username,
         "tenant_id": tenant_id,
-        "token_type": "access"
+        "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     }
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    
+    if wallet_address:
+        payload["wallet_address"] = wallet_address
+        
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 def generate_refresh_token(user_id: str) -> str:
     """

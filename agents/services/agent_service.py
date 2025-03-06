@@ -17,7 +17,7 @@ from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo, ChatContext
 from agents.models.models import App, Tool, AgentTool
-from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO
+from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO, ModelDTO
 from agents.services.model_service import get_model_with_key, get_model
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,8 @@ async def dialogue(
 
     # Get the initialization flag
     chat_context = ChatContext(
-        init_flag=request.initFlag if hasattr(request, 'initFlag') else False
+        init_flag=request.initFlag if hasattr(request, 'initFlag') else False,
+        user=user or {},
     )
     # Create appropriate agent based on mode
     agent = ChatAgent(agent_info, chat_context)
@@ -77,7 +78,11 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
 
     # Execute query
     result = await session.execute(
-        select(App).where(and_(*conditions))
+        select(App).where(and_(*conditions)).options(
+            selectinload(App.tools),
+            selectinload(App.model),
+            selectinload(App.category)
+        )
     )
     agent = result.scalar_one_or_none()
     
@@ -87,88 +92,9 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
             "Agent not found or no permission"
         )
 
-    # Get associated tools
-    tool_conditions = [AgentTool.agent_id == id, Tool.is_deleted == False]
-    if user and user.get('tenant_id'):
-        tool_conditions.append(or_(
-            AgentTool.tenant_id == user.get('tenant_id'),
-            Tool.is_public == True
-        ))
-    else:
-        tool_conditions.append(Tool.is_public == True)
-
-    tools_result = await session.execute(
-        select(Tool).join(AgentTool).where(and_(*tool_conditions))
-    )
-    tools = tools_result.scalars().all()
-
-    # Get model info if model_id exists
-    model = None
-    if agent.model_id:
-        try:
-            model = await get_model(agent.model_id, user, session)
-        except Exception as e:
-            logger.warning(f"Failed to get model info for agent {agent.id}: {e}")
-
-    # Convert to DTO
     try:
-        # Process telegram bot token if exists
-        masked_token = None
-        if agent.telegram_bot_token:
-            masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
-            
-        # Parse model_json if exists
-        shouldInitializeDialog = False
-        if agent.model_json:
-            try:
-                model_json_data = json.loads(agent.model_json)
-                shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
-            except (json.JSONDecodeError, TypeError):
-                logger.warning(f"Failed to parse model_json for agent {agent.id}")
-            
-        # Convert App model to AgentDTO
-        agent_dto = AgentDTO(
-            id=agent.id,
-            name=agent.name,
-            description=agent.description,
-            mode=agent.mode,
-            icon=agent.icon,
-            status=agent.status,
-            role_settings=agent.role_settings,
-            welcome_message=agent.welcome_message,
-            twitter_link=agent.twitter_link,
-            telegram_bot_id=agent.telegram_bot_id,
-            telegram_bot_name=agent.telegram_bot_name,
-            # telegram_bot_token=masked_token,
-            tool_prompt=agent.tool_prompt,
-            max_loops=agent.max_loops,
-            suggested_questions=agent.suggested_questions,
-            model_id=agent.model_id,
-            model=model,  # Add model info to DTO
-            is_public=agent.is_public,
-            is_official=agent.is_official,
-            shouldInitializeDialog=shouldInitializeDialog
-        )
-
-        # Add tools to the DTO
-        agent_dto.tools = [ToolInfo(
-            id=tool.id,
-            name=tool.name,
-            description=tool.description,
-            type=tool.type,
-            origin=tool.origin,
-            path=tool.path,
-            method=tool.method,
-            parameters=tool.parameters,
-            auth_config=tool.auth_config,
-            icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON,
-            is_public=tool.is_public,
-            is_official=tool.is_official,
-            tenant_id=tool.tenant_id,
-            is_stream=tool.is_stream,
-            output_format=tool.output_format
-        ) for tool in tools]
-
+        # Convert to DTO using helper function
+        agent_dto = await _convert_to_agent_dto(agent)
         return agent_dto
     except Exception as e:
         logger.error(f"Error converting agent to DTO: {e}", exc_info=True)
@@ -394,7 +320,11 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
     # Get paginated results with ordering
     query = (
         select(App)
-        .options(selectinload(App.category))
+        .options(
+            selectinload(App.category),
+            selectinload(App.tools),
+            selectinload(App.model)
+        )
         .where(and_(*conditions))
         .order_by(App.create_time.desc())
     )
@@ -406,89 +336,8 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
     results = []
 
     for agent in agents:
-        # Get associated tools for each agent
-        tools_result = await session.execute(
-            select(Tool).join(AgentTool).where(
-                AgentTool.agent_id == agent.id,
-                Tool.is_deleted == False,
-                # Only filter by tenant_id for personal tools
-                *([AgentTool.tenant_id == user.get('tenant_id')] if user else [])
-            )
-        )
-        tools = tools_result.scalars().all()
-
-        # Get model info if model_id exists
-        model = None
-        if agent.model_id:
-            try:
-                model = await get_model(agent.model_id, user, session)
-            except Exception as e:
-                logger.warning(f"Failed to get model info for agent {agent.id}: {e}")
-                
-        # Parse model_json if exists
-        shouldInitializeDialog = False
-        if agent.model_json:
-            try:
-                model_json_data = json.loads(agent.model_json)
-                shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
-            except (json.JSONDecodeError, TypeError):
-                logger.warning(f"Failed to parse model_json for agent {agent.id}")
-                
-        # Process telegram bot token if exists
-        masked_token = None
-        if agent.telegram_bot_token:
-            masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
-
-        # Convert to DTO
-        agent_dto = AgentDTO(
-            id=agent.id,
-            name=agent.name,
-            description=agent.description,
-            mode=agent.mode,
-            icon=agent.icon,
-            status=agent.status,
-            role_settings=agent.role_settings,
-            welcome_message=agent.welcome_message,
-            twitter_link=agent.twitter_link,
-            telegram_bot_id=agent.telegram_bot_id,
-            telegram_bot_name=agent.telegram_bot_name,
-            # telegram_bot_token=masked_token,
-            tool_prompt=agent.tool_prompt,
-            max_loops=agent.max_loops,
-            suggested_questions=agent.suggested_questions,
-            model_id=agent.model_id,
-            model=model,  # Add model info to DTO
-            category_id=agent.category_id,
-            is_public=agent.is_public,
-            is_official=agent.is_official,
-            is_hot=agent.is_hot,
-            create_fee=float(agent.create_fee) if agent.create_fee else None,
-            price=float(agent.price) if agent.price else None,
-            shouldInitializeDialog=shouldInitializeDialog,
-            tools=[ToolInfo(
-                id=tool.id,
-                name=tool.name,
-                type=tool.type,
-                origin=tool.origin,
-                path=tool.path,
-                method=tool.method,
-                parameters=tool.parameters,
-                icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON
-            ) for tool in tools]
-        )
-
-        if agent.category:
-            agent_dto.category = CategoryDTO(
-                id=agent.category.id,
-                name=agent.category.name,
-                type=agent.category.type,
-                description=agent.category.description,
-                tenant_id=agent.category.tenant_id,
-                sort_order=agent.category.sort_order,
-                create_time=agent.category.create_time.isoformat() if agent.category.create_time else None,
-                update_time=agent.category.update_time.isoformat() if agent.category.update_time else None
-            )
-
+        # Convert to DTO using helper function
+        agent_dto = await _convert_to_agent_dto(agent)
         results.append(agent_dto)
 
     # Calculate current page from skip and limit
@@ -829,3 +678,194 @@ async def update_telegram_bots_redis(user: dict,session: AsyncSession):
             ErrorCode.INTERNAL_ERROR,
             f"Failed to update Telegram bots in Redis: {str(e)}"
         )
+
+async def update_agent_settings(
+        agent_id: str,
+        settings: dict,
+        user: dict,
+        session: AsyncSession = Depends(get_db)
+):
+    """
+    Update agent settings including token, symbol, photos, and telegram bot
+    
+    Args:
+        agent_id: Agent ID
+        settings: Settings to update
+        user: Current user information
+        session: Database session
+    """
+    try:
+        # Verify if agent exists and belongs to current user
+        result = await session.execute(
+            select(App).where(
+                App.id == agent_id,
+                App.tenant_id == user.get('tenant_id')
+            )
+        )
+        agent = result.scalar_one_or_none()
+        if not agent:
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                "Agent not found or no permission"
+            )
+        
+        # Prepare update values
+        update_values = {}
+        
+        # Update token, symbol, photos if provided
+        if 'token' in settings and settings['token'] is not None:
+            update_values['token'] = settings['token']
+        
+        if 'symbol' in settings and settings['symbol'] is not None:
+            update_values['symbol'] = settings['symbol']
+        
+        if 'photos' in settings and settings['photos'] is not None:
+            update_values['photos'] = settings['photos']
+        
+        # Handle Telegram bot registration if provided
+        telegram_bot_name = settings.get('telegram_bot_name')
+        telegram_bot_token = settings.get('telegram_bot_token')
+        
+        if telegram_bot_name and telegram_bot_token:
+            # Encrypt token
+            encrypted_token = encrypt_token(telegram_bot_token)
+            update_values['telegram_bot_name'] = telegram_bot_name
+            update_values['telegram_bot_token'] = encrypted_token
+        
+        # Update agent
+        if update_values:
+            stmt = update(App).where(
+                App.id == agent_id,
+                App.tenant_id == user.get('tenant_id')
+            ).values(**update_values)
+            await session.execute(stmt)
+            await session.commit()
+            
+            # Update bot information in Redis if telegram bot info was updated
+            if telegram_bot_name and telegram_bot_token:
+                await update_telegram_bots_redis(user, session)
+        
+        # Get updated agent
+        result = await session.execute(
+            select(App).where(
+                App.id == agent_id
+            ).options(
+                selectinload(App.tools),
+                selectinload(App.model),
+                selectinload(App.category)
+            )
+        )
+        updated_agent = result.scalar_one_or_none()
+        
+        # Convert to DTO
+        agent_dto = await _convert_to_agent_dto(updated_agent)
+        
+        return agent_dto
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating agent settings: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to update agent settings: {str(e)}"
+        )
+
+async def _convert_to_agent_dto(agent: App) -> AgentDTO:
+    """
+    Convert App model to AgentDTO
+    
+    Args:
+        agent: App model instance
+        
+    Returns:
+        AgentDTO: Converted DTO
+    """
+    # Parse model_json if exists
+    shouldInitializeDialog = False
+    if agent.model_json:
+        try:
+            model_json_data = json.loads(agent.model_json)
+            shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning(f"Failed to parse model_json for agent {agent.id}")
+    
+    # Process telegram bot token if exists
+    masked_token = None
+    if agent.telegram_bot_token:
+        masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
+    
+    # Convert to DTO
+    agent_dto = AgentDTO(
+        id=agent.id,
+        name=agent.name,
+        description=agent.description,
+        mode=agent.mode,
+        icon=agent.icon,
+        status=agent.status,
+        role_settings=agent.role_settings,
+        welcome_message=agent.welcome_message,
+        twitter_link=agent.twitter_link,
+        telegram_bot_id=agent.telegram_bot_id,
+        telegram_bot_name=agent.telegram_bot_name,
+        # telegram_bot_token=masked_token,
+        token=agent.token,
+        symbol=agent.symbol,
+        photos=agent.photos,
+        tool_prompt=agent.tool_prompt,
+        max_loops=agent.max_loops,
+        suggested_questions=agent.suggested_questions,
+        model_id=agent.model_id,
+        category_id=agent.category_id,
+        is_public=agent.is_public,
+        is_official=agent.is_official,
+        is_hot=agent.is_hot,
+        create_fee=float(agent.create_fee) if agent.create_fee else None,
+        price=float(agent.price) if agent.price else None,
+        shouldInitializeDialog=shouldInitializeDialog
+    )
+    
+    # Add tools to the DTO
+    if agent.tools:
+        agent_dto.tools = [ToolInfo(
+            id=tool.id,
+            name=tool.name,
+            description=tool.description,
+            type=tool.type,
+            origin=tool.origin,
+            path=tool.path,
+            method=tool.method,
+            parameters=tool.parameters,
+            auth_config=tool.auth_config,
+            icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON,
+            is_public=tool.is_public,
+            is_official=tool.is_official,
+            tenant_id=tool.tenant_id,
+            is_stream=tool.is_stream,
+            output_format=tool.output_format
+        ) for tool in agent.tools]
+    
+    # Add model if exists
+    if hasattr(agent, 'model') and agent.model:
+        agent_dto.model = ModelDTO(
+            id=agent.model.id,
+            name=agent.model.name,
+            model_name=agent.model.model_name,
+            endpoint=agent.model.endpoint,
+            is_official=agent.model.is_official,
+            is_public=agent.model.is_public
+        )
+    
+    # Add category if exists
+    if hasattr(agent, 'category') and agent.category:
+        agent_dto.category = CategoryDTO(
+            id=agent.category.id,
+            name=agent.category.name,
+            type=agent.category.type,
+            description=agent.category.description,
+            tenant_id=agent.category.tenant_id,
+            sort_order=agent.category.sort_order,
+            create_time=agent.category.create_time.isoformat() if agent.category.create_time else None,
+            update_time=agent.category.update_time.isoformat() if agent.category.update_time else None
+        )
+    
+    return agent_dto

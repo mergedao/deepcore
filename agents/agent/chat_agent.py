@@ -56,6 +56,7 @@ class ChatAgent(AbstractAgent):
             description=app.description,
             role_settings=app.role_settings,
         )
+        self.chat_context = chat_context
 
     async def stream(self, query: str, conversation_id: str) -> AsyncIterator[str]:
         """
@@ -116,8 +117,18 @@ class ChatAgent(AbstractAgent):
         memory_list = self.redis_memory.get_memory_by_conversation_id(conversation_id)
 
         # Add system time to short-term memory
-        current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S %Z')
-        self.agent_executor.short_memory.add(role="System Time", content=f"UTC Now: {current_time}")
+        current_time = datetime.now(timezone.utc)
+        formatted_time = current_time.strftime('%Y-%m-%d %H:%M:%S %Z')
+        timestamp = int(current_time.timestamp())
+
+        self.agent_executor.short_memory.add(
+            role="System Time",
+            content=f"UTC Now: {formatted_time}, Timestamp: {timestamp}"
+        )
+        self.agent_executor.short_memory.add(
+            role="User Info",
+            content=f"Wallet address of the user: {self.chat_context.user.get('wallet_address', '')}"
+        )
 
         # Load conversation-specific memory into the agent
         self.agent_executor.add_memory_object(memory_list)

@@ -13,7 +13,7 @@ from agents.exceptions import CustomAgentException, ErrorCode
 from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueRequest, AgentStatus, \
-    PaginationParams, AgentMode, TelegramBotRequest
+    PaginationParams, AgentMode, TelegramBotRequest, AgentSettingRequest
 from agents.services import agent_service
 
 router = APIRouter()
@@ -393,6 +393,44 @@ async def register_telegram_bot(
         return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error registering Telegram bot: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/agents/{agent_id}/setting", summary="Update Agent Settings")
+async def update_agent_settings(
+        agent_id: str,
+        settings: AgentSettingRequest,
+        user: dict = Depends(get_current_user),
+        session: AsyncSession = Depends(get_db)
+):
+    """
+    Update agent settings including token, symbol, photos, and telegram bot
+    
+    Parameters:
+    - **agent_id**: ID of the agent to update
+    - **settings**: JSON body containing:
+      - **token**: (Optional) Token for the agent
+      - **symbol**: (Optional) Symbol for the agent token
+      - **photos**: (Optional) Photos for the agent
+      - **telegram_bot_name**: (Optional) Name of the Telegram bot
+      - **telegram_bot_token**: (Optional) Telegram bot token
+    """
+    try:
+        result = await agent_service.update_agent_settings(
+            agent_id, 
+            settings.dict(exclude_unset=True), 
+            user, 
+            session
+        )
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error in updating agent settings: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=e.message)
+    except Exception as e:
+        logger.error(f"Unexpected error in updating agent settings: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
