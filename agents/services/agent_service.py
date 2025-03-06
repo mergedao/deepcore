@@ -48,7 +48,8 @@ async def dialogue(
 
     # Get the initialization flag
     chat_context = ChatContext(
-        init_flag=request.initFlag if hasattr(request, 'initFlag') else False
+        init_flag=request.initFlag if hasattr(request, 'initFlag') else False,
+        user=user or {},
     )
     # Create appropriate agent based on mode
     agent = ChatAgent(agent_info, chat_context)

@@ -59,7 +59,8 @@ async def login(request: LoginRequest, session: AsyncSession) -> LoginResponse:
         access_token, refresh_token = generate_token_pair(
             user_id=str(user.id),
             username=user.username,
-            tenant_id=user.tenant_id
+            tenant_id=user.tenant_id,
+            wallet_address=user.wallet_address
         )
 
         return {
@@ -219,7 +220,8 @@ async def wallet_login(request: WalletLoginRequest, session: AsyncSession) -> Wa
         access_token, refresh_token = generate_token_pair(
             user_id=str(user.id),
             username=user.username,
-            tenant_id=user.tenant_id
+            tenant_id=user.tenant_id,
+            wallet_address=user.wallet_address
         )
 
         return {
@@ -293,7 +295,8 @@ async def refresh_token(refresh_token: str, session: AsyncSession) -> TokenRespo
     access_token, new_refresh_token = generate_token_pair(
         user_id=str(user.id),
         username=user.username,
-        tenant_id=user.tenant_id
+        tenant_id=user.tenant_id,
+        wallet_address=user.wallet_address
     )
     
     return {

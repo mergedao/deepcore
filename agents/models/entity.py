@@ -92,3 +92,4 @@ class AgentInfo():
 
 class ChatContext(BaseModel):
     initFlag: Optional[bool] = Field(False, description="Flag to indicate if this is an initialization dialogue")
+    user: Optional[dict] = Field({}, description="User information")
