@@ -72,6 +72,7 @@ CREATE TABLE `tools` (
   `is_stream` BOOLEAN DEFAULT FALSE COMMENT 'Whether the API returns a stream response',
   `output_format` JSON COMMENT 'JSON configuration for formatting API output',
   `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
+  `sensitive_data_config` JSON DEFAULT NULL COMMENT 'Configuration for sensitive data handling',
   PRIMARY KEY (`id`),
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
@@ -84,7 +85,7 @@ CREATE TABLE `users` (
   `username` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Username',
   `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email address',
   `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Hashed password',
-  `wallet_address` varchar(42) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ethereum wallet address',
+  `wallet_address` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ethereum wallet address',
   `nonce` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nonce for wallet signature',
   `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
   `create_time` datetime DEFAULT (now()) COMMENT 'Registration time',
@@ -186,3 +187,5 @@ ALTER TABLE `app` ADD COLUMN `symbol` varchar(50) CHARACTER SET utf8mb4 COLLATE 
 ALTER TABLE `app` ADD COLUMN `photos` JSON COMMENT 'Photos for the agent';
 
 ALTER TABLE app ADD COLUMN custom_config JSON COMMENT 'Custom configuration for the agent stored as JSON' AFTER model_json;
+
+ALTER TABLE `tools` ADD COLUMN `sensitive_data_config` JSON DEFAULT NULL COMMENT 'Configuration for sensitive data handling' ,ALGORITHM=INPLACE,LOCK=NONE;

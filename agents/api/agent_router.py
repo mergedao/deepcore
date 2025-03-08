@@ -1,19 +1,21 @@
 import logging
 import uuid
-from typing import Optional
+from typing import Optional, List
 
-from fastapi import APIRouter, Depends, Query, Request, Body
+from fastapi import APIRouter, Depends, Query, Request, Body, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
 from agents.agent.factory.gen_agent import gen_agent
+from agents.agent.memory.agent_context_manager import agent_context_manager
+from agents.common.context_scenarios import SUPPORTED_CONTEXT_SCENARIOS
 from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueRequest, AgentStatus, \
-    PaginationParams, AgentMode, TelegramBotRequest, AgentSettingRequest
+    PaginationParams, AgentMode, TelegramBotRequest, AgentSettingRequest, AgentContextStoreRequest
 from agents.services import agent_service
 
 router = APIRouter()
@@ -431,6 +433,60 @@ async def update_agent_settings(
         return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error in updating agent settings: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/agents/agent-context/store", summary="Store Agent Context Data")
+async def store_agent_context(
+        request: AgentContextStoreRequest,
+        user: dict = Depends(get_current_user)
+):
+    """
+    Store agent context data in Redis for later retrieval during conversations.
+    
+    Parameters:
+    - **conversation_id**: ID of the conversation
+    - **scenario**: Scenario identifier for the context data (currently only 'wallet_signature' is supported)
+    - **data**: Context data to store
+    - **ttl**: Time to live in seconds (default: 24 hours)
+    - **metadata**: Additional metadata for the context data (optional)
+    """
+    try:
+        # Validate scenario
+        if request.scenario not in SUPPORTED_CONTEXT_SCENARIOS:
+            return RestResponse(
+                code=ErrorCode.INVALID_PARAMETERS,
+                msg=f"Unsupported scenario: {request.scenario}. Supported scenarios: {', '.join(SUPPORTED_CONTEXT_SCENARIOS)}"
+            )
+        
+        # Add user information to metadata
+        metadata = request.metadata or {}
+        metadata.update({
+            "user_id": user.get("id"),
+            "tenant_id": user.get("tenant_id"),
+            "stored_by": user.get("username", "unknown")
+        })
+
+        success = agent_context_manager.store(
+            conversation_id=request.conversation_id,
+            scenario=request.scenario,
+            data=request.data,
+            ttl=request.ttl,
+            **metadata
+        )
+        
+        if success:
+            return RestResponse(data="ok")
+        else:
+            return RestResponse(
+                code=ErrorCode.API_CALL_ERROR,
+                msg="Failed to store agent context data"
+            )
+    except Exception as e:
+        logger.error(f"Error storing agent context data: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

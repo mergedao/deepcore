@@ -13,8 +13,10 @@ from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.executor import AgentExecutor
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
+from agents.agent.sensitive.sensitive_data_processor import SensitiveDataProcessor
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
 from agents.agent.tools.tool_executor import async_execute
+from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import ToolInfo, ChatContext, ToolType
 from agents.utils import tools_parser
 from agents.utils.common import dict_to_csv, exists, concat_strings
@@ -72,6 +74,9 @@ class DeepAgentExecutor(AgentExecutor):
             *args,
             **kwargs,
         )
+
+        # Initialize sensitive data processor
+        self.sensitive_data_processor = SensitiveDataProcessor(chat_context.conversation_id)
 
         self.agent_output = DeepAgentExecutorOutput(
             agent_id=self.agent_executor_id,
@@ -139,6 +144,7 @@ class DeepAgentExecutor(AgentExecutor):
 
             # Add task to memory
             self.short_memory.add(role="Now Question", content=task)
+            self.init_temporary()
 
             # Set the loop count
             loop_count = 0
@@ -561,13 +567,23 @@ class DeepAgentExecutor(AgentExecutor):
         Returns:
         The output from the tool execution
         """
+        # Process parameters to recover sensitive data if needed
+        if tool_info.sensitive_data_config:
+            processed_parameters = self.sensitive_data_processor.process_tool_parameters(
+                tool_info.name, 
+                parameters, 
+                tool_info.sensitive_data_config
+            )
+        else:
+            processed_parameters = parameters
+            
         resp = async_client.request(
             method=tool_info.method,
             base_url=tool_info.origin,
             path=tool_info.path,
-            params=parameters["query"],
-            headers=parameters["header"],
-            json_data=parameters["body"],
+            params=processed_parameters["query"],
+            headers=processed_parameters["header"],
+            json_data=processed_parameters["body"],
             auth_config=tool_info.auth_config,
             stream=tool_info.is_stream
         )
@@ -587,9 +603,20 @@ class DeepAgentExecutor(AgentExecutor):
                     content=f" tool name: {tool_info.name}. API call failed. Please try again. Exception: {str(e)}"
                 )
                 return
+                
+            # Process response to mask sensitive data if needed
+            if tool_info.sensitive_data_config and answer and isinstance(answer, dict):
+                processed_answer = self.sensitive_data_processor.process_tool_response(
+                    tool_info.name,
+                    answer,
+                    tool_info.sensitive_data_config
+                )
+            else:
+                processed_answer = answer
+                
             self.short_memory.add(
                 role="Tool Executor",
-                content=answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
+                content=processed_answer if isinstance(processed_answer, str) else json.dumps(processed_answer, ensure_ascii=False)
             )
 
     async def call_function(self, tool_info: ToolInfo, parameters: dict):
@@ -601,11 +628,21 @@ class DeepAgentExecutor(AgentExecutor):
         Returns:
         The output from the function execution
         """
+        # Process parameters to recover sensitive data if needed
+        if tool_info.sensitive_data_config:
+            processed_parameters = self.sensitive_data_processor.process_tool_parameters(
+                tool_info.name,
+                {"params": parameters},
+                tool_info.sensitive_data_config
+            ).get("params", {})
+        else:
+            processed_parameters = parameters
+            
         data = {
             "type": "function",
             "function": {
                 "name": tool_info.name,
-                "parameters": parameters
+                "parameters": processed_parameters
             }
         }
         function = self.function_map[tool_info.name]
@@ -614,4 +651,39 @@ class DeepAgentExecutor(AgentExecutor):
             if isinstance(response, FinishOutput):
                 self.should_stop = True
                 continue
+                
+            # Process response to mask sensitive data if needed
+            if tool_info.sensitive_data_config and not isinstance(response, FinishOutput):
+                processed_response = self.sensitive_data_processor.process_tool_response(
+                    tool_info.name,
+                    response.content if hasattr(response, 'content') else response,
+                    tool_info.sensitive_data_config
+                )
+                
+                # Update response content if it has content attribute
+                if hasattr(response, 'content'):
+                    response.content = processed_response
+                else:
+                    response = processed_response
+                    
             yield response
+
+    def init_temporary(self):
+        # Add temporary data to short-term memory if available
+        if hasattr(self.chat_context, 'temp_data') and self.chat_context.temp_data:
+            for scenario, data in self.chat_context.temp_data.items():
+                # Format the data as a string or JSON depending on its type
+                if isinstance(data, dict) or isinstance(data, list):
+                    if scenario in sensitive_config_map:
+                        parameters = self.sensitive_data_processor \
+                            .process_tool_parameters("", {"body": data}, sensitive_config_map[scenario]).get("body", {})
+                        content = json.dumps(parameters, ensure_ascii=False)
+                    else:
+                        content = json.dumps(data, ensure_ascii=False)
+                else:
+                    content = str(data)
+
+                self.short_memory.add(
+                    role=f"Temporary Data ({scenario})",
+                    content=content
+                )
