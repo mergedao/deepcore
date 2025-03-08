@@ -81,6 +81,7 @@ class Tool(Base):
     is_official = Column(Boolean, default=False)
     is_stream = Column(Boolean, default=False, comment="Whether the API returns a stream response")
     output_format = Column(JSON, comment="JSON configuration for formatting API output")
+    sensitive_data_config = Column(JSON, comment="Configuration for sensitive data handling")
     create_time = Column(DateTime, default=datetime.utcnow)
     update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     category_id = Column(BigInteger, ForeignKey('categories.id'), comment="ID of the category")

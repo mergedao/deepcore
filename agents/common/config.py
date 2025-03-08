@@ -63,5 +63,8 @@ class Settings(BaseSettings):
     # Default tool icon URL
     DEFAULT_TOOL_ICON: str = "https://deepweb3.s3.ap-southeast-2.amazonaws.com/static_images/icons/default.webp"
 
+    DATA_API_BASE: str = ""
+    DATA_API_KEY:str = ""
+
 
 SETTINGS = Settings()

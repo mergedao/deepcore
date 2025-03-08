@@ -13,12 +13,13 @@ from agents.agent.chat_agent import ChatAgent
 from agents.common.config import SETTINGS
 from agents.common.encryption_utils import encryption_utils
 from agents.common.redis_utils import redis_utils
+from agents.agent.memory.agent_context_manager import agent_context_manager
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo, ChatContext
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO, ModelDTO
-from agents.services.model_service import get_model_with_key, get_model
+from agents.services.model_service import get_model_with_key
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +49,18 @@ async def dialogue(
 
     # Get the initialization flag
     chat_context = ChatContext(
-        init_flag=request.initFlag if hasattr(request, 'initFlag') else False,
+        conversation_id=request.conversation_id,
+        initFlag=request.initFlag if hasattr(request, 'initFlag') else False,
         user=user or {},
     )
+    
+    # Retrieve all context data for the conversation
+    context_data = agent_context_manager.get(request.conversation_id)
+    
+    # If context data is found, add it to the chat context
+    if context_data:
+        chat_context.temp_data = context_data
+            
     # Create appropriate agent based on mode
     agent = ChatAgent(agent_info, chat_context)
     
@@ -842,7 +852,8 @@ async def _convert_to_agent_dto(agent: App) -> AgentDTO:
             is_official=tool.is_official,
             tenant_id=tool.tenant_id,
             is_stream=tool.is_stream,
-            output_format=tool.output_format
+            output_format=tool.output_format,
+            sensitive_data_config=tool.sensitive_data_config
         ) for tool in agent.tools]
     
     # Add model if exists
