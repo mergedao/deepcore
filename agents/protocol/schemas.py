@@ -38,7 +38,7 @@ class ToolInfo(BaseModel):
     id: Optional[str] = Field(None, description="Tool UUID")
     name: str = Field(..., description="Name of the tool")
     type: ToolType = Field(default=ToolType.OPENAPI, description='Type of the tool')
-    origin: str = Field(..., description="API origin")
+    origin: Optional[str] = Field(..., description="API origin")
     path: str = Field(..., description="API path")
     method: str = Field(..., description="HTTP method")
     auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
@@ -111,6 +111,8 @@ class AgentDTO(BaseModel):
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
     custom_config: Optional[Dict] = Field(None, description="Custom configuration for the agent")
+    create_time: Optional[datetime] = Field(None, description="Creation time")
+    update_time: Optional[datetime] = Field(None, description="Last update time")
     tools: Optional[List[Union[str, ToolInfo]]] = Field(
         default_factory=list, 
         description="List of tool UUIDs to associate with the agent when creating/updating, or list of ToolInfo when getting agent details"
