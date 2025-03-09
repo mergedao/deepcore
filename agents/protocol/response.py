@@ -10,7 +10,7 @@ class ToolModel(BaseModel):
     id: str  # UUID string
     name: str
     type: ToolType  # Enum type for tool type
-    origin: str
+    origin: Optional[str]
     path: str
     method: str
     parameters: Dict

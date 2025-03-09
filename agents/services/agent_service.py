@@ -31,7 +31,7 @@ async def dialogue(
         session: AsyncSession = Depends(get_db)
 ) -> AsyncIterator[str]:
     # Add tenant filter
-    agent = await get_agent(agent_id, user, session)
+    agent = await get_agent(agent_id, user, session, True)
     agent_info = AgentInfo.from_dto(agent)
     
     # Set up model info if specified
@@ -69,7 +69,7 @@ async def dialogue(
         yield response
 
 
-async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
+async def get_agent(id: str, user: Optional[dict], session: AsyncSession, is_full_config=False):
     """
     Get agent with its associated tools
     """
@@ -104,7 +104,7 @@ async def get_agent(id: str, user: Optional[dict], session: AsyncSession):
 
     try:
         # Convert to DTO using helper function
-        agent_dto = await _convert_to_agent_dto(agent)
+        agent_dto = await _convert_to_agent_dto(agent, user, is_full_config)
         return agent_dto
     except Exception as e:
         logger.error(f"Error converting agent to DTO: {e}", exc_info=True)
@@ -347,7 +347,7 @@ async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: O
 
     for agent in agents:
         # Convert to DTO using helper function
-        agent_dto = await _convert_to_agent_dto(agent)
+        agent_dto = await _convert_to_agent_dto(agent, user)
         results.append(agent_dto)
 
     # Calculate current page from skip and limit
@@ -768,7 +768,7 @@ async def update_agent_settings(
         updated_agent = result.scalar_one_or_none()
         
         # Convert to DTO
-        agent_dto = await _convert_to_agent_dto(updated_agent)
+        agent_dto = await _convert_to_agent_dto(updated_agent, user)
         
         return agent_dto
     except CustomAgentException:
@@ -780,7 +780,7 @@ async def update_agent_settings(
             f"Failed to update agent settings: {str(e)}"
         )
 
-async def _convert_to_agent_dto(agent: App) -> AgentDTO:
+async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config=False) -> AgentDTO:
     """
     Convert App model to AgentDTO
     
@@ -830,6 +830,8 @@ async def _convert_to_agent_dto(agent: App) -> AgentDTO:
         is_public=agent.is_public,
         is_official=agent.is_official,
         is_hot=agent.is_hot,
+        create_time=agent.create_time,
+        update_time=agent.update_time,
         create_fee=float(agent.create_fee) if agent.create_fee else None,
         price=float(agent.price) if agent.price else None,
         shouldInitializeDialog=shouldInitializeDialog
@@ -837,24 +839,30 @@ async def _convert_to_agent_dto(agent: App) -> AgentDTO:
     
     # Add tools to the DTO
     if agent.tools:
-        agent_dto.tools = [ToolInfo(
-            id=tool.id,
-            name=tool.name,
-            description=tool.description,
-            type=tool.type,
-            origin=tool.origin,
-            path=tool.path,
-            method=tool.method,
-            parameters=tool.parameters,
-            auth_config=tool.auth_config,
-            icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON,
-            is_public=tool.is_public,
-            is_official=tool.is_official,
-            tenant_id=tool.tenant_id,
-            is_stream=tool.is_stream,
-            output_format=tool.output_format,
-            sensitive_data_config=tool.sensitive_data_config
-        ) for tool in agent.tools]
+        agent_dto.tools = []
+        for tool in agent.tools:
+            should_include_auth = is_full_config or (
+                    user is not None and
+                    user.get('tenant_id') == tool.tenant_id
+            )
+            agent_dto.tools.append(ToolInfo(
+                id=tool.id,
+                name=tool.name,
+                description=tool.description,
+                type=tool.type,
+                origin=tool.origin if should_include_auth else None,
+                path=tool.path,
+                method=tool.method,
+                parameters=tool.parameters,
+                auth_config=tool.auth_config if should_include_auth else None,
+                icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON,
+                is_public=tool.is_public,
+                is_official=tool.is_official,
+                tenant_id=tool.tenant_id,
+                is_stream=tool.is_stream,
+                output_format=tool.output_format,
+                sensitive_data_config=tool.sensitive_data_config
+            ))
     
     # Add model if exists
     if hasattr(agent, 'model') and agent.model:

@@ -145,10 +145,10 @@ class ChatAgent(AbstractAgent):
             role="System Time",
             content=f"UTC Now: {formatted_time}, Timestamp: {timestamp}"
         )
-        self.agent_executor.short_memory.add(
-            role="User Info",
-            content=f"Wallet address of the user: {self.chat_context.user.get('wallet_address', '')}"
-        )
+        # self.agent_executor.short_memory.add(
+        #     role="User Info",
+        #     content=f"Wallet address of the user: {self.chat_context.user.get('wallet_address', '')}"
+        # )
 
         # Load conversation-specific memory into the agent
         self.agent_executor.add_memory_object(memory_list)

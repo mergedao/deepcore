@@ -2,6 +2,7 @@
 # This list can be extended in the future
 SUPPORTED_CONTEXT_SCENARIOS = [
     "wallet_signature",  # Wallet signature data
+    "public_key",
 ]
 
 sensitive_config_map = {
