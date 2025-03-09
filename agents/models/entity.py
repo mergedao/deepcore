@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 from pydantic import Field, BaseModel
 
@@ -26,7 +26,35 @@ class ToolInfo(BaseModel):
     is_public: bool = False
     is_official: bool = False
     tenant_id: Optional[str] = None
+    sensitive_data_config: Optional[Dict] = Field(None, description="Configuration for sensitive data handling")
 
+class AgentContextData(BaseModel):
+    """Context data model for storing and retrieving agent conversation context"""
+    scenario: str = Field(..., description="Scenario identifier for the context data")
+    data: Dict[str, Any] = Field(..., description="Context data content")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Metadata such as creation time, source, etc.")
+    
+    @classmethod
+    def create(cls, scenario: str, data: Dict[str, Any], **metadata) -> 'AgentContextData':
+        """Create an instance of agent context data"""
+        return cls(
+            scenario=scenario,
+            data=data,
+            metadata=metadata
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "scenario": self.scenario,
+            "data": self.data,
+            "metadata": self.metadata
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'AgentContextData':
+        """Create instance from dictionary"""
+        return cls(**data)
 
 class ModelInfo(BaseModel):
     """Model information"""
@@ -91,5 +119,7 @@ class AgentInfo():
 
 
 class ChatContext(BaseModel):
+    conversation_id: str = Field(..., description="Conversation ID")
     initFlag: Optional[bool] = Field(False, description="Flag to indicate if this is an initialization dialogue")
     user: Optional[dict] = Field({}, description="User information")
+    temp_data: Optional[Dict] = Field({}, description="Temporary data retrieved from Redis")

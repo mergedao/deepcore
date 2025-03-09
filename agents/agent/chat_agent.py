@@ -2,8 +2,11 @@ import json
 from datetime import datetime, timezone
 from typing import AsyncIterator
 
+import asyncio
+
 from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
+from agents.agent.entity.inner.think_output import ThinkOutput
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.entity.inner.wallet_output import WalletOutput
 from agents.agent.executor.agent_executor import DeepAgentExecutor
@@ -15,6 +18,7 @@ from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tools.function.local_tool_manager import get_local_tool
 from agents.agent.tools.message_tool import send_message
+from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import AgentInfo, ChatContext
 from agents.models.models import App
 
@@ -75,7 +79,7 @@ class ChatAgent(AbstractAgent):
             is_finalized = False
             final_response: list = []
             async for output in self.agent_executor.stream(query):
-                if isinstance(output, NodeMessage):
+                if isinstance(output, (NodeMessage, ThinkOutput)):
                     yield output.to_stream()
                     continue
                 elif isinstance(output, (ToolOutput, WalletOutput)):
@@ -109,6 +113,22 @@ class ChatAgent(AbstractAgent):
         finally:
             memory_object = MemoryObject(input=query, output=response_buffer)
             self.redis_memory.save_memory(conversation_id, memory_object)
+            asyncio.create_task(self.cleanup(conversation_id))
+            
+    async def cleanup(self, conversation_id: str) -> None:
+        """
+        Clean up resources associated with a conversation.
+        
+        Args:
+            conversation_id: The unique identifier for the conversation
+        """
+        # Clear sensitive data from Redis
+        if hasattr(self.agent_executor, 'sensitive_data_processor'):
+            self.agent_executor.sensitive_data_processor.clear_sensitive_data()
+            
+        # Clear context data from Redis
+        from agents.agent.memory.agent_context_manager import agent_context_manager
+        agent_context_manager.clear_all(conversation_id)
 
     async def add_memory(self, conversation_id: str):
         """

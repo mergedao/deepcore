@@ -27,7 +27,7 @@ async def upload_file(
     try:
         storage = Storage.get_storage(session)
         fid = await storage.upload_file(file, file.filename)
-        return {"fid": fid, "url": f"/api/files/{fid}"}
+        return {"fid": fid, "url": f"/api/files/{fid}", "full_path": f"{SETTINGS.API_BASE_URL}/api/files/{fid}"}
     except Exception as e:
         logger.error(f"Error uploading file: {e}", exc_info=True)
         raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e))

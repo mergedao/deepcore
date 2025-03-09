@@ -161,6 +161,63 @@ class RedisUtils:
             logger.error(f"Error getting set members: {e}", exc_info=True)
             return None
 
+    def get_keys_by_pattern(self, pattern: str) -> List[str]:
+        """
+        Get all keys matching a pattern.
+
+        :param pattern: Pattern to match (e.g., "prefix:*").
+        :return: List of matching keys.
+        """
+        try:
+            return self.client.keys(pattern)
+        except redis.RedisError as e:
+            logger.error(f"Error getting keys by pattern: {e}", exc_info=True)
+            return []
+
+    def delete_keys(self, keys: List[str]) -> int:
+        """
+        Delete multiple keys from Redis.
+
+        :param keys: List of keys to delete.
+        :return: Number of keys removed.
+        """
+        if not keys:
+            return 0
+            
+        try:
+            return self.client.delete(*keys)
+        except redis.RedisError as e:
+            logger.error(f"Error deleting multiple keys: {e}", exc_info=True)
+            return 0
+
+    def set_expiry(self, key: str, seconds: int) -> bool:
+        """
+        Set expiration time for a key.
+
+        :param key: Key name.
+        :param seconds: Expiration time in seconds.
+        :return: True if successful, False otherwise.
+        """
+        try:
+            return self.client.expire(key, seconds)
+        except redis.RedisError as e:
+            logger.error(f"Error setting expiry: {e}", exc_info=True)
+            return False
+
+    def remove_from_set(self, key: str, *values: Any) -> int:
+        """
+        Remove one or more members from a set.
+
+        :param key: Key name.
+        :param values: Values to remove.
+        :return: Number of elements removed from the set.
+        """
+        try:
+            return self.client.srem(key, *values)
+        except redis.RedisError as e:
+            logger.error(f"Error removing from set: {e}", exc_info=True)
+            return 0
+
 
 redis_utils = RedisUtils(
     host=SETTINGS.REDIS_HOST,

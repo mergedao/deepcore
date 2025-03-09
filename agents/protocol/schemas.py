@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union, Any
 
 from pydantic import BaseModel, Field, EmailStr
 
@@ -49,6 +49,7 @@ class ToolInfo(BaseModel):
     tenant_id: Optional[str] = Field(None, description="Tenant ID that owns this tool")
     is_stream: Optional[bool] = Field(False, description="Whether the API returns a stream response")
     output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
+    sensitive_data_config: Optional[Dict] = Field(None, description="Configuration for sensitive data handling")
 
 
 class CategoryType(str, Enum):
@@ -109,6 +110,7 @@ class AgentDTO(BaseModel):
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
+    custom_config: Optional[Dict] = Field(None, description="Custom configuration for the agent")
     tools: Optional[List[Union[str, ToolInfo]]] = Field(
         default_factory=list, 
         description="List of tool UUIDs to associate with the agent when creating/updating, or list of ToolInfo when getting agent details"
@@ -148,6 +150,7 @@ class APIToolData(BaseModel):
     icon: Optional[str] = Field(None, description="Icon URL of the tool")
     is_stream: Optional[bool] = Field(False, description="Whether the API returns a stream response")
     output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
+    sensitive_data_config: Optional[Dict] = Field(None, description="Configuration for sensitive data handling")
 
 
 class ToolCreate(BaseModel):
@@ -167,6 +170,7 @@ class ToolUpdate(BaseModel):
     icon: Optional[str] = Field(None, description="Icon URL of the tool")
     is_stream: Optional[bool] = Field(None, description="Whether the API returns a stream response")
     output_format: Optional[Dict] = Field(None, description="JSON configuration for formatting API output")
+    sensitive_data_config: Optional[Dict] = Field(None, description="Configuration for sensitive data handling")
 
 
 class DialogueRequest(BaseModel):
@@ -266,6 +270,7 @@ class ToolModel(BaseModel):
     update_time: Optional[datetime] = None
     category_id: Optional[int] = Field(None, description="ID of the category")
     category: Optional[CategoryDTO] = Field(None, description="Category information")
+    sensitive_data_config: Optional[Dict] = Field(None, description="Configuration for sensitive data handling")
 
 
 class RefreshTokenRequest(BaseModel):
@@ -312,3 +317,12 @@ class AgentSettingRequest(BaseModel):
     photos: Optional[List[str]] = Field(default_factory=list, description="Photos for the agent")
     telegram_bot_name: Optional[str] = Field(None, description="Name of the Telegram bot")
     telegram_bot_token: Optional[str] = Field(None, description="Telegram bot token")
+
+
+class AgentContextStoreRequest(BaseModel):
+    """Request model for storing agent context data in Redis"""
+    conversation_id: str = Field(..., description="Conversation ID")
+    scenario: str = Field(..., description="Scenario identifier for the context data")
+    data: Dict = Field(..., description="Context data to store")
+    ttl: Optional[int] = Field(86400, description="Time to live in seconds (default: 24 hours)")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional metadata for the context data")

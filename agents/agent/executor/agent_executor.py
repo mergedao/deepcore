@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, AsyncIterator, List, Callable, Any
+from typing import Optional, AsyncIterator, List, Callable, Any, Union
 
 import yaml
 from langchain_core.messages import BaseMessageChunk
@@ -9,17 +9,21 @@ from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
 from agents.agent.entity.inner.finish import FinishOutput
 from agents.agent.entity.inner.inner_output import Output
 from agents.agent.entity.inner.node_data import NodeMessage
+from agents.agent.entity.inner.think_output import ThinkOutput
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.executor import AgentExecutor
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
+from agents.agent.sensitive.sensitive_data_processor import SensitiveDataProcessor
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
 from agents.agent.tools.tool_executor import async_execute
+from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import ToolInfo, ChatContext, ToolType
 from agents.utils import tools_parser
 from agents.utils.common import dict_to_csv, exists, concat_strings
 from agents.utils.http_client import async_client
 from agents.utils.parser import parse_and_execute_json, extract_md_code
+from agents.agent.executor.sliding_window import SlidingWindow
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +76,9 @@ class DeepAgentExecutor(AgentExecutor):
             *args,
             **kwargs,
         )
+
+        # Initialize sensitive data processor
+        self.sensitive_data_processor = SensitiveDataProcessor(chat_context.conversation_id)
 
         self.agent_output = DeepAgentExecutorOutput(
             agent_id=self.agent_executor_id,
@@ -139,6 +146,7 @@ class DeepAgentExecutor(AgentExecutor):
 
             # Add task to memory
             self.short_memory.add(role="Now Question", content=task)
+            self.init_temporary()
 
             # Set the loop count
             loop_count = 0
@@ -188,9 +196,25 @@ class DeepAgentExecutor(AgentExecutor):
                         async for data in self.llm_astream(
                                 *response_args, **kwargs
                         ):
-                            if isinstance(data, str):
+                            if isinstance(data, ThinkOutput):
+                                # Pass ThinkOutput object directly
+                                yield data
+                            elif isinstance(data, str):
                                 whole_data += data
                                 response += data
+                                
+                                # Check stopping condition
+                                if self.stop_func is not None and self._check_stopping_condition(response):
+                                    async for data in self.send_node_message("generate response"):
+                                        yield data
+
+                                if self.should_stop or (
+                                        self.stop_func is not None
+                                        and self._check_stopping_condition(response)
+                                ):
+                                    self.should_stop = True
+                                    yield response
+                                    response = ""
                             else:
                                 logger.error(
                                     f"Unexpected response format: {type(data)}"
@@ -198,18 +222,6 @@ class DeepAgentExecutor(AgentExecutor):
                                 raise ValueError(
                                     f"Unexpected response format: {type(data)}"
                                 )
-
-                            if self.stop_func is not None and self._check_stopping_condition(response):
-                                async for data in self.send_node_message("generate response"):
-                                    yield data
-
-                            if self.should_stop or (
-                                    self.stop_func is not None
-                                    and self._check_stopping_condition(response)
-                            ):
-                                self.should_stop = True
-                                yield response
-                                response = ""
 
                         response = whole_data
                         logger.info(f"Response generated successfully. {response}")
@@ -324,7 +336,7 @@ class DeepAgentExecutor(AgentExecutor):
         except KeyboardInterrupt as error:
             self._handle_run_error(error)
 
-    async def llm_astream(self, input: str, *args, **kwargs) -> AsyncIterator[str]:
+    async def llm_astream(self, input: str, *args, **kwargs) -> AsyncIterator[Union[str, ThinkOutput]]:
         if not isinstance(input, str):
             raise TypeError("Input must be a string")
 
@@ -335,11 +347,30 @@ class DeepAgentExecutor(AgentExecutor):
             raise TypeError("LLM object cannot be None")
 
         try:
+            # Create sliding window instance
+            sliding_window = SlidingWindow(window_size=10)
+            
             async for out in self.llm.astream(input, *args, **kwargs):
-                if isinstance(out, str):
-                    yield out
-                elif isinstance(out, BaseMessageChunk):
-                    yield out.content
+                content = out.content if isinstance(out, BaseMessageChunk) else out
+                
+                if not isinstance(content, str):
+                    logger.error(f"Unexpected response format: {type(content)}")
+                    raise ValueError(f"Unexpected response format: {type(content)}")
+                
+                # Process content character by character
+                for char in content:
+                    # Use sliding window to process each character
+                    result = sliding_window.process_char(char)
+                    if result is not None:
+                        yield result
+            
+            # Process remaining buffer content
+            normal_output, think_output = sliding_window.get_remaining()
+            if normal_output:
+                yield normal_output
+            if think_output:
+                yield think_output
+                
         except AttributeError as e:
             logger.error(
                 f"Error calling LLM: {e} You need a class with a run(input: str) method"
@@ -457,6 +488,8 @@ class DeepAgentExecutor(AgentExecutor):
                 return
 
             tool_info, parameters = result
+            async for data in self.send_node_message(f"call {tool_info.name}"): yield data
+
             if tool_info.type == ToolType.FUNCTION.value:
                 async for output in self.call_function(tool_info, parameters):
                     yield output
@@ -561,13 +594,23 @@ class DeepAgentExecutor(AgentExecutor):
         Returns:
         The output from the tool execution
         """
+        # Process parameters to recover sensitive data if needed
+        if tool_info.sensitive_data_config:
+            processed_parameters = self.sensitive_data_processor.process_tool_parameters(
+                tool_info.name, 
+                parameters, 
+                tool_info.sensitive_data_config
+            )
+        else:
+            processed_parameters = parameters
+            
         resp = async_client.request(
             method=tool_info.method,
             base_url=tool_info.origin,
             path=tool_info.path,
-            params=parameters["query"],
-            headers=parameters["header"],
-            json_data=parameters["body"],
+            params=processed_parameters["query"],
+            headers=processed_parameters["header"],
+            json_data=processed_parameters["body"],
             auth_config=tool_info.auth_config,
             stream=tool_info.is_stream
         )
@@ -580,6 +623,7 @@ class DeepAgentExecutor(AgentExecutor):
             try:
                 async for response in resp:
                     answer = response
+                logger.info(f"call api response:{answer}")
             except Exception as e:
                 logger.error("call_api Exception", exc_info=True)
                 self.short_memory.add(
@@ -587,9 +631,20 @@ class DeepAgentExecutor(AgentExecutor):
                     content=f" tool name: {tool_info.name}. API call failed. Please try again. Exception: {str(e)}"
                 )
                 return
+                
+            # Process response to mask sensitive data if needed
+            if tool_info.sensitive_data_config and answer and isinstance(answer, dict):
+                processed_answer = self.sensitive_data_processor.process_tool_response(
+                    tool_info.name,
+                    answer,
+                    tool_info.sensitive_data_config
+                )
+            else:
+                processed_answer = answer
+                
             self.short_memory.add(
                 role="Tool Executor",
-                content=answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
+                content=processed_answer if isinstance(processed_answer, str) else json.dumps(processed_answer, ensure_ascii=False)
             )
 
     async def call_function(self, tool_info: ToolInfo, parameters: dict):
@@ -601,11 +656,21 @@ class DeepAgentExecutor(AgentExecutor):
         Returns:
         The output from the function execution
         """
+        # Process parameters to recover sensitive data if needed
+        if tool_info.sensitive_data_config:
+            processed_parameters = self.sensitive_data_processor.process_tool_parameters(
+                tool_info.name,
+                {"params": parameters},
+                tool_info.sensitive_data_config
+            ).get("params", {})
+        else:
+            processed_parameters = parameters
+            
         data = {
             "type": "function",
             "function": {
                 "name": tool_info.name,
-                "parameters": parameters
+                "parameters": processed_parameters
             }
         }
         function = self.function_map[tool_info.name]
@@ -614,4 +679,39 @@ class DeepAgentExecutor(AgentExecutor):
             if isinstance(response, FinishOutput):
                 self.should_stop = True
                 continue
+                
+            # Process response to mask sensitive data if needed
+            if tool_info.sensitive_data_config and not isinstance(response, FinishOutput):
+                processed_response = self.sensitive_data_processor.process_tool_response(
+                    tool_info.name,
+                    response.content if hasattr(response, 'content') else response,
+                    tool_info.sensitive_data_config
+                )
+                
+                # Update response content if it has content attribute
+                if hasattr(response, 'content'):
+                    response.content = processed_response
+                else:
+                    response = processed_response
+                    
             yield response
+
+    def init_temporary(self):
+        # Add temporary data to short-term memory if available
+        if hasattr(self.chat_context, 'temp_data') and self.chat_context.temp_data:
+            for scenario, data in self.chat_context.temp_data.items():
+                # Format the data as a string or JSON depending on its type
+                if isinstance(data, dict) or isinstance(data, list):
+                    if scenario in sensitive_config_map:
+                        parameters = self.sensitive_data_processor \
+                            .process_tool_response("", data, sensitive_config_map[scenario])
+                        content = json.dumps(parameters, ensure_ascii=False)
+                    else:
+                        content = json.dumps(data, ensure_ascii=False)
+                else:
+                    content = str(data)
+
+                self.short_memory.add(
+                    role=f"Temporary Data ({scenario})",
+                    content=content
+                )
