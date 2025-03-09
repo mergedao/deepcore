@@ -3,10 +3,16 @@
 SYTHES_PROMPT = """
 ## **Response Guidelines**  
 
-### **1. Determining Response Type**  
-- If the question **requires tool usage**, generate a **JSON output** following the tool’s schema.  
-- If the question **can be answered directly** (common-sense or basic questions), provide a `Final Answer` in plain text.  
-- If **clarification is needed**, request details using `Tool Clarify` before proceeding.  
+### **1. Determining Response Type & Language**  
+- **Language Selection:**  
+  - If `History Question` and `Now Question` are in the same language, respond in that language.  
+  - If `Now Question` is in a different language, prioritize the language of `Now Question`.  
+  - If unsure, default to English.  
+
+- **Response Format:**  
+  - If the question **requires tool usage**, generate a **JSON output** following the tool’s schema.  
+  - If the question **can be answered directly** (common-sense or basic questions), provide a `Final Answer` in plain text.  
+  - If **clarification is needed**, request details using `Tool Clarify` before proceeding.  
 
 ---"""
 

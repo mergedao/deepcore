@@ -6,6 +6,7 @@ import asyncio
 
 from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
+from agents.agent.entity.inner.think_output import ThinkOutput
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.entity.inner.wallet_output import WalletOutput
 from agents.agent.executor.agent_executor import DeepAgentExecutor
@@ -78,7 +79,7 @@ class ChatAgent(AbstractAgent):
             is_finalized = False
             final_response: list = []
             async for output in self.agent_executor.stream(query):
-                if isinstance(output, NodeMessage):
+                if isinstance(output, (NodeMessage, ThinkOutput)):
                     yield output.to_stream()
                     continue
                 elif isinstance(output, (ToolOutput, WalletOutput)):

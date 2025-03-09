@@ -15,7 +15,7 @@ class AsyncHttpClient:
         self,
         base_url: str = "",
         headers: Optional[Dict[str, str]] = None,
-        timeout: int = 60,
+        timeout: int = 120,
         max_retries: int = 3
     ):
         """
@@ -117,7 +117,7 @@ class AsyncHttpClient:
 
         url = self._get_full_url(base_url, path)
         url, merged_headers = self._apply_auth_config(url, merged_headers, auth_config)
-        logger.info(f"Sending HTTP request: {method} {url}")
+        logger.info(f"Sending HTTP request: {method} {url} {json_data}")
         try:
             async with self._session.request(
                 method=method,

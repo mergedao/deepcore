@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, AsyncIterator, List, Callable, Any
+from typing import Optional, AsyncIterator, List, Callable, Any, Union
 
 import yaml
 from langchain_core.messages import BaseMessageChunk
@@ -9,6 +9,7 @@ from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
 from agents.agent.entity.inner.finish import FinishOutput
 from agents.agent.entity.inner.inner_output import Output
 from agents.agent.entity.inner.node_data import NodeMessage
+from agents.agent.entity.inner.think_output import ThinkOutput
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.executor import AgentExecutor
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
@@ -22,6 +23,7 @@ from agents.utils import tools_parser
 from agents.utils.common import dict_to_csv, exists, concat_strings
 from agents.utils.http_client import async_client
 from agents.utils.parser import parse_and_execute_json, extract_md_code
+from agents.agent.executor.sliding_window import SlidingWindow
 
 logger = logging.getLogger(__name__)
 
@@ -194,9 +196,25 @@ class DeepAgentExecutor(AgentExecutor):
                         async for data in self.llm_astream(
                                 *response_args, **kwargs
                         ):
-                            if isinstance(data, str):
+                            if isinstance(data, ThinkOutput):
+                                # Pass ThinkOutput object directly
+                                yield data
+                            elif isinstance(data, str):
                                 whole_data += data
                                 response += data
+                                
+                                # Check stopping condition
+                                if self.stop_func is not None and self._check_stopping_condition(response):
+                                    async for data in self.send_node_message("generate response"):
+                                        yield data
+
+                                if self.should_stop or (
+                                        self.stop_func is not None
+                                        and self._check_stopping_condition(response)
+                                ):
+                                    self.should_stop = True
+                                    yield response
+                                    response = ""
                             else:
                                 logger.error(
                                     f"Unexpected response format: {type(data)}"
@@ -204,18 +222,6 @@ class DeepAgentExecutor(AgentExecutor):
                                 raise ValueError(
                                     f"Unexpected response format: {type(data)}"
                                 )
-
-                            if self.stop_func is not None and self._check_stopping_condition(response):
-                                async for data in self.send_node_message("generate response"):
-                                    yield data
-
-                            if self.should_stop or (
-                                    self.stop_func is not None
-                                    and self._check_stopping_condition(response)
-                            ):
-                                self.should_stop = True
-                                yield response
-                                response = ""
 
                         response = whole_data
                         logger.info(f"Response generated successfully. {response}")
@@ -330,7 +336,7 @@ class DeepAgentExecutor(AgentExecutor):
         except KeyboardInterrupt as error:
             self._handle_run_error(error)
 
-    async def llm_astream(self, input: str, *args, **kwargs) -> AsyncIterator[str]:
+    async def llm_astream(self, input: str, *args, **kwargs) -> AsyncIterator[Union[str, ThinkOutput]]:
         if not isinstance(input, str):
             raise TypeError("Input must be a string")
 
@@ -341,11 +347,30 @@ class DeepAgentExecutor(AgentExecutor):
             raise TypeError("LLM object cannot be None")
 
         try:
+            # Create sliding window instance
+            sliding_window = SlidingWindow(window_size=10)
+            
             async for out in self.llm.astream(input, *args, **kwargs):
-                if isinstance(out, str):
-                    yield out
-                elif isinstance(out, BaseMessageChunk):
-                    yield out.content
+                content = out.content if isinstance(out, BaseMessageChunk) else out
+                
+                if not isinstance(content, str):
+                    logger.error(f"Unexpected response format: {type(content)}")
+                    raise ValueError(f"Unexpected response format: {type(content)}")
+                
+                # Process content character by character
+                for char in content:
+                    # Use sliding window to process each character
+                    result = sliding_window.process_char(char)
+                    if result is not None:
+                        yield result
+            
+            # Process remaining buffer content
+            normal_output, think_output = sliding_window.get_remaining()
+            if normal_output:
+                yield normal_output
+            if think_output:
+                yield think_output
+                
         except AttributeError as e:
             logger.error(
                 f"Error calling LLM: {e} You need a class with a run(input: str) method"
@@ -463,6 +488,8 @@ class DeepAgentExecutor(AgentExecutor):
                 return
 
             tool_info, parameters = result
+            async for data in self.send_node_message(f"call {tool_info.name}"): yield data
+
             if tool_info.type == ToolType.FUNCTION.value:
                 async for output in self.call_function(tool_info, parameters):
                     yield output
@@ -596,6 +623,7 @@ class DeepAgentExecutor(AgentExecutor):
             try:
                 async for response in resp:
                     answer = response
+                logger.info(f"call api response:{answer}")
             except Exception as e:
                 logger.error("call_api Exception", exc_info=True)
                 self.short_memory.add(
@@ -676,7 +704,7 @@ class DeepAgentExecutor(AgentExecutor):
                 if isinstance(data, dict) or isinstance(data, list):
                     if scenario in sensitive_config_map:
                         parameters = self.sensitive_data_processor \
-                            .process_tool_parameters("", {"body": data}, sensitive_config_map[scenario]).get("body", {})
+                            .process_tool_response("", data, sensitive_config_map[scenario])
                         content = json.dumps(parameters, ensure_ascii=False)
                     else:
                         content = json.dumps(data, ensure_ascii=False)
