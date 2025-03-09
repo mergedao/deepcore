@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import logging
 import uuid
 import time
 from datetime import datetime, timedelta
@@ -12,9 +13,11 @@ from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import OpenPlatformKey
 from agents.common.encryption_utils import encryption_utils
 
+logger = logging.getLogger(__name__)
+
 # Remove JWT and token secret configuration
 # TOKEN_SECRET = "open_platform_token_secret"  # In production, this should be stored in environment variables or config files
-TOKEN_EXPIRE_HOURS = 24 * 365 * 10  # Token validity period set to 10 years, effectively permanent
+# Token validity period is now permanent, no expiration
 
 def generate_key_pair():
     """Generate a new access key and secret key pair for open platform"""
@@ -95,67 +98,54 @@ async def generate_token(access_key: str, session: AsyncSession) -> Dict[str, An
             message="Invalid access key"
         )
     
-    # Create token expiration (set to 10 years, effectively permanent)
-    expiration = datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
-    exp_timestamp = int(expiration.timestamp())
+    # Maximum retry attempts for token generation
+    max_retries = 3
+    retry_count = 0
     
-    # Create token payload as a string
-    token_data = f"{access_key}:{credentials.user_id}:{exp_timestamp}:{int(time.time())}"
-    
-    # Encrypt token using encryption_utils
-    token = encryption_utils.encrypt(token_data)
-    if not token:
-        raise CustomAgentException(
-            error_code=ErrorCode.INTERNAL_ERROR,
-            message="Failed to generate token"
-        )
-    
-    # Store token in database (no need for additional encryption)
-    stmt = (
-        update(OpenPlatformKey)
-        .where(OpenPlatformKey.access_key == access_key)
-        .values(token=token, token_created_at=datetime.utcnow())
-    )
-    await session.execute(stmt)
-    await session.commit()
-    
-    return {
-        "token": token,
-        "expires_at": exp_timestamp
-    }
+    while retry_count < max_retries:
+        try:
+            # Generate a simple token, using UUID to ensure uniqueness
+            # Using 20 characters instead of 16 to further reduce collision probability
+            token = f"tk_{uuid.uuid4().hex[:20]}"
+            
+            # Store token in database
+            stmt = (
+                update(OpenPlatformKey)
+                .where(OpenPlatformKey.access_key == access_key)
+                .values(token=token, token_created_at=datetime.utcnow())
+            )
+            await session.execute(stmt)
+            await session.commit()
+            
+            return {
+                "token": token,
+                # "token_type": "Bearer"
+            }
+        except Exception as e:
+            # If there's a unique constraint violation, retry with a new token
+            # This assumes the database has a unique constraint on the token field
+            if "unique constraint" in str(e).lower() or "duplicate" in str(e).lower():
+                retry_count += 1
+                if retry_count >= max_retries:
+                    logger.error(f"Failed to generate unique token after {max_retries} attempts")
+                    raise CustomAgentException(
+                        error_code=ErrorCode.INTERNAL_ERROR,
+                        message="Failed to generate unique token"
+                    )
+                # Continue to next iteration to try again
+                await session.rollback()
+            else:
+                # For other errors, raise immediately
+                logger.error(f"Error generating token: {str(e)}", exc_info=True)
+                await session.rollback()
+                raise
 
 def verify_token(token: str) -> Optional[Dict[str, Any]]:
-    """Verify open platform API token"""
-    try:
-        # Decrypt token
-        decrypted_token = encryption_utils.decrypt(token)
-        if not decrypted_token:
-            return None
-        
-        # Parse token data
-        parts = decrypted_token.split(":")
-        if len(parts) != 4:
-            return None
-        
-        access_key, user_id, exp_str, iat_str = parts
-        
-        # Check expiration
-        try:
-            exp = int(exp_str)
-            if exp < int(time.time()):
-                return None
-        except ValueError:
-            return None
-        
-        # Return payload similar to JWT format for compatibility
-        return {
-            "access_key": access_key,
-            "user_id": int(user_id),
-            "exp": exp,
-            "iat": int(iat_str)
-        }
-    except Exception:
+    """Verify basic format of API token"""
+    if not token or not token.startswith("tk_") or len(token) != 23:  # "tk_" + 20 chars
         return None
+    
+    return {"valid": True}
 
 async def reset_token(access_key: str, session: AsyncSession) -> Dict[str, Any]:
     """Reset token for open platform API access"""

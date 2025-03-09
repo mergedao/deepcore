@@ -410,47 +410,39 @@ callAPI().catch(console.error);
 
 @router.post("/token", summary="Get Open Platform API Token")
 async def get_api_token(
-    request: TokenRequest = Body(...),
+    user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_db)
 ):
     """
     Get Open Platform API Token.
     
-    This endpoint allows users to obtain an API token using their access_key and secret_key,
-    which can be used for authentication via the X-API-Token header.
+    This endpoint allows users to obtain an API token using their user authentication.
+    The token can be used for authentication via the X-API-Token header.
     
     If the user already has a stored token, it will be returned;
     otherwise, a new token will be generated and stored.
     
     Returns:
-        - token: Encrypted token
-        - expires_at: Token expiration timestamp
+        - token: Simple token string
+        - token_type: Bearer
     """
     try:
-        # Verify access_key and secret_key
-        credentials = await open_service.get_credentials(request.access_key, session)
-        if not credentials or credentials.secret_key != request.secret_key:
-            return RestResponse(
-                code=ErrorCode.INVALID_CREDENTIALS,
-                msg="Invalid access key or secret key"
-            )
+        # Get or create credentials for the user
+        credentials = await open_service.get_or_create_credentials(user, session)
+        access_key = credentials["access_key"]
         
         # Check if there is a stored token
-        stored_token = await open_service.get_token(request.access_key, session)
+        stored_token = await open_service.get_token(access_key, session)
         
         if stored_token:
-            # Verify the stored token
-            payload = open_service.verify_token(stored_token)
-            if payload:
-                # If the token is valid, return it directly
-                return RestResponse(data={
-                    "token": stored_token,
-                    "expires_at": payload.get("exp"),
-                    "token_type": "Bearer"
-                })
+            # If token already exists, return it directly
+            return RestResponse(data={
+                "token": stored_token,
+                # "token_type": "Bearer"
+            })
         
-        # If there is no token or the token is invalid, generate a new token
-        token_data = await open_service.generate_token(request.access_key, session)
+        # If no token exists, generate a new one
+        token_data = await open_service.generate_token(access_key, session)
         return RestResponse(data=token_data)
     except CustomAgentException as e:
         logger.error(f"Error generating open platform token: {str(e)}", exc_info=True)
