@@ -5,12 +5,15 @@ SUPPORTED_CONTEXT_SCENARIOS = [
 ]
 
 sensitive_config_map = {
-    "wallet_signature":{
-      "parameters": {
-        "nested_fields": [
+    "wallet_signature": {
+      "response": {
+        "sensitive_fields": [
           {
-            "path": "signedTransaction",
-            "description": "Nested password field in body"
+              "path": "signedTransaction",
+              "description": "Nested password field in body",
+              "mask_type": "partial",
+              "mask_percentage": 0.4,
+              "max_mask_length": 8
           }
         ]
       }
