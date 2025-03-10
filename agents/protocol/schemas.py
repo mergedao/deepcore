@@ -28,6 +28,15 @@ class AuthLocationType(str, Enum):
     PARAM = "param"
 
 
+class ChainType(str, Enum):
+    """Blockchain types supported for wallet authentication"""
+    ETHEREUM = "ethereum"
+    SOLANA = "solana"
+    # BSC = "bsc"
+    # POLYGON = "polygon"
+    # AVALANCHE = "avalanche"
+
+
 class AuthConfig(BaseModel):
     location: AuthLocationType = Field(..., description="Where to add the auth parameter")
     key: str = Field(..., description="Name of the auth parameter")
@@ -218,6 +227,7 @@ class WalletLoginRequest(BaseModel):
     """Request for wallet login/registration"""
     wallet_address: str
     signature: Optional[str] = None
+    chain_type: Optional[ChainType] = Field(ChainType.ETHEREUM, description="Blockchain type for wallet authentication")
 
 
 class NonceResponse(BaseModel):

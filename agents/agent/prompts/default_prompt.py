@@ -19,13 +19,13 @@ SYTHES_PROMPT = """
 
 ANSWER_PROMPT = """
 ### **✅ When Answering Directly (No Tool Needed)**  
-Final Answer: The capital of France is Paris.  
+Final Answer:The capital of France is Paris.  
 
 ---"""
 
 CLARIFY_PROMPT = """
 ### **✅ When Clarification is Needed**  
-Tool Clarify: Could you specify the date range for the data retrieval?  
+Tool Clarify:Could you specify the date range for the data retrieval?  
 
 ---"""
 
@@ -58,7 +58,7 @@ TOOLS_PROMPT = """
 ### **3. Clarification Handling**  
 - **Only ask for clarification if an essential parameter is missing and cannot be reasonably inferred from the user’s query.**  
 - **If the required parameter can be inferred, use the inferred value instead of asking for clarification.**  
-- If clarification is needed, format the response as follows:  Tool Clarify: [Clarification question]
+- If clarification is needed, format the response as follows:  Tool Clarify:[Clarification question]
 - **Avoid unnecessary clarifications**—prioritize efficiency in tool invocation.  
 
 ---

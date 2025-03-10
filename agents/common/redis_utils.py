@@ -1,12 +1,19 @@
 import json
 import logging
+from datetime import datetime
 from typing import Any, Optional, List, Dict
 
 import redis
 
 from agents.common.config import SETTINGS
+from agents.common.json_encoder import universal_decoder, UniversalEncoder
 
 logger = logging.getLogger(__name__)
+
+def datetime_serializer(obj):
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError("Type not serializable")
 
 class RedisUtils:
     def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0, password: Optional[str] = None):
@@ -77,7 +84,7 @@ class RedisUtils:
         :param ttl: Time to live in seconds (default 5 days).
         """
         try:
-            serialized_value = json.dumps(value)  # Serialize to JSON
+            serialized_value = json.dumps(value, cls=UniversalEncoder)  # Serialize to JSON
             pipe = self.client.pipeline()
             pipe.rpush(key, serialized_value)
             if ttl:
@@ -99,7 +106,7 @@ class RedisUtils:
         """
         try:
             raw_list = self.client.lrange(key, start, end)
-            return [json.loads(item) for item in raw_list]  # Deserialize JSON
+            return [json.loads(item, object_hook=universal_decoder) for item in raw_list]  # Deserialize JSON
         except redis.RedisError as e:
             logger.error(f"Error getting list: {e}", exc_info=True)
             return []

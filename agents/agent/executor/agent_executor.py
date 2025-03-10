@@ -204,15 +204,14 @@ class DeepAgentExecutor(AgentExecutor):
                                 response += data
                                 
                                 # Check stopping condition
-                                if self.stop_func is not None and self._check_stopping_condition(response):
-                                    async for data in self.send_node_message("generate response"):
-                                        yield data
-
-                                if self.should_stop or (
-                                        self.stop_func is not None
-                                        and self._check_stopping_condition(response)
-                                ):
-                                    self.should_stop = True
+                                if not self.should_stop:
+                                    if self.stop_func is not None and self._check_stopping_condition(response):
+                                        async for node_data in self.send_node_message("generate response"):
+                                            yield node_data
+                                        self.should_stop = True
+                                        yield self._get_stopping_condition_last_message(response)
+                                        response = ""
+                                else:
                                     yield response
                                     response = ""
                             else:
@@ -429,6 +428,19 @@ class DeepAgentExecutor(AgentExecutor):
             logger.error(
                 f"Error checking stopping condition: {error}"
             )
+    def _get_stopping_condition_last_message(self, response: str) -> str:
+        """Get the last message sent to the user before the stopping condition was met."""
+        messages = ""
+        try:
+            for stop in self.stop_condition:
+                if stop in response:
+                    splits = response.split(stop)
+                    return splits[-1] if len(splits) > 1 else ""
+        except Exception as error:
+            logger.error(
+                f"Error _get_stopping_condition_last_message: {error}"
+            )
+        return messages
 
     def memory_query(self, task: str = None, *args, **kwargs) -> None:
         try:

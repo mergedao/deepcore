@@ -1,15 +1,23 @@
 import json
 from abc import ABC
-from typing import Union
+from datetime import datetime
+from typing import Union, Optional, Dict
 
 
 class MemoryObject:
     input: str
     output: Union[str, dict]
+    time: datetime
 
-    def __init__(self, input: str = None, output: Union[str, dict] = None):
+    def __init__(self,
+                 input: str = None,
+                 output: Union[str, dict] = None,
+                 time: Optional[datetime] = None,
+                 temp_data: Optional[Dict] = None):
         self.input = input
         self.output = output
+        self.time = time
+        self.temp_data = temp_data
 
     def get_input(self) -> str:
         return self.input
@@ -23,7 +31,9 @@ class MemoryObject:
     def to_dict(self) -> dict:
         return {
             "input": self.get_input(),
-            "output": self.get_output_to_string()
+            "output": self.get_output_to_string(),
+            "time": self.time,
+            "temp_data": self.temp_data
         }
 
     @staticmethod
@@ -31,6 +41,8 @@ class MemoryObject:
         self = MemoryObject()
         self.input = data.get("input", "")
         self.output = data.get("output", "")
+        self.time = data.get("time", None)
+        self.temp_data = data.get("temp_data", None)
         return self
 
 
