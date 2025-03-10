@@ -376,37 +376,6 @@ class DeepAgentExecutor(AgentExecutor):
             )
             raise e
 
-    async def execute_tools_astream(self, response: str, *args, **kwargs):
-        try:
-            logger.info("Executing async tool...")
-            direct_output = kwargs.get("direct_output", True)
-            # try to Execute the tool and return a string
-            whole_output = ""
-            async for data in async_execute(
-                    functions=self.async_tools,
-                    json_string=response,
-                    parse_md=True,
-                    *args,
-                    **kwargs,
-            ):
-                if direct_output:
-                    yield data
-                else:
-                    whole_output += str(data)
-
-            if direct_output:
-                return
-
-            # Add the output to the memory
-            self.short_memory.add(
-                role="Tool Executor",
-                content=whole_output,
-            )
-
-        except Exception as error:
-            logger.error(f"Error executing tool: {error}")
-            raise error
-
     async def send_node_message(self, message: str) -> AsyncIterator[NodeMessage]:
         """Send a node message to the agent."""
         if self.should_send_node:
