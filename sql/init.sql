@@ -86,6 +86,7 @@ CREATE TABLE `users` (
   `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email address',
   `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Hashed password',
   `wallet_address` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ethereum wallet address',
+  `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana',
   `nonce` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nonce for wallet signature',
   `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
   `create_time` datetime DEFAULT (now()) COMMENT 'Registration time',
@@ -191,3 +192,7 @@ CREATE TABLE `open_platform_keys` (
 
 
 -- ALTER TABLE `tools` ADD COLUMN `sensitive_data_config` JSON DEFAULT NULL COMMENT 'Configuration for sensitive data handling' ,ALGORITHM=INPLACE,LOCK=NONE;
+
+ALTER TABLE `users`
+ADD COLUMN `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana'
+AFTER `wallet_address`;

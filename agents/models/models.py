@@ -109,6 +109,7 @@ class User(Base):
     email = Column(String(120), unique=True)
     password = Column(String(255))
     wallet_address = Column(String(42), unique=True)
+    chain_type = Column(String(20), default="ethereum", comment="Blockchain type, e.g., 'ethereum' or 'solana'")
     nonce = Column(String(32))
     tenant_id = Column(String(255))
     create_time = Column(DateTime, default=datetime.utcnow)
@@ -135,6 +136,7 @@ class User(Base):
             'id': self.id,
             'username': self.username,
             'wallet_address': self.wallet_address,
+            'chain_type': self.chain_type,
             'email': self.email
         }
 

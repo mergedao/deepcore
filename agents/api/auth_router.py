@@ -91,19 +91,31 @@ async def wallet_login(
         session: AsyncSession = Depends(get_db)
 ):
     """
-    Login with wallet signature
-
-    - **wallet_address**: Ethereum wallet address
-    - **signature**: Signed message
+    Login or register with wallet
+    
+    This endpoint allows users to authenticate using their blockchain wallet.
+    The user signs a message containing a nonce, and the signature is verified.
+    
+    Parameters:
+        - wallet_address: The wallet address
+        - signature: The signature of the message
+        - chain_type: The blockchain type (ethereum, solana, etc.), defaults to ethereum
+        
+    Returns:
+        - access_token: JWT access token
+        - refresh_token: JWT refresh token for obtaining new access tokens
+        - user: User information
+        - is_new_user: Whether this is a new user
+        - access_token_expires_in: Access token expiration time in seconds
+        - refresh_token_expires_in: Refresh token expiration time in seconds
     """
     try:
         result = await auth_service.wallet_login(request, session)
         return RestResponse(data=result)
     except CustomAgentException as e:
-        logger.error(f"Error in wallet login: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=e.message)
+        return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
-        logger.error(f"Unexpected error in wallet login: {str(e)}", exc_info=True)
+        logger.error(f"Error in wallet login: {e}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
