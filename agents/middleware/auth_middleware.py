@@ -33,7 +33,8 @@ class AuthConfig:
     ]
     PUBLIC_PREFIXES = ["/api/files/", "/api/categories/"]
     OPEN_API_PATHS = [
-        r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"
+        r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",
+        r"^/api/open/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"
     ]
 
 class AuthResponse:
