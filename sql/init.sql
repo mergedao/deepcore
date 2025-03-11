@@ -157,7 +157,9 @@ CREATE TABLE `open_platform_keys` (
   CONSTRAINT `fk_open_platform_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
+ALTER TABLE `file_storage` ADD UNIQUE INDEX `uk_file_uuid` (`file_uuid`);
+ALTER TABLE `users` ADD INDEX `idx_tenant` (`tenant_id`);
+ALTER TABLE `app` ADD INDEX `idx_status` (`status`);
 
 
 -- ALTER TABLE models

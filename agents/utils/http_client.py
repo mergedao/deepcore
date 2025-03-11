@@ -135,7 +135,7 @@ class AsyncHttpClient:
                     
         except aiohttp.ClientError as e:
             logger.error(f"HTTP request failed: {str(e)}", exc_info=True)
-            raise
+            raise e
 
     async def _handle_normal_response(self, response: aiohttp.ClientResponse) -> Union[Dict, str]:
         """Handle normal (non-streaming) response"""

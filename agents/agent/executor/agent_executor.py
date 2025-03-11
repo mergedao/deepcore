@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Optional, AsyncIterator, List, Callable, Any, Union
 
+import asyncio
 import yaml
 from langchain_core.messages import BaseMessageChunk
 
@@ -509,16 +510,19 @@ class DeepAgentExecutor(AgentExecutor):
         try:
             if not isinstance(input_dict, dict):
                 logger.error("Input must be a dictionary")
+                self._add_tool_error("Input must be a dictionary")
                 return None
                 
             function_data = input_dict.get("function")
             if not function_data:
                 logger.error("No function data found")
+                self._add_tool_error("No function data found")
                 return None
                 
             tool_name = function_data.get("name")
             if not tool_name:
                 logger.error("No tool name specified")
+                self._add_tool_error("No tool name specified")
                 return None
                 
             # Find matching tool in self.api_tool
@@ -552,19 +556,46 @@ class DeepAgentExecutor(AgentExecutor):
                         p["name"] for p in tool_params.get(param_type, [])
                         if p.get("required", False)
                     ]
+                    if not isinstance(extracted_params[param_type], dict):
+                        extracted_params[param_type] = {}
+
                     provided_params = extracted_params[param_type].keys()
                     missing_params = set(required_params) - set(provided_params)
 
                     if missing_params:
                         logger.error(f"Missing required {param_type} parameters: {missing_params}")
+                        self.short_memory.add(
+                            role="Tool missing params",
+                            content=f"Missing required {param_type} parameters: {missing_params}"
+                        )
                         return None
             
             # Return the matched tool and extracted parameters
             return matching_tool, extracted_params
             
         except Exception as e:
-            logger.error(f"Error parsing tool data: {str(e)}")
+            logger.error(f"Error parsing tool data: {str(e)}", exc_info=True)
+            self._add_tool_error("Tool call format error")
             return None
+
+    def _add_tool_error(self, err_message: str):
+        data = """Example input:
+        {
+            "type": "api",
+            "function": {
+                "name": "example_tool",
+                "parameters": {
+                    "header": {},
+                    "query": {},
+                    "path": {},
+                    "body": {}
+                }
+            }
+        }"""
+        self.short_memory.add(
+            role="Tool format error",
+            content=f"{err_message}, {data}"
+        )
 
     async def call_api(self, tool_info: ToolInfo, parameters: dict):
         """

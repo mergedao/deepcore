@@ -1,9 +1,11 @@
 import logging
+import contextlib
 
 import fastapi
 import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 
 from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router, image_router, category_router, open_router
 from agents.api.data_router import router as data_router
@@ -13,9 +15,26 @@ from agents.common.otel import Otel, OtelFastAPI
 from agents.middleware.gobal import exception_handler
 from agents.middleware.auth_middleware import JWTAuthMiddleware
 from agents.api.auth_router import router as auth_router
-from agents.models.db import SessionLocal
+from agents.models.db import SessionLocal, dispose_engine
+from agents.models.db_monitor import start_db_monitor, stop_db_monitor
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    logger.info("Starting database connection monitor...")
+    # Use WARNING level by default to reduce log noise
+    await start_db_monitor(log_level=logging.WARNING)
+    
+    yield  # This is where FastAPI serves requests
+    
+    # Shutdown logic
+    logger.info("Stopping database connection monitor...")
+    await stop_db_monitor()
+    logger.info("Disposing database engine...")
+    await dispose_engine()
 
 
 def create_app() -> FastAPI:
@@ -24,7 +43,7 @@ def create_app() -> FastAPI:
     Otel.init()
     logger.info("Server started.")
 
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
 
     # Add database session to app state
     app.state.db = SessionLocal
