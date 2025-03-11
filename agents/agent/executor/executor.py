@@ -83,10 +83,10 @@ class AgentExecutor(ABC):
             return
 
         history = ''
-        for memory in memory_list:
+        for index, memory in enumerate(memory_list):
             input_hint = f'User Input Hint: {json.dumps(memory.temp_data, ensure_ascii=False)}\n' if memory.temp_data else ''
 
-            history += (f'Question Time: {memory.time.strftime("%Y-%m-%d %H:%M:%S %Z")}\n'
+            history += (f'Question {index+1}, Time: {memory.time.strftime("%Y-%m-%d %H:%M:%S %Z")}\n'
                         f'User: {memory.input.strip()}\n'
                         f'{input_hint}'
                         f'Assistant: {memory.output.strip() if memory.output else "..."}\n\n')

@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 from typing import AsyncIterator
 
@@ -22,6 +23,7 @@ from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import AgentInfo, ChatContext
 from agents.models.models import App
 
+logger = logging.getLogger(__name__)
 
 class ChatAgent(AbstractAgent):
     """Chat Agent"""
@@ -106,7 +108,7 @@ class ChatAgent(AbstractAgent):
                 else:
                     yield send_message("message", {"type": "markdown", "text": self.default_final_answer})
         except Exception as e:
-            print("Error occurred:", e)
+            logger.error("stream run failed!", exc_info=True)
             raise e
         finally:
             memory_object = MemoryObject(input=query,

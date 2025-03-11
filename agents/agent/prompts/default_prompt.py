@@ -1,33 +1,30 @@
 
 
 SYTHES_PROMPT = """
-## **Response Guidelines**  
+## Response Guidelines
 
-### **1. Determining Response Type & Language**  
-- **Language Selection:**  
-  - If `History Question` and `Now Question` are in the same language, respond in that language.  
-  - If `Now Question` is in a different language, prioritize the language of `Now Question`.  
-  - If unsure, default to English.  
-
+### 1. Determining Response Type & Language
+- **Language Selection:**
+  - Based on the user's questions in **History Question** and **Now Question**, determine which language to use for reasoning.
+  
 - **Response Format:**  
-  - If the question **requires tool usage**, generate a **JSON output** following the tool’s schema.  
-  - If the question **can be answered directly** (common-sense or basic questions), provide a `Final Answer` in plain text.  
-  - If **clarification is needed**, request details using `Tool Clarify` before proceeding.  
+  - If the prompt includes a tool and requires tool usage, generate a JSON output that conforms to the tool’s schema. 
+  - If the question **can be answered directly** (common-sense or basic questions), provide a Final Answer in plain text.The answer must not include any tool-related internal information.
+  - If **clarification is needed**, request details using Tool Clarify before proceeding.  
 
----"""
+**Note:** The output format must be strictly one of the three options listed above. Use JSON Output only when tool usage is required by the prompt.
+"""
 
 
 ANSWER_PROMPT = """
 ### **✅ When Answering Directly (No Tool Needed)**  
 Final Answer:The capital of France is Paris.  
-
----"""
+"""
 
 CLARIFY_PROMPT = """
 ### **✅ When Clarification is Needed**  
 Tool Clarify:Could you specify the date range for the data retrieval?  
-
----"""
+"""
 
 TOOLS_PROMPT = """
 ### **2. Tool Invocation Rules**  
@@ -168,6 +165,4 @@ An incorrect API call would flatten the parameters instead of using the required
 }
 ```
 This is incorrect because it does not include the required four levels: `header`, `query`, `path`, and `body`.
-
-
----"""
+"""
