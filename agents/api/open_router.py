@@ -1,7 +1,8 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +11,8 @@ from agents.common.response import RestResponse
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
-from agents.services import open_service
+from agents.protocol.schemas import DialogueRequest
+from agents.services import open_service, agent_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ async def get_api_credentials(
 
 @router.get("/example", summary="Get API Usage Examples")
 async def get_example(
+    agent_id: Optional[str] = Query(None, description="Optional agent ID to use in examples"),
     user: Optional[dict] = Depends(get_optional_current_user),
     session: AsyncSession = Depends(get_db)
 ):
@@ -63,236 +66,115 @@ async def get_example(
     If authenticated, examples will include actual credentials.
     If not authenticated, examples will use placeholder values.
     
+    Parameters:
+        - agent_id: Optional agent ID to use in examples
+    
     Returns:
         - curl: Shell command example
         - python: Python code example
         - golang: Go code example
         - nodejs: Node.js code example
     """
-    # Retrieve credentials for authenticated users
-    credentials = None
+    # Get token if user is authenticated
+    token = "your_api_token"
     if user:
         try:
+            # Get or create credentials for the user
             credentials = await open_service.get_or_create_credentials(user, session)
+            access_key = credentials["access_key"]
+            
+            # Get stored token or generate a new one
+            stored_token = await open_service.get_token(access_key, session)
+            if stored_token:
+                token = stored_token
+            else:
+                token_data = await open_service.generate_token(access_key, session)
+                token = token_data.get("token", "your_api_token")
         except Exception:
-            logger.warning("Failed to get user credentials for examples", exc_info=True)
+            logger.warning("Failed to get user token for examples", exc_info=True)
     
-    ak = credentials["access_key"] if credentials else "your_access_key"
-    sk = credentials["secret_key"] if credentials else "your_secret_key"
+    # Get base URL from config
+    from agents.common.config import SETTINGS
+    base_url = SETTINGS.API_BASE_URL or "https://api.example.com"
     
-    # Signature authentication example
-    curl_signature_example = f'''# Method 1: Using signature authentication (valid for 5 minutes)
-curl -X POST "https://api.example.com/api/agents/your-agent-id/dialogue" \\
-    -H "X-Access-Key: {ak}" \\
-    -H "X-Timestamp: $(date +%s)" \\
-    -H "X-Signature: your_signature" \\
-    -H "Content-Type: application/json" \\
-    -d '{{"message": "Hello, Agent!"}}'
-'''
-
+    # Use provided agent_id or placeholder
+    example_agent_id = agent_id or "your-agent-id"
+    
     # Token authentication example
-    curl_token_example = f'''# Method 2: Using token authentication (simpler, permanent)
-# Step 1: Get token (only need to do this once, token is permanent)
-curl -X POST "https://api.example.com/api/open/token" \\
+    curl_token_example = f'''# Using token authentication
+# Get your API token from the platform dashboard or API settings
+
+# Use token to call API (streaming response)
+curl -X POST "{base_url}/api/open/agents/{example_agent_id}/dialogue" \\
+    -H "X-API-Token: {token}" \\
     -H "Content-Type: application/json" \\
-    -d '{{"access_key": "{ak}", "secret_key": "{sk}"}}'
+    -d '{{"message": "Hello, Agent!", "conversation_id": "optional-conversation-id", "init_flag": false}}'
 
-# If you need to reset token (optional)
-curl -X POST "https://api.example.com/api/open/token/reset" \\
-    -H "X-API-Token: your_token" \\
-    -H "Content-Type: application/json"
-
-# Step 2: Use token to call API
-curl -X POST "https://api.example.com/api/agents/your-agent-id/dialogue" \\
-    -H "X-API-Token: your_token" \\
-    -H "Content-Type: application/json" \\
-    -d '{{"message": "Hello, Agent!"}}'
-'''
-
-    # Merge both authentication methods example
-    curl_example = curl_signature_example + "\n" + curl_token_example
-
-    # Python example - Signature authentication
-    python_signature_example = f'''# Method 1: Using signature authentication
-import time
-import hmac
-import hashlib
-import requests
-
-def generate_signature(access_key: str, secret_key: str, timestamp: str) -> str:
-    """
-    Generate HMAC-SHA256 signature for API request
-    Note: Signature is valid for 5 minutes from timestamp
-    """
-    message = f"{{access_key}}{{timestamp}}"
-    return hmac.new(
-        secret_key.encode(),
-        message.encode(),
-        hashlib.sha256
-    ).hexdigest()
-
-# API credentials
-access_key = "{ak}"
-secret_key = "{sk}"  # Important: Keep this secure
-
-# Generate request signature (valid for 5 minutes)
-timestamp = str(int(time.time()))  # Current Unix timestamp
-signature = generate_signature(access_key, secret_key, timestamp)
-
-# Request headers
-headers = {{
-    "X-Access-Key": access_key,
-    "X-Timestamp": timestamp,
-    "X-Signature": signature
-}}
-
-# Make API request
-response = requests.post(
-    "https://api.example.com/api/agents/your-agent-id/dialogue",
-    headers=headers,
-    json={{"message": "Hello, Agent!"}}
-)
+# Response will be returned as a stream, with each line starting with "data: " containing the AI's reply
 '''
 
     # Python example - Token authentication
-    python_token_example = f'''# Method 2: Using Token authentication (simpler, permanent)
+    python_token_example = f'''# Using Token authentication
 import requests
 
-# Step 1: Get token (only need to do this once, token is permanent)
-token_response = requests.post(
-    "https://api.example.com/api/open/token",
-    json={{
-        "access_key": "{ak}",
-        "secret_key": "{sk}"
-    }}
-)
-token_data = token_response.json()["data"]
-token = token_data["token"]
+# Your API token from the platform dashboard or API settings
+token = "{token}"
 
-# If you need to reset token (optional)
-# reset_response = requests.post(
-#     "https://api.example.com/api/open/token/reset",
-#     headers={{"X-API-Token": token}}
-# )
-# token_data = reset_response.json()["data"]
-# token = token_data["token"]
-
-# Step 2: Use token to call API
-headers = {{
-    "X-API-Token": token
-}}
-
+# Use streaming response
 response = requests.post(
-    "https://api.example.com/api/agents/your-agent-id/dialogue",
-    headers=headers,
-    json={{"message": "Hello, Agent!"}}
-)
-'''
-
-    # Merge both authentication methods example
-    python_example = python_signature_example + "\n\n" + python_token_example
-
-    # Go example - Signature authentication
-    golang_signature_example = f'''// Method 1: Using signature authentication
-package main
-
-import (
-    "crypto/hmac"
-    "crypto/sha256"
-    "encoding/hex"
-    "fmt"
-    "time"
+    "{base_url}/api/open/agents/{example_agent_id}/dialogue",
+    headers={{
+        "X-API-Token": token
+    }},
+    json={{
+        "message": "Hello, Agent!",
+        "conversation_id": "optional-conversation-id",
+        "init_flag": False
+    }},
+    stream=True  # Enable streaming
 )
 
-// generateSignature creates HMAC-SHA256 signature for API request
-// Note: Signature is valid for 5 minutes from timestamp
-func generateSignature(accessKey, secretKey, timestamp string) string {{
-    message := accessKey + timestamp
-    h := hmac.New(sha256.New, []byte(secretKey))
-    h.Write([]byte(message))
-    return hex.EncodeToString(h.Sum(nil))
-}}
-
-func main() {{
-    // API credentials
-    accessKey := "{ak}"
-    secretKey := "{sk}"  // Important: Keep this secure
-    
-    // Generate timestamp (signature valid for 5 minutes)
-    timestamp := fmt.Sprintf("%d", time.Now().Unix())
-    signature := generateSignature(accessKey, secretKey, timestamp)
-    
-    // Request headers
-    fmt.Printf("X-Access-Key: %s\\n", accessKey)
-    fmt.Printf("X-Timestamp: %s\\n", timestamp)
-    fmt.Printf("X-Signature: %s\\n", signature)
-}}
+# Process streaming response
+for chunk in response.iter_lines():
+    if chunk:
+        # Filter out empty lines
+        data = chunk.decode('utf-8')
+        if data.startswith('data: '):
+            # Remove 'data: ' prefix
+            content = data[6:]
+            print(content)
 '''
 
     # Go example - Token authentication
-    golang_token_example = f'''// Method 2: Using Token authentication (simpler, permanent)
+    golang_token_example = f'''// Using Token authentication
 package main
 
 import (
+    "bufio"
     "bytes"
     "encoding/json"
     "fmt"
-    "io/ioutil"
     "net/http"
+    "strings"
 )
 
 func main() {{
-    // Step 1: Get token (only need to do this once, token is permanent)
-    tokenURL := "https://api.example.com/api/open/token"
-    tokenReqBody := []byte(`{{"access_key": "{ak}", "secret_key": "{sk}"}}`)
+    // Your API token from the platform dashboard or API settings
+    token := "{token}"
     
-    tokenReq, _ := http.NewRequest("POST", tokenURL, bytes.NewBuffer(tokenReqBody))
-    tokenReq.Header.Set("Content-Type", "application/json")
-    
-    client := &http.Client{{}}
-    tokenResp, err := client.Do(tokenReq)
-    if err != nil {{
-        fmt.Println("Error getting token:", err)
-        return
-    }}
-    defer tokenResp.Body.Close()
-    
-    tokenRespBody, _ := ioutil.ReadAll(tokenResp.Body)
-    fmt.Println("Token response:", string(tokenRespBody))
-    
-    // Parse token (simplified example, in real applications you should properly parse JSON)
-    // Assume we've already extracted the token from the response
-    token := "your_token_from_response"
-    
-    // If you need to reset token (optional)
-    /*
-    resetURL := "https://api.example.com/api/open/token/reset"
-    resetReq, _ := http.NewRequest("POST", resetURL, nil)
-    resetReq.Header.Set("Content-Type", "application/json")
-    resetReq.Header.Set("X-API-Token", token)
-    
-    resetResp, err := client.Do(resetReq)
-    if err != nil {{
-        fmt.Println("Error resetting token:", err)
-        return
-    }}
-    defer resetResp.Body.Close()
-    
-    resetRespBody, _ := ioutil.ReadAll(resetResp.Body)
-    fmt.Println("Reset token response:", string(resetRespBody))
-    
-    // Parse new token
-    // token = "your_new_token_from_response"
-    */
-    
-    // Step 2: Use token to call API
-    apiURL := "https://api.example.com/api/agents/your-agent-id/dialogue"
-    apiReqBody := []byte(`{{"message": "Hello, Agent!"}}`)
+    // Use token to call API
+    apiURL := "{base_url}/api/open/agents/{example_agent_id}/dialogue"
+    apiReqBody := []byte(`{{
+        "message": "Hello, Agent!",
+        "conversation_id": "optional-conversation-id",
+        "init_flag": false
+    }}`)
     
     apiReq, _ := http.NewRequest("POST", apiURL, bytes.NewBuffer(apiReqBody))
     apiReq.Header.Set("Content-Type", "application/json")
     apiReq.Header.Set("X-API-Token", token)
     
+    client := &http.Client{{}}
     apiResp, err := client.Do(apiReq)
     if err != nil {{
         fmt.Println("Error calling API:", err)
@@ -300,157 +182,125 @@ func main() {{
     }}
     defer apiResp.Body.Close()
     
-    apiRespBody, _ := ioutil.ReadAll(apiResp.Body)
-    fmt.Println("API response:", string(apiRespBody))
+    // Process streaming response
+    scanner := bufio.NewScanner(apiResp.Body)
+    for scanner.Scan() {{
+        line := scanner.Text()
+        if strings.HasPrefix(line, "data: ") {{
+            // Remove 'data: ' prefix
+            content := line[6:]
+            fmt.Println(content)
+        }}
+    }}
+    
+    if err := scanner.Err(); err != nil {{
+        fmt.Println("Error reading response:", err)
+    }}
 }}
-'''
-
-    golang_example = golang_signature_example + "\n\n" + golang_token_example
-
-    # Node.js example - Signature authentication
-    nodejs_signature_example = f'''// Method 1: Using signature authentication
-const crypto = require('crypto');
-
-// Generate HMAC-SHA256 signature for API request
-// Note: Signature is valid for 5 minutes from timestamp
-function generateSignature(accessKey, secretKey, timestamp) {{
-    const message = `${{accessKey}}${{timestamp}}`;
-    return crypto
-        .createHmac('sha256', secretKey)
-        .update(message)
-        .digest('hex');
-}}
-
-// API credentials
-const accessKey = '{ak}';
-const secretKey = '{sk}';  // Important: Keep this secure
-
-// Generate timestamp (signature valid for 5 minutes)
-const timestamp = Math.floor(Date.now() / 1000).toString();
-const signature = generateSignature(accessKey, secretKey, timestamp);
-
-// Request headers
-const headers = {{
-    'X-Access-Key': accessKey,
-    'X-Timestamp': timestamp,
-    'X-Signature': signature
-}};
-
-// Use these headers with your preferred HTTP client
-// Remember: The signature will expire 5 minutes after the timestamp
 '''
 
     # Node.js example - Token authentication
-    nodejs_token_example = f'''// Method 2: Using Token authentication (simpler, permanent)
-const fetch = require('node-fetch');
+    nodejs_token_example = f'''// TypeScript example
+// First install required dependencies:
+// npm install node-fetch@2 @types/node-fetch@2
 
-// Step 1: Get token (only need to do this once, token is permanent)
-async function getToken() {{
-    const tokenResponse = await fetch('https://api.example.com/api/open/token', {{
-        method: 'POST',
-        headers: {{
-            'Content-Type': 'application/json'
-        }},
-        body: JSON.stringify({{
-            access_key: '{ak}',
-            secret_key: '{sk}'
-        }})
-    }});
+import fetch from 'node-fetch';
+
+async function callAPI(): Promise<void> {{
+    // Your API token from the platform dashboard or API settings
+    const token = "{token}";
     
-    const tokenData = await tokenResponse.json();
-    return tokenData.data.token;
-}}
-
-// If you need to reset token (optional)
-async function resetToken(token) {{
-    const resetResponse = await fetch('https://api.example.com/api/open/token/reset', {{
-        method: 'POST',
-        headers: {{
-            'X-API-Token': token
+    try {{
+        const apiResponse = await fetch('{base_url}/api/open/agents/{example_agent_id}/dialogue', {{
+            method: 'POST',
+            headers: {{
+                'Content-Type': 'application/json',
+                'X-API-Token': token
+            }},
+            body: JSON.stringify({{
+                message: 'Hello, Agent!',
+                conversation_id: 'optional-conversation-id',
+                init_flag: false
+            }})
+        }});
+        
+        // Process streaming response
+        if (apiResponse.body) {{
+            // Create a readable stream
+            const reader = apiResponse.body;
+            
+            // Handle stream processing
+            reader.on('readable', () => {{
+                let chunk;
+                while (null !== (chunk = reader.read())) {{
+                    const lines = chunk.toString().split('\\n');
+                    
+                    for (const line of lines) {{
+                        if (line.startsWith('data: ')) {{
+                            // Remove 'data: ' prefix
+                            const content = line.substring(6);
+                            console.log(content);
+                        }}
+                    }}
+                }}
+            }});
+            
+            // Handle errors
+            reader.on('error', (err) => {{
+                console.error('Error reading stream:', err);
+            }});
         }}
-    }});
-    
-    const resetData = await resetResponse.json();
-    return resetData.data.token;
+    }} catch (error) {{
+        console.error('Error calling API:', error);
+    }}
 }}
 
-// Step 2: Use token to call API
-async function callAPI() {{
-    const token = await getToken();
-    
-    // If you need to reset token (optional)
-    // const newToken = await resetToken(token);
-    
-    const apiResponse = await fetch('https://api.example.com/api/agents/your-agent-id/dialogue', {{
-        method: 'POST',
-        headers: {{
-            'X-API-Token': token
-        }},
-        body: JSON.stringify({{
-            message: 'Hello, Agent!'
-        }})
-    }});
-    
-    const apiData = await apiResponse.json();
-    console.log(apiData);
-}}
-
+// Execute function
 callAPI().catch(console.error);
 '''
 
-    # Merge both authentication methods example
-    nodejs_example = nodejs_signature_example + "\n\n" + nodejs_token_example
-
     return RestResponse(data=OpenAPIExample(
-        curl=curl_example,
-        python=python_example,
-        golang=golang_example,
-        nodejs=nodejs_example
-    )) 
+        curl=curl_token_example,
+        python=python_token_example,
+        golang=golang_token_example,
+        nodejs=nodejs_token_example
+    ))
 
 @router.post("/token", summary="Get Open Platform API Token")
 async def get_api_token(
-    request: TokenRequest = Body(...),
+    user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_db)
 ):
     """
     Get Open Platform API Token.
     
-    This endpoint allows users to obtain an API token using their access_key and secret_key,
-    which can be used for authentication via the X-API-Token header.
+    This endpoint allows users to obtain an API token using their user authentication.
+    The token can be used for authentication via the X-API-Token header.
     
     If the user already has a stored token, it will be returned;
     otherwise, a new token will be generated and stored.
     
     Returns:
-        - token: Encrypted token
-        - expires_at: Token expiration timestamp
+        - token: Simple token string
+        - token_type: Bearer
     """
     try:
-        # Verify access_key and secret_key
-        credentials = await open_service.get_credentials(request.access_key, session)
-        if not credentials or credentials.secret_key != request.secret_key:
-            return RestResponse(
-                code=ErrorCode.INVALID_CREDENTIALS,
-                msg="Invalid access key or secret key"
-            )
+        # Get or create credentials for the user
+        credentials = await open_service.get_or_create_credentials(user, session)
+        access_key = credentials["access_key"]
         
         # Check if there is a stored token
-        stored_token = await open_service.get_token(request.access_key, session)
+        stored_token = await open_service.get_token(access_key, session)
         
         if stored_token:
-            # Verify the stored token
-            payload = open_service.verify_token(stored_token)
-            if payload:
-                # If the token is valid, return it directly
-                return RestResponse(data={
-                    "token": stored_token,
-                    "expires_at": payload.get("exp"),
-                    "token_type": "Bearer"
-                })
+            # If token already exists, return it directly
+            return RestResponse(data={
+                "token": stored_token,
+                # "token_type": "Bearer"
+            })
         
-        # If there is no token or the token is invalid, generate a new token
-        token_data = await open_service.generate_token(request.access_key, session)
+        # If no token exists, generate a new one
+        token_data = await open_service.generate_token(access_key, session)
         return RestResponse(data=token_data)
     except CustomAgentException as e:
         logger.error(f"Error generating open platform token: {str(e)}", exc_info=True)
@@ -490,6 +340,51 @@ async def reset_api_token(
         return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
         logger.error(f"Unexpected error resetting open platform token: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+@router.post("/agents/{agent_id}/dialogue", summary="Open API Agent Dialogue")
+async def open_dialogue(
+    agent_id: str,
+    request_data: dict = Body(..., description="Dialogue request data"),
+    user: Optional[dict] = Depends(get_optional_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Open API endpoint for agent dialogue.
+    
+    This endpoint allows third-party applications to interact with agents through the Open API.
+    Authentication is required via either token or signature method.
+    
+    Parameters:
+        - agent_id: ID of the agent to interact with
+        - request_data: JSON object containing dialogue parameters
+            - message: Message from the user (required)
+            - conversation_id: ID of the conversation (optional)
+            - init_flag: Flag to indicate if this is an initialization dialogue (optional, default: False)
+    
+    Returns:
+        Streaming response with agent's reply
+    """
+    try:
+        # Convert the request data to DialogueRequest format
+        dialogue_request = DialogueRequest(
+            query=request_data.get("message", ""),
+            conversationId=request_data.get("conversation_id", None),
+            initFlag=request_data.get("init_flag", False)
+        )
+        
+        # Call the agent service dialogue method
+        resp = agent_service.dialogue(agent_id, dialogue_request, user, session)
+        
+        return StreamingResponse(content=resp, media_type="text/event-stream")
+    except CustomAgentException as e:
+        logger.error(f"Error in open dialogue: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=e.message)
+    except Exception as e:
+        logger.error(f"Unexpected error in open dialogue: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

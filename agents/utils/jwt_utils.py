@@ -45,26 +45,28 @@ def verify_token(token: str) -> Optional[Dict]:
         logger.error("Invalid token", e, exc_info=True)
         return None
 
-def generate_token_pair(user_id: str, username: str, tenant_id: str, wallet_address: str = None) -> Tuple[str, str]:
+def generate_token_pair(user_id: str, username: str, tenant_id: str, wallet_address: str = None, chain_type: str = None) -> Tuple[str, str]:
     """
     Generate a pair of tokens (access token and refresh token)
     :param user_id: User ID
     :param username: Username
     :param tenant_id: Tenant ID
     :param wallet_address: Wallet address
+    :param chain_type: Blockchain type
     :return: Tuple of access token and refresh token
     """
-    access_token = generate_access_token(user_id, username, tenant_id, wallet_address)
+    access_token = generate_access_token(user_id, username, tenant_id, wallet_address, chain_type)
     refresh_token = generate_refresh_token(user_id)
     return access_token, refresh_token
 
-def generate_access_token(user_id: str, username: str, tenant_id: str, wallet_address: str = None) -> str:
+def generate_access_token(user_id: str, username: str, tenant_id: str, wallet_address: str = None, chain_type: str = None) -> str:
     """
     Generate a short-lived JWT token containing user information
     :param user_id: User ID
     :param username: Username
     :param tenant_id: Tenant ID
     :param wallet_address: Wallet address
+    :param chain_type: Blockchain type
     :return: JWT token
     """
     payload = {
@@ -76,6 +78,9 @@ def generate_access_token(user_id: str, username: str, tenant_id: str, wallet_ad
     
     if wallet_address:
         payload["wallet_address"] = wallet_address
+        
+    if chain_type:
+        payload["chain_type"] = chain_type
         
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 

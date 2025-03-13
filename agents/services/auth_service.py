@@ -3,6 +3,7 @@ import logging
 import re
 import uuid
 from datetime import datetime
+from typing import Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -12,7 +13,7 @@ from agents.common.redis_utils import redis_utils
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import User
 from agents.protocol.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse, NonceResponse, \
-    WalletLoginRequest, WalletLoginResponse, TokenResponse
+    WalletLoginRequest, WalletLoginResponse, TokenResponse, ChainType
 from agents.utils.jwt_utils import (
     generate_token_pair, verify_refresh_token, ACCESS_TOKEN_EXPIRE_MINUTES, REFRESH_TOKEN_EXPIRE_DAYS
 )
@@ -181,6 +182,10 @@ async def get_wallet_nonce(wallet_address: str, session: AsyncSession) -> NonceR
 async def wallet_login(request: WalletLoginRequest, session: AsyncSession) -> WalletLoginResponse:
     """
     Handle wallet login/registration with nonce verification
+    
+    :param request: Wallet login request containing wallet address, signature, and chain type
+    :param session: Database session
+    :return: Login response with tokens and user information
     """
     try:
         # Verify signature
@@ -197,16 +202,19 @@ async def wallet_login(request: WalletLoginRequest, session: AsyncSession) -> Wa
         nonce_data = json.loads(stored_nonce_data)
         nonce = nonce_data["nonce"]
 
-        # Verify signature
+        # Get chain type (default to ethereum if not provided)
+        chain_type = request.chain_type or ChainType.ETHEREUM
+
+        # Verify signature based on chain type
         message = get_message_to_sign(request.wallet_address, nonce)
-        if not verify_signature(message, request.signature, request.wallet_address):
+        if not verify_signature(message, request.signature, request.wallet_address, chain_type):
             raise CustomAgentException(message="Invalid signature")
 
         # Delete used nonce from Redis
         redis_utils.delete_key(nonce_key)
 
-        # Get or create user
-        user = await get_or_create_wallet_user(request.wallet_address, session)
+        # Get or create user with chain type
+        user = await get_or_create_wallet_user(request.wallet_address, session, chain_type)
 
         # Set is_new_user flag
         is_new_user = not user.create_time
@@ -216,12 +224,13 @@ async def wallet_login(request: WalletLoginRequest, session: AsyncSession) -> Wa
             user.create_time = datetime.utcnow()
             await session.commit()
 
-        # Generate token pair
+        # Generate token pair with chain type
         access_token, refresh_token = generate_token_pair(
             user_id=str(user.id),
             username=user.username,
             tenant_id=user.tenant_id,
-            wallet_address=user.wallet_address
+            wallet_address=user.wallet_address,
+            chain_type=user.chain_type
         )
 
         return {
@@ -238,10 +247,26 @@ async def wallet_login(request: WalletLoginRequest, session: AsyncSession) -> Wa
         raise e
 
 
-async def get_or_create_wallet_user(wallet_address: str, session: AsyncSession) -> User:
+async def get_or_create_wallet_user(wallet_address: str, session: AsyncSession, chain_type: Union[ChainType, str] = ChainType.ETHEREUM) -> User:
     """
     Get existing user by wallet address or create a new one
+    
+    :param wallet_address: Wallet address
+    :param session: Database session
+    :param chain_type: Blockchain type (ChainType enum or string)
+    :return: User object
     """
+    # Convert string to enum if needed
+    if isinstance(chain_type, str):
+        try:
+            chain_type = ChainType(chain_type.lower())
+        except ValueError:
+            logger.warning(f"Unsupported chain type: {chain_type}, using default: {ChainType.ETHEREUM}")
+            chain_type = ChainType.ETHEREUM
+    
+    # Convert enum to string for database storage
+    chain_type_str = chain_type.value
+    
     # Check if user exists
     result = await session.execute(
         select(User).where(User.wallet_address == wallet_address)
@@ -264,10 +289,17 @@ async def get_or_create_wallet_user(wallet_address: str, session: AsyncSession) 
         user = User(
             username=temp_username,
             wallet_address=wallet_address,
+            chain_type=chain_type_str,
             tenant_id=tenant_id,
             create_time=datetime.utcnow()
         )
         session.add(user)
+        await session.commit()
+        await session.refresh(user)
+    elif user.chain_type != chain_type_str:
+        # Update chain_type if it has changed
+        user.chain_type = chain_type_str
+        user.update_time = datetime.utcnow()
         await session.commit()
         await session.refresh(user)
 

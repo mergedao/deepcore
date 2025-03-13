@@ -7,6 +7,7 @@ from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+from sqlalchemy import select
 
 from agents.common.error_messages import get_error_message
 from agents.common.http_utils import add_cors_headers
@@ -14,6 +15,7 @@ from agents.common.response import RestResponse
 from agents.exceptions import ErrorCode
 from agents.services import open_service
 from agents.utils.jwt_utils import verify_token
+from agents.models.models import OpenPlatformKey
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)
@@ -31,7 +33,8 @@ class AuthConfig:
     ]
     PUBLIC_PREFIXES = ["/api/files/", "/api/categories/"]
     OPEN_API_PATHS = [
-        r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"
+        r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",
+        r"^/api/open/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"
     ]
 
 class AuthResponse:
@@ -85,49 +88,40 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
     async def _authenticate_open_api_token(self, request: Request) -> bool:
         """Authenticate using Open API token"""
         try:
-            # Use X-API-Token header instead of Authorization to avoid conflicts
-            token_header = request.headers.get("X-API-Token")
-            if not token_header:
+            # Get X-API-Token header
+            token = request.headers.get("X-API-Token")
+            if not token:
                 return False
 
-            token = token_header
-            
-            # First validate token format is valid
-            payload = open_service.verify_token(token)
-            if not payload:
+            # Validate token format (check prefix and length)
+            if not token.startswith("tk_") or len(token) != 23:  # "tk_" + 20 chars
                 return False
                 
-            # Get access_key
-            access_key = payload.get("access_key")
-            if not access_key:
-                return False
-                
-            # Verify token matches stored token in database
+            # Directly look up the token in the database
             try:
                 async with request.app.state.db() as session:
-                    # Verify token matches stored token
-                    if not await open_service.verify_stored_token(access_key, token, session):
-                        logger.warning(f"Token does not match stored token for access_key: {access_key}")
-                        return False
-                        
-                    # Get credential information
-                    credentials = await open_service.get_credentials(access_key, session)
+                    query = select(OpenPlatformKey).where(
+                        OpenPlatformKey.token == token,
+                        OpenPlatformKey.is_deleted == False
+                    )
+                    result = await session.execute(query)
+                    credentials = result.scalar_one_or_none()
+                    
                     if not credentials:
-                        logger.warning(f"Invalid access_key: {access_key}")
                         return False
                     
                     # Set user information
                     request.state.user = {
-                        "id": credentials.user_id,
+                        "user_id": credentials.user_id,
                         "type": "api_token",
-                        "access_key": access_key
+                        "access_key": credentials.access_key
                     }
                     return True
             except Exception as e:
                 logger.error(f"Database operation failed: {str(e)}", exc_info=True)
                 return False
         except Exception as e:
-            logger.error(f"Open API token authentication failed: {str(e)}", exc_info=True)
+            logger.error(f"API token authentication failed: {str(e)}", exc_info=True)
             return False
 
     async def _authenticate_open_api(self, request: Request) -> bool:

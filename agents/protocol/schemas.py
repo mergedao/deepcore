@@ -28,6 +28,15 @@ class AuthLocationType(str, Enum):
     PARAM = "param"
 
 
+class ChainType(str, Enum):
+    """Blockchain types supported for wallet authentication"""
+    ETHEREUM = "ethereum"
+    SOLANA = "solana"
+    # BSC = "bsc"
+    # POLYGON = "polygon"
+    # AVALANCHE = "avalanche"
+
+
 class AuthConfig(BaseModel):
     location: AuthLocationType = Field(..., description="Where to add the auth parameter")
     key: str = Field(..., description="Name of the auth parameter")
@@ -38,7 +47,7 @@ class ToolInfo(BaseModel):
     id: Optional[str] = Field(None, description="Tool UUID")
     name: str = Field(..., description="Name of the tool")
     type: ToolType = Field(default=ToolType.OPENAPI, description='Type of the tool')
-    origin: str = Field(..., description="API origin")
+    origin: Optional[str] = Field(..., description="API origin")
     path: str = Field(..., description="API path")
     method: str = Field(..., description="HTTP method")
     auth_config: Optional[AuthConfig] = Field(None, description="Authentication configuration")
@@ -111,6 +120,8 @@ class AgentDTO(BaseModel):
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
     custom_config: Optional[Dict] = Field(None, description="Custom configuration for the agent")
+    create_time: Optional[datetime] = Field(None, description="Creation time")
+    update_time: Optional[datetime] = Field(None, description="Last update time")
     tools: Optional[List[Union[str, ToolInfo]]] = Field(
         default_factory=list, 
         description="List of tool UUIDs to associate with the agent when creating/updating, or list of ToolInfo when getting agent details"
@@ -216,6 +227,7 @@ class WalletLoginRequest(BaseModel):
     """Request for wallet login/registration"""
     wallet_address: str
     signature: Optional[str] = None
+    chain_type: Optional[ChainType] = Field(ChainType.ETHEREUM, description="Blockchain type for wallet authentication")
 
 
 class NonceResponse(BaseModel):

@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Optional, AsyncIterator, List, Callable, Any, Union
 
+import asyncio
 import yaml
 from langchain_core.messages import BaseMessageChunk
 
@@ -204,15 +205,14 @@ class DeepAgentExecutor(AgentExecutor):
                                 response += data
                                 
                                 # Check stopping condition
-                                if self.stop_func is not None and self._check_stopping_condition(response):
-                                    async for data in self.send_node_message("generate response"):
-                                        yield data
-
-                                if self.should_stop or (
-                                        self.stop_func is not None
-                                        and self._check_stopping_condition(response)
-                                ):
-                                    self.should_stop = True
+                                if not self.should_stop:
+                                    if self.stop_func is not None and self._check_stopping_condition(response):
+                                        async for node_data in self.send_node_message("generate response"):
+                                            yield node_data
+                                        self.should_stop = True
+                                        yield self._get_stopping_condition_last_message(response)
+                                        response = ""
+                                else:
                                     yield response
                                     response = ""
                             else:
@@ -377,37 +377,6 @@ class DeepAgentExecutor(AgentExecutor):
             )
             raise e
 
-    async def execute_tools_astream(self, response: str, *args, **kwargs):
-        try:
-            logger.info("Executing async tool...")
-            direct_output = kwargs.get("direct_output", True)
-            # try to Execute the tool and return a string
-            whole_output = ""
-            async for data in async_execute(
-                    functions=self.async_tools,
-                    json_string=response,
-                    parse_md=True,
-                    *args,
-                    **kwargs,
-            ):
-                if direct_output:
-                    yield data
-                else:
-                    whole_output += str(data)
-
-            if direct_output:
-                return
-
-            # Add the output to the memory
-            self.short_memory.add(
-                role="Tool Executor",
-                content=whole_output,
-            )
-
-        except Exception as error:
-            logger.error(f"Error executing tool: {error}")
-            raise error
-
     async def send_node_message(self, message: str) -> AsyncIterator[NodeMessage]:
         """Send a node message to the agent."""
         if self.should_send_node:
@@ -429,6 +398,19 @@ class DeepAgentExecutor(AgentExecutor):
             logger.error(
                 f"Error checking stopping condition: {error}"
             )
+    def _get_stopping_condition_last_message(self, response: str) -> str:
+        """Get the last message sent to the user before the stopping condition was met."""
+        messages = ""
+        try:
+            for stop in self.stop_condition:
+                if stop in response:
+                    splits = response.split(stop)
+                    return splits[-1] if len(splits) > 1 else ""
+        except Exception as error:
+            logger.error(
+                f"Error _get_stopping_condition_last_message: {error}"
+            )
+        return messages
 
     def memory_query(self, task: str = None, *args, **kwargs) -> None:
         try:
@@ -528,16 +510,19 @@ class DeepAgentExecutor(AgentExecutor):
         try:
             if not isinstance(input_dict, dict):
                 logger.error("Input must be a dictionary")
+                self._add_tool_error("Input must be a dictionary")
                 return None
                 
             function_data = input_dict.get("function")
             if not function_data:
                 logger.error("No function data found")
+                self._add_tool_error("No function data found")
                 return None
                 
             tool_name = function_data.get("name")
             if not tool_name:
                 logger.error("No tool name specified")
+                self._add_tool_error("No tool name specified")
                 return None
                 
             # Find matching tool in self.api_tool
@@ -571,19 +556,46 @@ class DeepAgentExecutor(AgentExecutor):
                         p["name"] for p in tool_params.get(param_type, [])
                         if p.get("required", False)
                     ]
+                    if not isinstance(extracted_params[param_type], dict):
+                        extracted_params[param_type] = {}
+
                     provided_params = extracted_params[param_type].keys()
                     missing_params = set(required_params) - set(provided_params)
 
                     if missing_params:
                         logger.error(f"Missing required {param_type} parameters: {missing_params}")
+                        self.short_memory.add(
+                            role="Tool missing params",
+                            content=f"Missing required {param_type} parameters: {missing_params}"
+                        )
                         return None
             
             # Return the matched tool and extracted parameters
             return matching_tool, extracted_params
             
         except Exception as e:
-            logger.error(f"Error parsing tool data: {str(e)}")
+            logger.error(f"Error parsing tool data: {str(e)}", exc_info=True)
+            self._add_tool_error("Tool call format error")
             return None
+
+    def _add_tool_error(self, err_message: str):
+        data = """Example input:
+        {
+            "type": "api",
+            "function": {
+                "name": "example_tool",
+                "parameters": {
+                    "header": {},
+                    "query": {},
+                    "path": {},
+                    "body": {}
+                }
+            }
+        }"""
+        self.short_memory.add(
+            role="Tool format error",
+            content=f"{err_message}, {data}"
+        )
 
     async def call_api(self, tool_info: ToolInfo, parameters: dict):
         """

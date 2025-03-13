@@ -1,3 +1,4 @@
+import json
 import uuid
 from abc import ABC
 from typing import Optional, AsyncIterator, Any, List, Callable
@@ -34,6 +35,7 @@ class AgentExecutor(ABC):
             stop_func: Optional[Callable[[str], bool]] = None,
             tokenizer: Optional[Any] = TikToken(),
             long_term_memory: Optional[Any] = None,
+            stop_condition: Optional[str] = None,
             *args,
             **kwargs,
     ):
@@ -54,6 +56,7 @@ class AgentExecutor(ABC):
         self.long_term_memory = long_term_memory
         self.description = description
         self.role_settings = role_settings
+        self.stop_condition = stop_condition or []
 
         self.agent_executor_id = gen_agent_executor_id()
 
@@ -76,10 +79,18 @@ class AgentExecutor(ABC):
 
     def add_memory_object(self, memory_list: list[MemoryObject]):
         """Add a memory object to the agent's memory."""
+        if not memory_list:
+            return
+
         history = ''
-        for memory in memory_list:
-            history += f'user: {memory.input}\nassistant: {memory.output}\n\n'
+        for index, memory in enumerate(memory_list):
+            input_hint = f'User Input Hint: {json.dumps(memory.temp_data, ensure_ascii=False)}\n' if memory.temp_data else ''
+
+            history += (f'Question {index+1}, Time: {memory.time.strftime("%Y-%m-%d %H:%M:%S %Z")}\n'
+                        f'User: {memory.input.strip()}\n'
+                        f'{input_hint}'
+                        f'Assistant: {memory.output.strip() if memory.output else "..."}\n\n')
         self.short_memory.add(
-            role="History Question",
+            role="History Question\n",
             content=history,
         )

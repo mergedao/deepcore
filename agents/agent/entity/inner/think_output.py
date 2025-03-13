@@ -5,8 +5,8 @@ from agents.agent.tools.message_tool import send_message
 class ThinkOutput(Output):
     data = {}
 
-    def __init__(self):
-        self.data = {"type": "message"}
+    def __init__(self, data: dict = None):
+        self.data = data or {"type": "message"}
 
     def write_text(self, text):
         self.data["text"] = text

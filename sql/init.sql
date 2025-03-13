@@ -86,6 +86,7 @@ CREATE TABLE `users` (
   `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email address',
   `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Hashed password',
   `wallet_address` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ethereum wallet address',
+  `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana',
   `nonce` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nonce for wallet signature',
   `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
   `create_time` datetime DEFAULT (now()) COMMENT 'Registration time',
@@ -156,7 +157,9 @@ CREATE TABLE `open_platform_keys` (
   CONSTRAINT `fk_open_platform_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
+ALTER TABLE `file_storage` ADD UNIQUE INDEX `uk_file_uuid` (`file_uuid`);
+ALTER TABLE `users` ADD INDEX `idx_tenant` (`tenant_id`);
+ALTER TABLE `app` ADD INDEX `idx_status` (`status`);
 
 
 -- ALTER TABLE models
@@ -165,27 +168,33 @@ CREATE TABLE `open_platform_keys` (
 -- AFTER name;
 
 -- Add new fields to app table
-ALTER TABLE app
-ADD COLUMN telegram_bot_name varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Telegram bot name' AFTER telegram_bot_id,
-ADD COLUMN telegram_bot_token varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted Telegram bot token' AFTER telegram_bot_name;
+-- ALTER TABLE app
+-- ADD COLUMN telegram_bot_name varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Telegram bot name' AFTER telegram_bot_id,
+-- ADD COLUMN telegram_bot_token varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted Telegram bot token' AFTER telegram_bot_name;
+--
+-- -- Add icon field to tools table
+-- ALTER TABLE tools
+-- ADD COLUMN icon varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the tool' AFTER auth_config;
+--
+-- -- Add token and token_created_at columns to open_platform_keys table
+-- ALTER TABLE `open_platform_keys`
+-- ADD COLUMN `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
+-- ADD COLUMN `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time';
+--
+--
+-- UPDATE `file_storage` SET `storage_type` = 'database' WHERE `storage_type` IS NULL;
+--
+-- -- Add token, symbol, and photos columns to app table if they don't exist
+-- ALTER TABLE `app` ADD COLUMN `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Token symbol for the agent';
+-- ALTER TABLE `app` ADD COLUMN `symbol` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Symbol for the agent token';
+-- ALTER TABLE `app` ADD COLUMN `photos` JSON COMMENT 'Photos for the agent';
+--
+-- ALTER TABLE app ADD COLUMN custom_config JSON COMMENT 'Custom configuration for the agent stored as JSON' AFTER model_json;
 
--- Add icon field to tools table
-ALTER TABLE tools
-ADD COLUMN icon varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the tool' AFTER auth_config;
-
--- Add token and token_created_at columns to open_platform_keys table
-ALTER TABLE `open_platform_keys`
-ADD COLUMN `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
-ADD COLUMN `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time';
 
 
-UPDATE `file_storage` SET `storage_type` = 'database' WHERE `storage_type` IS NULL;
+-- ALTER TABLE `tools` ADD COLUMN `sensitive_data_config` JSON DEFAULT NULL COMMENT 'Configuration for sensitive data handling' ,ALGORITHM=INPLACE,LOCK=NONE;
 
--- Add token, symbol, and photos columns to app table if they don't exist
-ALTER TABLE `app` ADD COLUMN `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Token symbol for the agent';
-ALTER TABLE `app` ADD COLUMN `symbol` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Symbol for the agent token';
-ALTER TABLE `app` ADD COLUMN `photos` JSON COMMENT 'Photos for the agent';
-
-ALTER TABLE app ADD COLUMN custom_config JSON COMMENT 'Custom configuration for the agent stored as JSON' AFTER model_json;
-
-ALTER TABLE `tools` ADD COLUMN `sensitive_data_config` JSON DEFAULT NULL COMMENT 'Configuration for sensitive data handling' ,ALGORITHM=INPLACE,LOCK=NONE;
+ALTER TABLE `users`
+ADD COLUMN `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana'
+AFTER `wallet_address`;
