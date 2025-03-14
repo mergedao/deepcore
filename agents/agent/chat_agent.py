@@ -88,6 +88,7 @@ class ChatAgent(AbstractAgent):
                     continue
                 elif isinstance(output, (ToolOutput, WalletOutput)):
                     yield output.to_stream()
+                    response_buffer += output.get_response() if isinstance(output.get_response(), str) else str(output.get_response())
                     is_finalized = True
                     continue
                 elif isinstance(output, list):
@@ -104,6 +105,7 @@ class ChatAgent(AbstractAgent):
             # Handle the case where no final response was generated
             if not is_finalized:
                 if final_response:
+                    response_buffer = final_response[-1]
                     yield send_message("message", {"type": "markdown", "text": final_response[-1]})
                 else:
                     yield send_message("message", {"type": "markdown", "text": self.default_final_answer})
