@@ -23,7 +23,10 @@ class DatabaseMonitor:
                 user=SETTINGS.MYSQL_USER,
                 password=SETTINGS.MYSQL_PASSWORD,
                 db=SETTINGS.MYSQL_DB,
-                autocommit=True
+                autocommit=True,
+                charset="utf8mb4",
+                use_unicode=True,
+                connect_timeout=10  # Connection timeout in seconds
             )
             return conn
         except Exception as e:

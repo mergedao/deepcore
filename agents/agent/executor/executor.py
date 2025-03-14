@@ -84,7 +84,9 @@ class AgentExecutor(ABC):
 
         history = ''
         for index, memory in enumerate(memory_list):
-            input_hint = f'User Input Hint: {json.dumps(memory.temp_data, ensure_ascii=False)}\n' if memory.temp_data else ''
+            input_hint = ''
+            if memory.temp_data and "wallet_signature" not in memory.temp_data:
+                input_hint = f'User Input Hint: {json.dumps(memory.temp_data, ensure_ascii=False)}\n'
 
             history += (f'Question {index+1}, Time: {memory.time.strftime("%Y-%m-%d %H:%M:%S %Z")}\n'
                         f'User: {memory.input.strip()}\n'

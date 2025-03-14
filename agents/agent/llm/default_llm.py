@@ -6,9 +6,12 @@ from agents.common.config import SETTINGS
 
 class ChatGPT(Model):
     """Chat GPT model"""
-    use_model = ChatOpenAI(openai_api_key=SETTINGS.OPENAI_API_KEY,
-                           base_url=SETTINGS.OPENAI_BASE_URL,
-                           model_name=SETTINGS.MODEL_NAME, )
+    use_model = ChatOpenAI(
+        openai_api_key=SETTINGS.OPENAI_API_KEY,
+        base_url=SETTINGS.OPENAI_BASE_URL,
+        model_name=SETTINGS.MODEL_NAME,
+        temperature=SETTINGS.MODEL_TEMPERATURE,
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

@@ -18,3 +18,6 @@ class ThinkOutput(Output):
     @staticmethod
     def create_from_chunk(chunk: str) -> 'ThinkOutput':
         return ThinkOutput().write_text(chunk)
+
+    def get_response(self) -> str:
+        return ""

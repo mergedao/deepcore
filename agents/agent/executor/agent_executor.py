@@ -146,8 +146,10 @@ class DeepAgentExecutor(AgentExecutor):
             self.agent_output.task = task
 
             # Add task to memory
+            temporary = self.init_temporary()
+            task = f"{task}\n{temporary}" if temporary else task
             self.short_memory.add(role="Now Question", content=task)
-            self.init_temporary()
+
 
             # Set the loop count
             loop_count = 0
@@ -708,7 +710,7 @@ class DeepAgentExecutor(AgentExecutor):
                     
             yield response
 
-    def init_temporary(self):
+    def init_temporary(self) -> str:
         # Add temporary data to short-term memory if available
         if hasattr(self.chat_context, 'temp_data') and self.chat_context.temp_data:
             for scenario, data in self.chat_context.temp_data.items():
@@ -723,7 +725,5 @@ class DeepAgentExecutor(AgentExecutor):
                 else:
                     content = str(data)
 
-                self.short_memory.add(
-                    role=f"Temporary Data ({scenario})",
-                    content=content
-                )
+                return f"Tool Result Data ({scenario}): {content}"
+        return ""

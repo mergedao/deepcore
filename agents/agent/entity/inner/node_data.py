@@ -24,3 +24,7 @@ class NodeMessage(Output):
     def to_stream(self) -> str:
         return send_message("status", self.to_dict())
 
+    def get_response(self) -> str:
+        return ""
+
+
