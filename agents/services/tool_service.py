@@ -92,10 +92,12 @@ async def create_tool(
                 "User must belong to a tenant to create tools"
             )
 
+        tool_type = tool_data.get('type', ToolType.OPENAPI.value)
+        
         new_tool = Tool(
             name=tool_data['name'],
             description=tool_data.get('description'),
-            type=ToolType.OPENAPI.value,
+            type=tool_type,
             origin=tool_data['origin'],
             path=tool_data['path'],
             method=tool_data['method'],

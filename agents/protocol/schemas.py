@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, EmailStr
 class ToolType(str, Enum):
     OPENAPI = "openapi"
     FUNCTION = "function"
+    MCP = "mcp"
 
 
 class AgentMode(str, Enum):
