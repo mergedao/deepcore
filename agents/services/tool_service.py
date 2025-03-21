@@ -6,6 +6,7 @@ from sqlalchemy import update, select, or_, and_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from agents.common.config import SETTINGS
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import Tool, App, AgentTool
@@ -13,7 +14,6 @@ from agents.protocol.response import ToolModel
 from agents.protocol.schemas import ToolType, AuthConfig, CategoryDTO
 from agents.utils import openapi
 from agents.utils.openapi_utils import extract_endpoints_info
-from agents.common.config import SETTINGS
 
 logger = logging.getLogger(__name__)
 

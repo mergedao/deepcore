@@ -2,9 +2,9 @@ import json
 import logging
 from typing import Optional, AsyncIterator, List, Callable, Any, Union
 
-import asyncio
 import yaml
 from langchain_core.messages import BaseMessageChunk
+from mcp.types import CallToolResult, TextContent
 
 from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
 from agents.agent.entity.inner.finish import FinishOutput
@@ -13,18 +13,17 @@ from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.think_output import ThinkOutput
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.executor import AgentExecutor
+from agents.agent.executor.sliding_window import SlidingWindow
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.sensitive.sensitive_data_processor import SensitiveDataProcessor
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
-from agents.agent.tools.tool_executor import async_execute
 from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import ToolInfo, ChatContext, ToolType
 from agents.utils import tools_parser
-from agents.utils.common import dict_to_csv, exists, concat_strings
+from agents.utils.common import dict_to_csv, concat_strings
 from agents.utils.http_client import async_client
 from agents.utils.parser import parse_and_execute_json, extract_md_code
-from agents.agent.executor.sliding_window import SlidingWindow
 
 logger = logging.getLogger(__name__)
 
@@ -119,12 +118,16 @@ class DeepAgentExecutor(AgentExecutor):
 
             self.function_map = {}
             if self.api_tools:
-                api_schemas,  function_schemas = tools_parser.convert_tool_into_openai_schema(self.api_tools)
+                api_schemas, function_schemas, mcp_schemas = \
+                    tools_parser.convert_tool_into_openai_schema(self.api_tools)
                 if api_schemas:
                     self.short_memory.add(role="api tool", content=json.dumps(api_schemas, ensure_ascii=False))
                 if function_schemas:
                     self.short_memory.add(role="function tool", content=json.dumps(function_schemas, ensure_ascii=False))
                     self.function_map = {tool.__name__: tool for tool in self.local_tools}
+                if mcp_schemas:
+                    self.short_memory.add(role="mcp tool",
+                                          content=json.dumps(mcp_schemas, ensure_ascii=False))
 
     def _initialize_answer(self):
         self.short_memory.add(role="", content=ANSWER_PROMPT)
@@ -481,8 +484,7 @@ class DeepAgentExecutor(AgentExecutor):
                 async for output in self.call_api(tool_info, parameters):
                     yield output
             elif tool_info.type == ToolType.MCP.value:
-                async for output in self.call_mcp(tool_info, parameters):
-                    yield output
+                await self.call_mcp(tool_info, parameters)
             else:
                 logger.error(f"Unknown tool type: {tool_info.type}")
         except Exception as error:
@@ -760,7 +762,8 @@ class DeepAgentExecutor(AgentExecutor):
             import json
             
             origin = tool_info.origin
-            tool_name = tool_info.path
+            path = tool_info.path
+            tool_name = tool_info.name
             
             # Process parameters to recover sensitive data if needed
             if tool_info.sensitive_data_config:
@@ -780,83 +783,45 @@ class DeepAgentExecutor(AgentExecutor):
             # Check if origin is a URL (endpoint) or a file path
             if origin.startswith(('http://', 'https://')):
                 # Remote MCP endpoint - Use mirascope.mcp sse_client
-                from mcp import sse_client
-                
+                from mirascope.mcp import sse_client
+
+                url = origin + path
                 # Use streaming or non-streaming based on configuration
-                async with sse_client(origin) as client:
-                    result = await client.call_tool(tool_name, processed_parameters)
+                async with sse_client(url) as client:
+                    result: CallToolResult = await client._session.call_tool(tool_name, processed_parameters)
                     
                     # Check if the result indicates an error
                     is_error = result.isError if hasattr(result, "isError") else False
-                    
-                    # Process response to mask sensitive data if needed
-                    if tool_info.sensitive_data_config:
-                        processed_result = self.sensitive_data_processor.process_tool_response(
-                            tool_info.name, result, tool_info.sensitive_data_config
-                        )
-                        yield Output(
-                            output=f"MCP tool '{tool_name}' result",
-                            result=processed_result,
-                            error=is_error
+
+                    content = ""
+                    for data in result.content:
+                        if isinstance(data, TextContent):
+                            content += data.text if isinstance(data.text, str) else json.dumps(data.text, ensure_ascii=False)
+                        else:
+                            is_error = True
+                            content = "This data format is not supported for parsing."
+
+                    logger.error(f"call_mcp:{content}")
+                    if is_error:
+                        self.short_memory.add(
+                            role="Tool Executor",
+                            content=f"Response is ERROR: {content}"
                         )
                     else:
-                        yield Output(
-                            output=f"MCP tool '{tool_name}' result",
-                            result=result,
-                            error=is_error
+                        self.short_memory.add(
+                            role="Tool Executor",
+                            content=content
                         )
-                    
-                    # Add result to memory
-                    content = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
-                    self.short_memory.add(
-                        role="Tool Executor",
-                        content=content
-                    )
+
             else:
-                # Local Python module path
-                from agents.agent.mcp import manager
-                
-                # Load and find server in module
-                server_name = manager.register_module_as_mcp_server(origin)
-                from agents.agent.mcp.mcp_sse import get_mcp_server
-                server_instance = get_mcp_server(server_name)
-                
-                if not server_instance:
-                    raise ValueError(f"No MCP server instance found in {origin}")
-                
-                # Call the tool directly
-                result = await server_instance.call_tool(tool_name, processed_parameters)
-                
-                # Check if the result indicates an error
-                is_error = result.get("isError", False) if isinstance(result, dict) else False
-                
-                # Process response to mask sensitive data if needed
-                if tool_info.sensitive_data_config:
-                    processed_result = self.sensitive_data_processor.process_tool_response(
-                        tool_info.name, result, tool_info.sensitive_data_config
-                    )
-                    yield Output(
-                        output=f"MCP tool '{tool_name}' result",
-                        result=processed_result,
-                        error=is_error
-                    )
-                else:
-                    yield Output(
-                        output=f"MCP tool '{tool_name}' result",
-                        result=result,
-                        error=is_error
-                    )
-                
-                # Add result to memory
-                content = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
                 self.short_memory.add(
                     role="Tool Executor",
-                    content=content
+                    content="tool config error!"
                 )
                 
         except Exception as e:
             logger.error(f"Error executing MCP tool: {e}", exc_info=True)
-            yield Output(
-                output=f"Error executing MCP tool: {str(e)}",
-                error=True
+            self.short_memory.add(
+                role="Tool Executor",
+                content=f"Error executing MCP tool: {str(e)}"
             )

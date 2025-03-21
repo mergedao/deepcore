@@ -2,8 +2,7 @@ import hashlib
 import hmac
 import logging
 import uuid
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Dict, Any
 
 from sqlalchemy import select, update
@@ -11,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import OpenPlatformKey
-from agents.common.encryption_utils import encryption_utils
 
 logger = logging.getLogger(__name__)
 

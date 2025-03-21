@@ -10,10 +10,10 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from agents.agent.chat_agent import ChatAgent
+from agents.agent.memory.agent_context_manager import agent_context_manager
 from agents.common.config import SETTINGS
 from agents.common.encryption_utils import encryption_utils
 from agents.common.redis_utils import redis_utils
-from agents.agent.memory.agent_context_manager import agent_context_manager
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo, ChatContext

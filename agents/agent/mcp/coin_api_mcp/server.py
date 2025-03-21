@@ -6,8 +6,10 @@ import httpx
 import mcp.types as types
 from mcp.server import Server
 
-API_BASE = "pro-api.coinmarketcap.com"
-API_KEY = None
+from agents.common.config import SETTINGS
+
+API_BASE = SETTINGS.COINMARKETCAP_BASE_HOST
+API_KEY = SETTINGS.COINMARKETCAP_API_KEY
 
 
 

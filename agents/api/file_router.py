@@ -10,7 +10,6 @@ from agents.common.response import RestResponse
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.services import file_service
-from agents.services.file_service import FileInfo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

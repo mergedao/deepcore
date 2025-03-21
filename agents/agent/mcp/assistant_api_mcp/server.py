@@ -8,20 +8,17 @@ This module implements an MCP server that exposes the assistant dialogue API via
 It provides tools for interacting with intelligent assistants through a standardized MCP interface.
 """
 
-import logging
 import json
-import asyncio
-import httpx
-from typing import Dict, List, Any, Optional, AsyncGenerator
+import logging
+from typing import Dict, List, Any, AsyncGenerator
 
+import httpx
 from mcp.server import Server
-from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.common.config import SETTINGS
 from agents.protocol.schemas import DialogueRequest
 from agents.services import agent_service
-from agents.models.db import get_db
 
 logger = logging.getLogger(__name__)
 

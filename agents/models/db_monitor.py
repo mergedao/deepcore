@@ -1,10 +1,10 @@
 import asyncio
 import logging
-import time
-from datetime import datetime, timedelta
-import aiomysql
-from agents.common.config import SETTINGS
 import random
+
+import aiomysql
+
+from agents.common.config import SETTINGS
 
 logger = logging.getLogger(__name__)
 

@@ -89,6 +89,20 @@ or
   }
 }
 ```
+or  
+```json
+{
+  "type": "mcp",
+  "function": {
+    "name": "example_tool",
+    "parameters": {
+      "param1": "value1",
+      "param2": "value2"
+    }
+  }
+}
+```
+
 ## **Response Format Examples**
 
 ### **✅ Correct Example**

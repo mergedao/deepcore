@@ -3,18 +3,18 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import TypedDict, Union
 
-from fastapi import Depends
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import UploadFile, HTTPException
+from fastapi import Depends
+from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import RedirectResponse
 
+from agents.common.config import SETTINGS
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import FileStorage
-from agents.common.config import SETTINGS
 
 logger = logging.getLogger(__name__)
 
