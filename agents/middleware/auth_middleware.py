@@ -31,7 +31,7 @@ class AuthConfig:
         "/api/images/generate", "/api/agents/public",
         "/api/categories", "/"
     ]
-    PUBLIC_PREFIXES = ["/api/files/", "/api/categories/"]
+    PUBLIC_PREFIXES = ["/api/files/", "/api/categories/", "/mcp", "/messages/"]
     OPEN_API_PATHS = [
         r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",
         r"^/api/open/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"
