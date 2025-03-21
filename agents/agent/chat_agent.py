@@ -1,9 +1,7 @@
-import json
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import AsyncIterator
-
-import asyncio
 
 from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
@@ -19,7 +17,6 @@ from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tools.function.local_tool_manager import get_local_tool
 from agents.agent.tools.message_tool import send_message
-from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import AgentInfo, ChatContext
 from agents.models.models import App
 

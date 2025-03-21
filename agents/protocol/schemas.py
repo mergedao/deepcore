@@ -16,6 +16,7 @@ class AgentMode(str, Enum):
     REACT = "ReAct"    # ReAct mode for complex task decomposition and tool calling
     PROMPT = "Prompt"  # Simple prompt mode for direct conversation
     CALL = "call"      # Legacy mode for backward compatibility
+    DEEP_THINKING = "DeepThinking"  # Advanced mode with sophisticated cognitive processing capabilities
 
 
 class AgentStatus(str, Enum):

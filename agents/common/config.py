@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     DATA_API_BASE: str = ""
     DATA_API_KEY: str = ""
 
+    COINMARKETCAP_BASE_HOST: str = ""
+    COINMARKETCAP_API_KEY: str = ""
+
 
 
 SETTINGS = Settings()

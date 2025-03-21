@@ -1,8 +1,8 @@
 import logging
 import uuid
-from typing import Optional, List
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request, Body, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 

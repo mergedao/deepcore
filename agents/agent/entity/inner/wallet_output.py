@@ -3,6 +3,7 @@ import json
 from agents.agent.entity.inner.inner_output import Output
 from agents.agent.tools.message_tool import send_message
 
+
 class WalletOutput(Output):
     data: dict = None
 

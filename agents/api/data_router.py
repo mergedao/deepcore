@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,9 +9,10 @@ from agents.agent.executor.deep_thinking_executor import DeepThinkDto
 from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
 from agents.exceptions import CustomAgentException, ErrorCode
-from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
+from agents.middleware.auth_middleware import get_optional_current_user
 from agents.models.db import get_db
-from agents.services.data_service import DataService, AnalyzeTokenInfoDto, TransAmountStatisticsDto, ChainEnum, CommandEnum
+from agents.services.data_service import DataService, AnalyzeTokenInfoDto, TransAmountStatisticsDto, ChainEnum, \
+    CommandEnum
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

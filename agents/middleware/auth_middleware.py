@@ -5,17 +5,17 @@ from typing import Optional
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from sqlalchemy import select
 
 from agents.common.error_messages import get_error_message
 from agents.common.http_utils import add_cors_headers
 from agents.common.response import RestResponse
 from agents.exceptions import ErrorCode
+from agents.models.models import OpenPlatformKey
 from agents.services import open_service
 from agents.utils.jwt_utils import verify_token
-from agents.models.models import OpenPlatformKey
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)

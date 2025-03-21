@@ -1,6 +1,6 @@
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator, List
 from enum import Enum
+from typing import Dict, Any, AsyncGenerator, List
 
 import httpx
 from fastapi import Depends
