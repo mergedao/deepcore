@@ -99,6 +99,7 @@ class ModelDTO(BaseModel):
     endpoint: Optional[str] = Field(None, description="API endpoint of the model")
     is_official: Optional[bool] = Field(False, description="Whether the model is official preset")
     is_public: Optional[bool] = Field(False, description="Whether the model is public")
+    icon: Optional[str] = Field(None, description="Icon URL of the model")
     create_time: Optional[datetime] = None
     update_time: Optional[datetime] = None
 
@@ -191,6 +192,7 @@ class DialogueRequest(BaseModel):
     query: str = Field(..., description="Query message from the user")
     conversation_id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()), alias="conversationId")
     initFlag: Optional[bool] = Field(False, description="Flag to indicate if this is an initialization dialogue")
+    model_id: Optional[int] = Field(None, description="Optional model ID to override the agent's default model")
 
 
 class DialogueResponse(BaseModel):
@@ -258,6 +260,7 @@ class ModelCreate(BaseModel):
     model_name: str = Field(..., description="Name of the underlying model (e.g. gpt-4, claude-3)")
     endpoint: str = Field(..., description="API endpoint of the model")
     api_key: Optional[str] = Field(None, description="API key for the model")
+    icon: Optional[str] = Field(None, description="Icon URL of the model")
 
 
 class ModelUpdate(BaseModel):
@@ -265,6 +268,7 @@ class ModelUpdate(BaseModel):
     model_name: Optional[str] = Field(None, description="Name of the underlying model (e.g. gpt-4, claude-3)")
     endpoint: Optional[str] = Field(None, description="API endpoint of the model")
     api_key: Optional[str] = Field(None, description="API key for the model")
+    icon: Optional[str] = Field(None, description="Icon URL of the model")
 
 
 class ToolModel(BaseModel):

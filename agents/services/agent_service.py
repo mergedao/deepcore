@@ -35,8 +35,11 @@ async def dialogue(
     agent_info = AgentInfo.from_dto(agent)
     
     # Set up model info if specified
-    if agent.model_id:
-        model_dto, api_key = await get_model_with_key(agent.model_id, user, session)
+    # If request contains model_id, use it instead of agent's default model
+    model_id_to_use = request.model_id if hasattr(request, 'model_id') and request.model_id is not None else agent.model_id
+    
+    if model_id_to_use:
+        model_dto, api_key = await get_model_with_key(model_id_to_use, user, session)
         model_info = ModelInfo(**model_dto.model_dump())
         model_info.api_key = api_key
         agent_info.set_model(model_info)
