@@ -161,6 +161,7 @@ class Model(Base):
     api_key = Column(String(1000), comment="API key for the model")
     is_official = Column(Boolean, default=False, comment="Whether the model is official preset")
     is_public = Column(Boolean, default=False, comment="Whether the model is public")
+    icon = Column(String(255), comment="Icon URL of the model")
     tenant_id = Column(String(255), comment="Tenant ID")
     create_time = Column(DateTime, server_default=func.now(), comment="Creation time")
     update_time = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Last update time")

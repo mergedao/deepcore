@@ -41,6 +41,7 @@ def model_to_dto(model: Model, user: Optional[dict] = None) -> ModelDTO:
         endpoint=model.endpoint if should_include_endpoint else None,
         is_official=model.is_official,
         is_public=model.is_public,
+        icon=model.icon,
         create_time=model.create_time,
         update_time=model.update_time
     )
@@ -60,6 +61,7 @@ async def create_model(
             model_name=model.model_name,
             endpoint=model.endpoint,
             api_key=encrypted_api_key,  # Store encrypted key
+            icon=model.icon,
             tenant_id=user.get('tenant_id')
         )
         session.add(new_model)
@@ -207,6 +209,7 @@ async def get_model_with_key(
             endpoint=model.endpoint,
             is_official=model.is_official,
             is_public=model.is_public,
+            icon=model.icon,
             create_time=model.create_time,
             update_time=model.update_time
         )

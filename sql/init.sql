@@ -116,6 +116,7 @@ CREATE TABLE `models` (
   `api_key` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API key for the model',
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the model is official preset',
   `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the model is public',
+  `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model',
   `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
   `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
   `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
@@ -250,3 +251,6 @@ CREATE TABLE `mcp_resource` (
   UNIQUE KEY `uq_mcp_resource_uri` (`mcp_server_id`, `uri`),
   KEY `idx_mcp_server` (`mcp_server_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add icon field to models table
+ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;
