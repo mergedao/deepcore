@@ -40,6 +40,15 @@ SessionLocal = sessionmaker(
     autoflush=False
 )
 
+def get_async_engine() -> AsyncEngine:
+    """
+    Get the async database engine instance
+    
+    Returns:
+        AsyncEngine: The async SQLAlchemy engine
+    """
+    return engine
+
 @asynccontextmanager
 async def get_session():
     """Provide a transactional scope around a series of operations."""

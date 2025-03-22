@@ -284,7 +284,10 @@ async def get_tool(
         result = await session.execute(
             select(Tool).options(selectinload(Tool.category)).where(
                 Tool.id == tool_id,
-                Tool.tenant_id == user.get('tenant_id'),
+                or_(
+                    Tool.tenant_id == user.get('tenant_id'),
+                    Tool.is_public == True
+                ),
                 Tool.is_deleted == False
             )
         )
@@ -303,6 +306,7 @@ async def get_tool(
             ErrorCode.API_CALL_ERROR,
             f"Failed to get tool: {str(e)}"
         )
+
 
 async def get_tools(
         session: AsyncSession,
@@ -764,7 +768,7 @@ async def parse_mcp_content(url: str) -> list:
                         'name': tool.name,
                         'description': tool.description or '',
                         'path': path,  # Use a standardized path format
-                        'method': 'POST',  # MCP tools typically use POST method
+                        'method': 'SSE',  # MCP tools typically use SSE method
                         'origin': base_url,
                         'parameters': tool.inputSchema,  # Use the inputSchema as the body parameter
                         'type': ToolType.MCP.value,
@@ -778,4 +782,43 @@ async def parse_mcp_content(url: str) -> list:
         raise CustomAgentException(
             ErrorCode.API_CALL_ERROR,
             f"Failed to parse MCP content: {str(e)}"
+        )
+
+async def get_tools_by_ids(
+        tool_ids: List[str], 
+        user: dict,
+        session: AsyncSession
+):
+    """
+    Batch retrieve multiple tool objects (returns ORM objects directly, not DTOs)
+    
+    Args:
+        tool_ids: List of tool IDs
+        user: Current user information
+        session: Database session
+        
+    Returns:
+        Dictionary with tool IDs as keys and Tool objects as values
+    """
+    try:
+        result = await session.execute(
+            select(Tool).options(selectinload(Tool.category)).where(
+                Tool.id.in_(tool_ids),
+                or_(
+                    Tool.tenant_id == user.get('tenant_id'),
+                    Tool.is_public == True
+                ),
+                Tool.is_deleted == False
+            )
+        )
+        tools = result.scalars().all()
+        
+        # Create mapping from ID to Tool object
+        tool_map = {str(tool.id): tool for tool in tools}
+        return tool_map
+    except Exception as e:
+        logger.error(f"Failed to batch retrieve tools: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to batch retrieve tools: {str(e)}"
         )
