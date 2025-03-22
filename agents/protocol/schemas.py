@@ -154,6 +154,7 @@ class AICreateAgentDTO(BaseModel):
 class APIToolData(BaseModel):
     """Base model for API tool data"""
     name: str = Field(..., description="Name of the API tool")
+    type: ToolType = Field(default=ToolType.OPENAPI, description='Type of the tool')
     description: Optional[str] = Field(None, description="Description of the Tool")
     origin: str = Field(..., description="API origin")
     path: str = Field(..., description="API path")

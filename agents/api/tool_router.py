@@ -377,3 +377,31 @@ async def upload_openapi(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
         )
+
+
+@router.post("/tools/parse-mcp", summary="Parse MCP Service URL")
+async def parse_mcp(
+    mcp_url: str = Body(..., embed=True, description="MCP service URL to fetch tools from"),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Parse MCP service URL and return tools information
+    
+    Parameters:
+    - **mcp_url**: MCP service URL to fetch tools from (e.g., "http://0.0.0.0:8080/mcp/coin-api")
+    """
+    try:
+        api_info = await tool_service.parse_mcp_content(mcp_url)
+        return RestResponse(data={
+            "url": mcp_url,
+            "api_info": api_info
+        })
+    except CustomAgentException as e:
+        logger.error(f"Error parsing MCP URL: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=e.message)
+    except Exception as e:
+        logger.error(f"Unexpected error parsing MCP URL: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
