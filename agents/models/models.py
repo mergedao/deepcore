@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Column, String, Boolean, DateTime, func, JSON, Text, LargeBinary, BigInteger, Integer, \
-    ForeignKey, Numeric
+    ForeignKey, Numeric, UUID, UniqueConstraint
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -181,3 +181,82 @@ class OpenPlatformKey(Base):
 
     # Relationships
     user = relationship("User", back_populates="open_platform_keys")
+
+
+# Add MCP related models
+class MCPServer(Base):
+    """MCP Server model for storing MCP server configurations"""
+    __tablename__ = "mcp_server"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False, index=True, unique=True)
+    description = Column(Text, nullable=True)
+    version = Column(String(50), nullable=False, default="1.0.0")
+    is_active = Column(Boolean, default=True)
+    tenant_id = Column(String(36), nullable=False)
+    create_time = Column(DateTime, nullable=False, default=datetime.utcnow)
+    update_time = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    tools = relationship("MCPTool", back_populates="mcp_server", cascade="all, delete-orphan")
+    prompts = relationship("MCPPrompt", back_populates="mcp_server", cascade="all, delete-orphan")
+    resources = relationship("MCPResource", back_populates="mcp_server", cascade="all, delete-orphan")
+
+
+class MCPTool(Base):
+    """Association between MCP servers and tools"""
+    __tablename__ = "mcp_tool"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mcp_server_id = Column(Integer, ForeignKey("mcp_server.id", ondelete="CASCADE"), nullable=False)
+    tool_id = Column(String(36), ForeignKey("tools.id", ondelete="CASCADE"), nullable=False)
+    create_time = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relationships
+    mcp_server = relationship("MCPServer", back_populates="tools")
+    tool = relationship("Tool")
+    
+    __table_args__ = (
+        UniqueConstraint('mcp_server_id', 'tool_id', name='uq_mcp_tool'),
+    )
+
+
+class MCPPrompt(Base):
+    """MCP Prompt template model"""
+    __tablename__ = "mcp_prompt"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mcp_server_id = Column(Integer, ForeignKey("mcp_server.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    arguments = Column(JSON, nullable=True)
+    template = Column(Text, nullable=False)
+    create_time = Column(DateTime, nullable=False, default=datetime.utcnow)
+    update_time = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    mcp_server = relationship("MCPServer", back_populates="prompts")
+    
+    __table_args__ = (
+        UniqueConstraint('mcp_server_id', 'name', name='uq_mcp_prompt_name'),
+    )
+
+
+class MCPResource(Base):
+    """MCP Resource model"""
+    __tablename__ = "mcp_resource"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    mcp_server_id = Column(Integer, ForeignKey("mcp_server.id", ondelete="CASCADE"), nullable=False)
+    uri = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    mime_type = Column(String(100), nullable=False, default="text/plain")
+    create_time = Column(DateTime, nullable=False, default=datetime.utcnow)
+    update_time = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    mcp_server = relationship("MCPServer", back_populates="resources")
+    
+    __table_args__ = (
+        UniqueConstraint('mcp_server_id', 'uri', name='uq_mcp_resource_uri'),
+    )
