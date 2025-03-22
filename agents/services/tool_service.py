@@ -1,5 +1,6 @@
 import logging
 from typing import List, Optional, Dict
+from urllib.parse import urlparse
 
 from fastapi import Depends
 from sqlalchemy import update, select, or_, and_, delete, func
@@ -733,4 +734,48 @@ async def parse_openapi_content(content: str) -> list:
         raise CustomAgentException(
             ErrorCode.API_CALL_ERROR,
             f"Failed to parse OpenAPI content: {str(e)}"
+        )
+
+async def parse_mcp_content(url: str) -> list:
+    """
+    Parse MCP content from URL and return flattened API information
+    
+    Args:
+        url: MCP service URL to fetch tools from
+    
+    Returns:
+        List of flattened API tool information
+    """
+    try:
+        from mirascope.mcp import sse_client
+        
+        async with sse_client(url) as client:
+            tools_result = await client._session.list_tools()
+            
+        flattened_tools = []
+        parsed_url = urlparse(url)
+        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        path = parsed_url.path
+        
+        for item in tools_result:
+            if isinstance(item, tuple) and item[0] == "tools":
+                for tool in item[1]:
+                    tool_info = {
+                        'name': tool.name,
+                        'description': tool.description or '',
+                        'path': path,  # Use a standardized path format
+                        'method': 'POST',  # MCP tools typically use POST method
+                        'origin': base_url,
+                        'parameters': tool.inputSchema,  # Use the inputSchema as the body parameter
+                        'type': ToolType.MCP.value,
+                    }
+
+                    flattened_tools.append(tool_info)
+            
+        return flattened_tools
+    except Exception as e:
+        logger.error(f"Error parsing MCP content from URL {url}: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to parse MCP content: {str(e)}"
         )
