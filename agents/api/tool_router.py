@@ -1,8 +1,9 @@
 import logging
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends, Query, Path, Body, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import StreamingResponse
 
 from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
@@ -13,6 +14,7 @@ from agents.protocol.response import ToolModel
 from agents.protocol.schemas import ToolCreate, ToolUpdate, AgentToolsRequest, CreateToolsBatchRequest, \
     OpenAPIParseRequest
 from agents.services import tool_service
+from agents.utils.http_client import debug_tool_api
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -401,6 +403,80 @@ async def parse_mcp(
         return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error parsing MCP URL: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/tools/{tool_id}/debug", summary="Debug Tool API")
+async def debug_tool(
+    tool_id: str = Path(..., description="ID of the tool to debug"),
+    input_params: Dict[str, Any] = Body({}, description="Input parameters for the API call"),
+    session: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Debug a tool's API by sending a request with user-provided parameters
+    
+    This endpoint allows testing a tool's API with custom parameters to verify its functionality.
+    It supports both streaming and non-streaming responses based on the tool's configuration.
+    
+    Parameters:
+    - **tool_id**: ID of the tool to debug
+    - **input_params**: JSON body containing parameters to use for the API call:
+      - Query parameters as key-value pairs
+      - Body data under the "body" key
+      - Custom headers under the "headers" key as a nested object
+    
+    Example input_params:
+    ```json
+    {
+        "query_param1": "value1",
+        "query_param2": "value2",
+        "body": {
+            "key1": "value1",
+            "key2": "value2"
+        },
+        "headers": {
+            "X-Custom-Header": "custom-value"
+        }
+    }
+    ```
+    
+    Returns the API response. For streaming APIs, a streaming response is returned.
+    """
+    try:
+        # Get tool information
+        tool = await tool_service.get_tool(tool_id, user, session)
+        if not tool:
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                "Tool not found or no permission"
+            )
+        
+        # Convert ToolModel to dict for the debug function
+        tool_info = tool.model_dump()
+        
+        # Extract user headers if provided
+        user_headers = input_params.pop('headers', None)
+        
+        # If tool is stream type, use StreamingResponse
+        if tool.is_stream:
+            response_stream = debug_tool_api(tool_info, input_params, user_headers)
+            return StreamingResponse(
+                content=response_stream, 
+                media_type="text/event-stream"
+            )
+        else:
+            # For non-streaming responses, collect the result
+            async for response in debug_tool_api(tool_info, input_params, user_headers):
+                return RestResponse(data=response)
+    except CustomAgentException as e:
+        logger.error(f"Error debugging tool: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error debugging tool: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
