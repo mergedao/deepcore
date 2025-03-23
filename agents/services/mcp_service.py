@@ -697,11 +697,31 @@ async def add_prompt_template(
     Returns:
         Success status
     """
-    close_session = False
-    if not session:
-        session = await get_async_session()
-        close_session = True
+    # If a session is provided, use it directly
+    if session:
+        return await _add_prompt_template_impl(
+            mcp_name, prompt_name, description, arguments, template, session
+        )
     
+    # Otherwise use context manager to ensure session is properly closed
+    try:
+        async with get_async_session_ctx() as managed_session:
+            return await _add_prompt_template_impl(
+                mcp_name, prompt_name, description, arguments, template, managed_session
+            )
+    except Exception as e:
+        logger.error(f"Error adding prompt template: {e}", exc_info=True)
+        return False
+
+async def _add_prompt_template_impl(
+    mcp_name: str,
+    prompt_name: str,
+    description: str,
+    arguments: List[Dict[str, Any]],
+    template: str,
+    session: AsyncSession
+) -> bool:
+    """Implementation of add_prompt_template with an existing session"""
     try:
         # Get the MCP server
         db_server = await session.execute(
@@ -740,12 +760,9 @@ async def add_prompt_template(
         await session.commit()
         return True
     except Exception as e:
-        logger.error(f"Error adding prompt template: {e}", exc_info=True)
+        logger.error(f"Error in add_prompt_template implementation: {e}", exc_info=True)
         await session.rollback()
         return False
-    finally:
-        if close_session:
-            await session.close()
 
 async def add_resource(
     mcp_name: str,
@@ -761,17 +778,32 @@ async def add_resource(
         mcp_name: MCP server name
         resource_uri: Resource URI
         content: Resource content
-        mime_type: MIME type of the resource
+        mime_type: MIME type of the resource, default is text/plain
         session: Optional database session
         
     Returns:
         Success status
     """
-    close_session = False
-    if not session:
-        session = await get_async_session()
-        close_session = True
+    # If a session is provided, use it directly
+    if session:
+        return await _add_resource_impl(mcp_name, resource_uri, content, mime_type, session)
     
+    # Otherwise use context manager to ensure session is properly closed
+    try:
+        async with get_async_session_ctx() as managed_session:
+            return await _add_resource_impl(mcp_name, resource_uri, content, mime_type, managed_session)
+    except Exception as e:
+        logger.error(f"Error adding resource: {e}", exc_info=True)
+        return False
+
+async def _add_resource_impl(
+    mcp_name: str,
+    resource_uri: str,
+    content: str,
+    mime_type: str,
+    session: AsyncSession
+) -> bool:
+    """Implementation of add_resource with an existing session"""
     try:
         # Get the MCP server
         db_server = await session.execute(
@@ -808,51 +840,53 @@ async def add_resource(
         await session.commit()
         return True
     except Exception as e:
-        logger.error(f"Error adding resource: {e}", exc_info=True)
+        logger.error(f"Error in add_resource implementation: {e}", exc_info=True)
         await session.rollback()
         return False
-    finally:
-        if close_session:
-            await session.close()
 
 async def get_registered_mcp_servers(session: Optional[AsyncSession] = None) -> List[Dict[str, Any]]:
     """
-    Get information about all registered MCP servers
+    Get all registered MCP servers
     
     Args:
         session: Optional database session
         
     Returns:
-        List of MCP server information
+        List of registered MCP servers
     """
-    close_session = False
-    if not session:
-        session = await get_async_session()
-        close_session = True
+    # If a session is provided, use it directly
+    if session:
+        return await _get_registered_mcp_servers_impl(session)
     
+    # Otherwise use context manager to ensure session is properly closed
     try:
-        # Query all MCP servers
-        result = await session.execute(
-            select(MCPServer).where(MCPServer.is_active == True)
-        )
-        servers = result.scalars().all()
-        
-        # Format response
-        server_list = []
-        for server in servers:
-            server_list.append({
-                "name": server.name,
-                "url": f"{SETTINGS.API_BASE_URL}/mcp/{server.name}",
-                "description": server.description
-            })
-            
-        return server_list
+        async with get_async_session_ctx() as managed_session:
+            return await _get_registered_mcp_servers_impl(managed_session)
     except Exception as e:
         logger.error(f"Error getting registered MCP servers: {e}", exc_info=True)
         return []
-    finally:
-        if close_session:
-            await session.close()
+
+async def _get_registered_mcp_servers_impl(session: AsyncSession) -> List[Dict[str, Any]]:
+    """Implementation of get_registered_mcp_servers with an existing session"""
+    try:
+        # Get all MCP servers
+        db_servers = await session.execute(select(MCPServer))
+        servers = db_servers.scalars().all()
+        
+        result = []
+        for server in servers:
+            result.append({
+                "id": server.id,
+                "name": server.name,
+                "description": server.description,
+                "created_at": server.created_at,
+                "updated_at": server.updated_at
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error in get_registered_mcp_servers implementation: {e}", exc_info=True)
+        return []
 
 async def delete_mcp_server(mcp_name: str, session: Optional[AsyncSession] = None) -> bool:
     """
@@ -865,39 +899,38 @@ async def delete_mcp_server(mcp_name: str, session: Optional[AsyncSession] = Non
     Returns:
         Success status
     """
-    close_session = False
-    if not session:
-        session = await get_async_session()
-        close_session = True
+    # If a session is provided, use it directly
+    if session:
+        return await _delete_mcp_server_impl(mcp_name, session)
     
+    # Otherwise use context manager to ensure session is properly closed
     try:
-        # Find the server
-        result = await session.execute(
-            select(MCPServer).where(MCPServer.name == mcp_name)
-        )
-        server = result.scalar_one_or_none()
-        
-        if not server:
-            return False
-            
-        # Alternatively, you can set is_active to False instead of deleting
-        # server.is_active = False
-        # await session.commit()
-        
-        # Delete server from database
-        await session.execute(
-            delete(MCPServer).where(MCPServer.name == mcp_name)
-        )
-        await session.commit()
-            
-        return True
+        async with get_async_session_ctx() as managed_session:
+            return await _delete_mcp_server_impl(mcp_name, managed_session)
     except Exception as e:
         logger.error(f"Error deleting MCP server: {e}", exc_info=True)
+        return False
+
+async def _delete_mcp_server_impl(mcp_name: str, session: AsyncSession) -> bool:
+    """Implementation of delete_mcp_server with an existing session"""
+    try:
+        # Get the MCP server
+        db_server = await session.execute(
+            select(MCPServer).where(MCPServer.name == mcp_name)
+        )
+        server_obj = db_server.scalar_one_or_none()
+        
+        if not server_obj:
+            return False
+        
+        # Delete the server
+        await session.delete(server_obj)
+        await session.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Error in delete_mcp_server implementation: {e}", exc_info=True)
         await session.rollback()
         return False
-    finally:
-        if close_session:
-            await session.close()
 
 async def get_tool_mcp_mapping(session: Optional[AsyncSession] = None) -> Dict[str, str]:
     """
@@ -909,32 +942,36 @@ async def get_tool_mcp_mapping(session: Optional[AsyncSession] = None) -> Dict[s
     Returns:
         Mapping dictionary
     """
-    close_session = False
-    if not session:
-        session = await get_async_session()
-        close_session = True
+    # If a session is provided, use it directly
+    if session:
+        return await _get_tool_mcp_mapping_impl(session)
     
+    # Otherwise use context manager to ensure session is properly closed
     try:
-        # Query MCPTool table to get tool to MCP server mapping
-        result = await session.execute(
-            select(MCPTool, MCPServer)
-            .join(MCPServer, MCPTool.mcp_server_id == MCPServer.id)
-            .where(MCPServer.is_active == True)
-        )
-        mappings = result.all()
-        
-        # Format response
-        mapping_dict = {}
-        for mcp_tool, mcp_server in mappings:
-            mapping_dict[str(mcp_tool.tool_id)] = mcp_server.name
-            
-        return mapping_dict
+        async with get_async_session_ctx() as managed_session:
+            return await _get_tool_mcp_mapping_impl(managed_session)
     except Exception as e:
         logger.error(f"Error getting tool MCP mapping: {e}", exc_info=True)
         return {}
-    finally:
-        if close_session:
-            await session.close()
+
+async def _get_tool_mcp_mapping_impl(session: AsyncSession) -> Dict[str, str]:
+    """Implementation of get_tool_mcp_mapping with an existing session"""
+    try:
+        # Get all MCP server tools
+        result = await session.execute(
+            select(MCPTool, MCPServer)
+            .join(MCPServer, MCPTool.mcp_server_id == MCPServer.id)
+        )
+        server_tools = result.all()
+        
+        mapping = {}
+        for server_tool, server in server_tools:
+            mapping[server_tool.tool_id] = server.name
+        
+        return mapping
+    except Exception as e:
+        logger.error(f"Error in get_tool_mcp_mapping implementation: {e}", exc_info=True)
+        return {}
 
 # No longer need to initialize MCP servers on startup
 # Instead, servers are created dynamically for each request 

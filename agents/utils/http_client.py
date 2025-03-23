@@ -153,3 +153,69 @@ class AsyncHttpClient:
 
 # Create a default client instance
 async_client = AsyncHttpClient()
+
+async def debug_tool_api(
+    tool_info: Dict,
+    input_params: Dict,
+    user_headers: Optional[Dict[str, str]] = None
+) -> Union[Dict, str, AsyncGenerator[str, None]]:
+    """
+    Debug a tool API by sending a request with user-provided parameters
+    
+    Args:
+        tool_info: Tool information including origin, path, method, and auth_config
+        input_params: User input parameters for the API call
+        user_headers: Additional headers to include in the request
+        
+    Returns:
+        API response which can be a dict, string, or async generator for streaming responses
+    """
+    method = tool_info.get('method', 'GET')
+    origin = tool_info.get('origin', '')
+    path = tool_info.get('path', '')
+    auth_config = tool_info.get('auth_config')
+    is_stream = tool_info.get('is_stream', False)
+    
+    # Process parameters based on tool parameters structure
+    params = {}
+    headers = user_headers or {}
+    json_data = None
+    form_data = None
+    
+    tool_parameters = tool_info.get('parameters', {})
+    
+    # Process query parameters
+    if 'query' in tool_parameters and isinstance(tool_parameters['query'], list):
+        for param in tool_parameters['query']:
+            param_name = param.get('name')
+            if param_name and param_name in input_params:
+                params[param_name] = input_params[param_name]
+    
+    # Process header parameters
+    if 'header' in tool_parameters and isinstance(tool_parameters['header'], list):
+        for param in tool_parameters['header']:
+            param_name = param.get('name')
+            if param_name and param_name in input_params:
+                headers[param_name] = input_params[param_name]
+    
+    # Process body parameters
+    if 'body' in tool_parameters and input_params.get('body'):
+        json_data = input_params.get('body')
+    
+    # Create HTTP client
+    async with AsyncHttpClient(headers=headers) as client:
+        logger.info(f"Debugging tool API: {method} {origin}/{path}")
+        logger.info(f"With parameters: {params}, body: {json_data}")
+        
+        # Use the request method to make the API call
+        async for response in client.request(
+            method=method,
+            base_url=origin,
+            path=path,
+            params=params,
+            json_data=json_data,
+            data=form_data,
+            auth_config=auth_config,
+            stream=is_stream
+        ):
+            yield response

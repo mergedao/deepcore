@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     HOST: str = "0.0.0.0"
     PORT: int = 8080
+    WORKERS: int = 1
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = ""
     MODEL_NAME: str = "gpt-4o-2024-11-20"

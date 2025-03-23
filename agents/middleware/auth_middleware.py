@@ -29,12 +29,15 @@ class AuthConfig:
         "/api/auth/verify-email", "/docs", "/redoc",
         "/api/health", "/openapi.json", "/api/upload/file",
         "/api/images/generate", "/api/agents/public",
-        "/api/categories", "/"
+        "/api/categories", "/", "/api/health/detailed"
     ]
     PUBLIC_PREFIXES = ["/api/files/", "/api/categories/", "/mcp", "/messages/"]
     OPEN_API_PATHS = [
         r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",
-        r"^/api/open/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"
+        r"^/api/open/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",
+        r"^/api/mcp/.*$",
+        r"^/mcp/.*$",
+        r"^/api/tools/.*$"
     ]
 
 class AuthResponse:

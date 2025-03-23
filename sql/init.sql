@@ -196,9 +196,9 @@ ALTER TABLE `app` ADD INDEX `idx_status` (`status`);
 
 -- ALTER TABLE `tools` ADD COLUMN `sensitive_data_config` JSON DEFAULT NULL COMMENT 'Configuration for sensitive data handling' ,ALGORITHM=INPLACE,LOCK=NONE;
 
-ALTER TABLE `users`
-ADD COLUMN `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana'
-AFTER `wallet_address`;
+-- ALTER TABLE `users`
+-- ADD COLUMN `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana'
+-- AFTER `wallet_address`;
 -- Add MCP persistence tables
 CREATE TABLE `mcp_server` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
@@ -253,4 +253,4 @@ CREATE TABLE `mcp_resource` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Add icon field to models table
-ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;
+-- ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;
