@@ -41,6 +41,7 @@ def tool_to_dto(tool: Tool, user: Optional[dict] = None) -> ToolModel:
             path=tool.path,
             method=tool.method,
             parameters=tool.parameters,
+            description=tool.description,
             auth_config=tool.auth_config if should_include_auth else None,
             icon=tool.icon or SETTINGS.DEFAULT_TOOL_ICON,
             is_public=tool.is_public,
