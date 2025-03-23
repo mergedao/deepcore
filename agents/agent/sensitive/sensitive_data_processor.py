@@ -1,9 +1,9 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
-from agents.common.redis_utils import redis_utils, RedisUtils
+from agents.common.redis_utils import redis_utils
 
 logger = logging.getLogger(__name__)
 

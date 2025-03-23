@@ -1,11 +1,13 @@
 import logging
 from typing import List, Optional, Dict
+from urllib.parse import urlparse
 
 from fastapi import Depends
 from sqlalchemy import update, select, or_, and_, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from agents.common.config import SETTINGS
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import Tool, App, AgentTool
@@ -13,7 +15,6 @@ from agents.protocol.response import ToolModel
 from agents.protocol.schemas import ToolType, AuthConfig, CategoryDTO
 from agents.utils import openapi
 from agents.utils.openapi_utils import extract_endpoints_info
-from agents.common.config import SETTINGS
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +93,12 @@ async def create_tool(
                 "User must belong to a tenant to create tools"
             )
 
+        tool_type = tool_data.get('type', ToolType.OPENAPI.value)
+        
         new_tool = Tool(
             name=tool_data['name'],
             description=tool_data.get('description'),
-            type=ToolType.OPENAPI.value,
+            type=tool_type,
             origin=tool_data['origin'],
             path=tool_data['path'],
             method=tool_data['method'],
@@ -281,7 +284,10 @@ async def get_tool(
         result = await session.execute(
             select(Tool).options(selectinload(Tool.category)).where(
                 Tool.id == tool_id,
-                Tool.tenant_id == user.get('tenant_id'),
+                or_(
+                    Tool.tenant_id == user.get('tenant_id'),
+                    Tool.is_public == True
+                ),
                 Tool.is_deleted == False
             )
         )
@@ -300,6 +306,7 @@ async def get_tool(
             ErrorCode.API_CALL_ERROR,
             f"Failed to get tool: {str(e)}"
         )
+
 
 async def get_tools(
         session: AsyncSession,
@@ -731,4 +738,87 @@ async def parse_openapi_content(content: str) -> list:
         raise CustomAgentException(
             ErrorCode.API_CALL_ERROR,
             f"Failed to parse OpenAPI content: {str(e)}"
+        )
+
+async def parse_mcp_content(url: str) -> list:
+    """
+    Parse MCP content from URL and return flattened API information
+    
+    Args:
+        url: MCP service URL to fetch tools from
+    
+    Returns:
+        List of flattened API tool information
+    """
+    try:
+        from mirascope.mcp import sse_client
+        
+        async with sse_client(url) as client:
+            tools_result = await client._session.list_tools()
+            
+        flattened_tools = []
+        parsed_url = urlparse(url)
+        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        path = parsed_url.path
+        
+        for item in tools_result:
+            if isinstance(item, tuple) and item[0] == "tools":
+                for tool in item[1]:
+                    tool_info = {
+                        'name': tool.name,
+                        'description': tool.description or '',
+                        'path': path,  # Use a standardized path format
+                        'method': 'SSE',  # MCP tools typically use SSE method
+                        'origin': base_url,
+                        'parameters': tool.inputSchema,  # Use the inputSchema as the body parameter
+                        'type': ToolType.MCP.value,
+                    }
+
+                    flattened_tools.append(tool_info)
+            
+        return flattened_tools
+    except Exception as e:
+        logger.error(f"Error parsing MCP content from URL {url}: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to parse MCP content: {str(e)}"
+        )
+
+async def get_tools_by_ids(
+        tool_ids: List[str], 
+        user: dict,
+        session: AsyncSession
+):
+    """
+    Batch retrieve multiple tool objects (returns ORM objects directly, not DTOs)
+    
+    Args:
+        tool_ids: List of tool IDs
+        user: Current user information
+        session: Database session
+        
+    Returns:
+        Dictionary with tool IDs as keys and Tool objects as values
+    """
+    try:
+        result = await session.execute(
+            select(Tool).options(selectinload(Tool.category)).where(
+                Tool.id.in_(tool_ids),
+                or_(
+                    Tool.tenant_id == user.get('tenant_id'),
+                    Tool.is_public == True
+                ),
+                Tool.is_deleted == False
+            )
+        )
+        tools = result.scalars().all()
+        
+        # Create mapping from ID to Tool object
+        tool_map = {str(tool.id): tool for tool in tools}
+        return tool_map
+    except Exception as e:
+        logger.error(f"Failed to batch retrieve tools: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to batch retrieve tools: {str(e)}"
         )

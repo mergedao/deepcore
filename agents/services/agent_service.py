@@ -10,10 +10,10 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from agents.agent.chat_agent import ChatAgent
+from agents.agent.memory.agent_context_manager import agent_context_manager
 from agents.common.config import SETTINGS
 from agents.common.encryption_utils import encryption_utils
 from agents.common.redis_utils import redis_utils
-from agents.agent.memory.agent_context_manager import agent_context_manager
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo, ChatContext
@@ -35,8 +35,11 @@ async def dialogue(
     agent_info = AgentInfo.from_dto(agent)
     
     # Set up model info if specified
-    if agent.model_id:
-        model_dto, api_key = await get_model_with_key(agent.model_id, user, session)
+    # If request contains model_id, use it instead of agent's default model
+    model_id_to_use = request.model_id if hasattr(request, 'model_id') and request.model_id is not None else agent.model_id
+    
+    if model_id_to_use:
+        model_dto, api_key = await get_model_with_key(model_id_to_use, user, session)
         model_info = ModelInfo(**model_dto.model_dump())
         model_info.api_key = api_key
         agent_info.set_model(model_info)

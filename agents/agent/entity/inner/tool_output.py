@@ -12,3 +12,7 @@ class ToolOutput(Output):
 
     def to_stream(self) -> str:
         return self.data
+
+    def get_response(self) -> str:
+        return ""
+

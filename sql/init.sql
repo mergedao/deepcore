@@ -116,6 +116,7 @@ CREATE TABLE `models` (
   `api_key` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'API key for the model',
   `is_official` BOOLEAN DEFAULT FALSE COMMENT 'Whether the model is official preset',
   `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the model is public',
+  `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model',
   `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
   `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
   `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
@@ -198,3 +199,58 @@ ALTER TABLE `app` ADD INDEX `idx_status` (`status`);
 ALTER TABLE `users`
 ADD COLUMN `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana'
 AFTER `wallet_address`;
+-- Add MCP persistence tables
+CREATE TABLE `mcp_server` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the MCP server',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Description of the MCP server',
+  `version` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '1.0.0' COMMENT 'Version of the MCP server',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT 'Whether the MCP server is active',
+  `tenant_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Tenant ID',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
+  `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_mcp_server_name` (`name`),
+  KEY `idx_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `mcp_tool` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `mcp_server_id` int NOT NULL COMMENT 'ID of the MCP server',
+  `tool_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'ID of the tool',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_mcp_tool` (`mcp_server_id`, `tool_id`),
+  KEY `idx_tool` (`tool_id`),
+  KEY `idx_mcp_server` (`mcp_server_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `mcp_prompt` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `mcp_server_id` int NOT NULL COMMENT 'ID of the MCP server',
+  `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the prompt template',
+  `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Description of the prompt template',
+  `arguments` JSON COMMENT 'Arguments for the prompt template in JSON format',
+  `template` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Prompt template text',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
+  `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_mcp_prompt_name` (`mcp_server_id`, `name`),
+  KEY `idx_mcp_server` (`mcp_server_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE `mcp_resource` (
+  `id` int NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `mcp_server_id` int NOT NULL COMMENT 'ID of the MCP server',
+  `uri` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'URI of the resource',
+  `content` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Content of the resource',
+  `mime_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text/plain' COMMENT 'MIME type of the resource',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
+  `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_mcp_resource_uri` (`mcp_server_id`, `uri`),
+  KEY `idx_mcp_server` (`mcp_server_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add icon field to models table
+ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;

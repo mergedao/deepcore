@@ -1,16 +1,18 @@
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
+from agents.agent.executor.deep_thinking_executor import DeepThinkDto
 from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
 from agents.exceptions import CustomAgentException, ErrorCode
-from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
+from agents.middleware.auth_middleware import get_optional_current_user
 from agents.models.db import get_db
-from agents.services.data_service import DataService, AnalyzeTokenInfoDto, TransAmountStatisticsDto, ChainEnum, CommandEnum
+from agents.services.data_service import DataService, AnalyzeTokenInfoDto, TransAmountStatisticsDto, ChainEnum, \
+    CommandEnum
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -140,6 +142,40 @@ async def get_trans_amount_statistics(
         return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
         logger.error(f"Unexpected error fetching transaction statistics: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+@router.post("/agent/stream/deep-think", summary="Deep Analysis")
+async def deep_think(
+    query: DeepThinkDto = Body(..., description="Query for deep analysis"),
+    user: Optional[dict] = Depends(get_optional_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Deep analysis with streaming response
+    
+    This endpoint provides in-depth analysis based on your query, with results streamed as they're generated.
+    The response is streamed as Server-Sent Events (SSE).
+    
+    Parameters:
+        - query: Contains the question (q) to analyze
+    
+    Returns:
+        - Streaming response with analysis results
+    """
+    try:
+        data_service = DataService(session)
+        return StreamingResponse(
+            content=data_service.deep_think(query),
+            media_type="text/event-stream"
+        )
+    except CustomAgentException as e:
+        logger.error(f"Error performing deep analysis: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in deep analysis: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

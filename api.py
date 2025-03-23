@@ -1,14 +1,14 @@
 import logging
-import contextlib
 
 import fastapi
 import uvicorn
 from fastapi import FastAPI
-from starlette.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from agents.agent.mcp import mcp_sse
 from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router, image_router, category_router, open_router
 from agents.api.data_router import router as data_router
+from agents.api.mcp_router import router as mcp_router
 from agents.common.config import SETTINGS
 from agents.common.log import Log
 from agents.common.otel import Otel, OtelFastAPI
@@ -78,6 +78,10 @@ def create_app() -> FastAPI:
     app.include_router(category_router.router, prefix="/api", tags=["category"])
     app.include_router(open_router.router, prefix="/api/open", tags=["open"])
     app.include_router(data_router, prefix="/api/p", tags=["data"])
+    app.include_router(mcp_router, prefix="/api", tags=["mcp"])
+
+    # add mcp
+    app.mount("/", mcp_sse.get_application())
 
     # Initialize OpenTelemetry
     OtelFastAPI.init(app)

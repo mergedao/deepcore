@@ -1,6 +1,6 @@
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator, List
 from enum import Enum
+from typing import Dict, Any, AsyncGenerator, List
 
 import httpx
 from fastapi import Depends
@@ -49,6 +49,12 @@ class TransAmountStatisticsDto(BaseModel):
     """
     chain: ChainEnum
     cmd: CommandEnum
+
+class DeepThinkDto(BaseModel):
+    """
+    Data transfer object for deep analysis request
+    """
+    q: str  # Query string for deep analysis
 
 class DataService:
     def __init__(self, session: AsyncSession = Depends(get_db)):
@@ -176,4 +182,35 @@ class DataService:
                 raise CustomAgentException(
                     error_code=ErrorCode.API_CALL_ERROR,
                     message=f"Failed to fetch transaction statistics: {str(e)}"
-                ) 
+                )
+                
+    async def deep_think(self, params: DeepThinkDto) -> AsyncGenerator[str, None]:
+        """
+        Deep analysis with streaming response
+        
+        :param params: Query parameters including the question for analysis
+        :return: Async generator yielding analysis results
+        """
+        url = f"{self.api_base}/p/agent/stream/deep-think"
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": self.api_key
+        }
+        
+        payload = {"q": params.q}
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                async with client.stream(
+                    "POST",
+                    url, 
+                    headers=headers, 
+                    json=payload, 
+                    timeout=httpx.Timeout(120.0)  # Longer timeout for deep analysis
+                ) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_text():
+                        yield chunk
+            except httpx.RequestError as e:
+                logger.error(f"Request error for deep_think: {str(e)}", exc_info=True)
+                yield f"error: {str(e)}" 

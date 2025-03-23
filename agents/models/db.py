@@ -1,5 +1,5 @@
-import logging
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from urllib.parse import quote
 
@@ -26,9 +26,8 @@ engine = create_async_engine(
     connect_args={
         "charset": "utf8mb4",
         "use_unicode": True,
-        "connect_timeout": 10,  # Connection timeout in seconds
-        "read_timeout": 30,     # Added read timeout
-        "write_timeout": 30     # Added write timeout
+        "connect_timeout": 10  # Connection timeout in seconds
+        # Removed read_timeout and write_timeout as they're not supported by aiomysql
     }
 )
 
@@ -40,6 +39,15 @@ SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False
 )
+
+def get_async_engine() -> AsyncEngine:
+    """
+    Get the async database engine instance
+    
+    Returns:
+        AsyncEngine: The async SQLAlchemy engine
+    """
+    return engine
 
 @asynccontextmanager
 async def get_session():

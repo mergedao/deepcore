@@ -5,17 +5,17 @@ from typing import Optional
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
+from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
-from sqlalchemy import select
 
 from agents.common.error_messages import get_error_message
 from agents.common.http_utils import add_cors_headers
 from agents.common.response import RestResponse
 from agents.exceptions import ErrorCode
+from agents.models.models import OpenPlatformKey
 from agents.services import open_service
 from agents.utils.jwt_utils import verify_token
-from agents.models.models import OpenPlatformKey
 
 security = HTTPBearer()
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class AuthConfig:
         "/api/images/generate", "/api/agents/public",
         "/api/categories", "/"
     ]
-    PUBLIC_PREFIXES = ["/api/files/", "/api/categories/"]
+    PUBLIC_PREFIXES = ["/api/files/", "/api/categories/", "/mcp", "/messages/"]
     OPEN_API_PATHS = [
         r"^/api/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$",
         r"^/api/open/agents/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/dialogue$"

@@ -1,8 +1,8 @@
 import logging
 import uuid
-from typing import Optional, List
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request, Body, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
@@ -274,6 +274,7 @@ async def dialogue(
     - **agent_id**: ID of the agent to interact with
     - **message**: Message from the user
     - **initFlag**: Flag to indicate if this is an initialization dialogue (optional, default: False)
+    - **model_id**: Optional model ID to override the agent's default model
     """
     try:
         resp = agent_service.dialogue(agent_id, request, user, session)
@@ -304,6 +305,10 @@ async def dialogue_get(
             alias="initFlag",
             description="Flag to indicate if this is an initialization dialogue"
         ),
+        model_id: Optional[int] = Query(
+            default=None,
+            description="Optional model ID to override the agent's default model"
+        ),
         user: Optional[dict] = Depends(get_optional_current_user),
         session: AsyncSession = Depends(get_db)
 ):
@@ -314,6 +319,7 @@ async def dialogue_get(
     - **query**: Query message from the user
     - **conversation_id**: ID of the conversation (optional, auto-generated if not provided)
     - **initFlag**: Flag to indicate if this is an initialization dialogue (optional, default: False)
+    - **model_id**: Optional model ID to override the agent's default model
     """
     try:
         # Create a new DialogueRequest with default conversation_id if not provided
@@ -323,7 +329,8 @@ async def dialogue_get(
         dialogue_request = DialogueRequest(
             query=query,
             conversationId=conversation_id,
-            initFlag=init_flag
+            initFlag=init_flag,
+            model_id=model_id
         )
         
         resp = agent_service.dialogue(agent_id, dialogue_request, user, session)

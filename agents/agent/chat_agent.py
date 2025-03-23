@@ -1,9 +1,7 @@
-import json
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import AsyncIterator
-
-import asyncio
 
 from agents.agent import AbstractAgent
 from agents.agent.entity.inner.node_data import NodeMessage
@@ -19,7 +17,6 @@ from agents.agent.memory.redis_memory import RedisMemoryStore
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.tools.function.local_tool_manager import get_local_tool
 from agents.agent.tools.message_tool import send_message
-from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import AgentInfo, ChatContext
 from agents.models.models import App
 
@@ -88,6 +85,7 @@ class ChatAgent(AbstractAgent):
                     continue
                 elif isinstance(output, (ToolOutput, WalletOutput)):
                     yield output.to_stream()
+                    response_buffer += output.get_response() if isinstance(output.get_response(), str) else str(output.get_response())
                     is_finalized = True
                     continue
                 elif isinstance(output, list):
@@ -104,6 +102,7 @@ class ChatAgent(AbstractAgent):
             # Handle the case where no final response was generated
             if not is_finalized:
                 if final_response:
+                    response_buffer = final_response[-1]
                     yield send_message("message", {"type": "markdown", "text": final_response[-1]})
                 else:
                     yield send_message("message", {"type": "markdown", "text": self.default_final_answer})

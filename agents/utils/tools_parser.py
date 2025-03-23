@@ -10,6 +10,7 @@ def convert_tool_into_openai_schema(api_tool: List[ToolInfo]):
     """Convert a list of ToolInfo objects into an OpenAI API schema."""
     api_tool_schemas = []
     function_tool_schemas = []
+    mcp_tool_schemas = []
     for tool in api_tool:
         tool_schema = {
             "name": tool.name,
@@ -20,6 +21,8 @@ def convert_tool_into_openai_schema(api_tool: List[ToolInfo]):
             function_tool_schemas.append(tool_schema)
         elif tool.type == ToolType.OPENAPI.value:
             api_tool_schemas.append(tool_schema)
+        elif tool.type == ToolType.MCP.value:
+            mcp_tool_schemas.append(tool_schema)
 
     api_schemas = {}
     function_schemas = {}
@@ -38,7 +41,16 @@ def convert_tool_into_openai_schema(api_tool: List[ToolInfo]):
                 schema for schema in function_tool_schemas
             ],
         }
-    return api_schemas,  function_schemas
+
+    mcp_schemas = {}
+    if mcp_tool_schemas:
+        mcp_schemas = {
+            "type": "mcp",
+            "functions": [
+                schema for schema in mcp_tool_schemas
+            ],
+        }
+    return api_schemas,  function_schemas, mcp_schemas
 
 
 def parse_and_execute_json(json: str):

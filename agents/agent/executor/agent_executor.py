@@ -2,9 +2,9 @@ import json
 import logging
 from typing import Optional, AsyncIterator, List, Callable, Any, Union
 
-import asyncio
 import yaml
 from langchain_core.messages import BaseMessageChunk
+from mcp.types import CallToolResult, TextContent
 
 from agents.agent.entity.agent_entity import DeepAgentExecutorOutput
 from agents.agent.entity.inner.finish import FinishOutput
@@ -13,18 +13,17 @@ from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.think_output import ThinkOutput
 from agents.agent.entity.inner.tool_output import ToolOutput
 from agents.agent.executor.executor import AgentExecutor
+from agents.agent.executor.sliding_window import SlidingWindow
 from agents.agent.prompts.default_prompt import ANSWER_PROMPT, CLARIFY_PROMPT, TOOLS_PROMPT, SYTHES_PROMPT
 from agents.agent.prompts.tool_prompts import tool_prompt
 from agents.agent.sensitive.sensitive_data_processor import SensitiveDataProcessor
 from agents.agent.tokenizer.tiktoken_tokenizer import TikToken
-from agents.agent.tools.tool_executor import async_execute
 from agents.common.context_scenarios import sensitive_config_map
 from agents.models.entity import ToolInfo, ChatContext, ToolType
 from agents.utils import tools_parser
-from agents.utils.common import dict_to_csv, exists, concat_strings
+from agents.utils.common import dict_to_csv, concat_strings
 from agents.utils.http_client import async_client
 from agents.utils.parser import parse_and_execute_json, extract_md_code
-from agents.agent.executor.sliding_window import SlidingWindow
 
 logger = logging.getLogger(__name__)
 
@@ -119,12 +118,16 @@ class DeepAgentExecutor(AgentExecutor):
 
             self.function_map = {}
             if self.api_tools:
-                api_schemas,  function_schemas = tools_parser.convert_tool_into_openai_schema(self.api_tools)
+                api_schemas, function_schemas, mcp_schemas = \
+                    tools_parser.convert_tool_into_openai_schema(self.api_tools)
                 if api_schemas:
                     self.short_memory.add(role="api tool", content=json.dumps(api_schemas, ensure_ascii=False))
                 if function_schemas:
                     self.short_memory.add(role="function tool", content=json.dumps(function_schemas, ensure_ascii=False))
                     self.function_map = {tool.__name__: tool for tool in self.local_tools}
+                if mcp_schemas:
+                    self.short_memory.add(role="mcp tool",
+                                          content=json.dumps(mcp_schemas, ensure_ascii=False))
 
     def _initialize_answer(self):
         self.short_memory.add(role="", content=ANSWER_PROMPT)
@@ -146,8 +149,10 @@ class DeepAgentExecutor(AgentExecutor):
             self.agent_output.task = task
 
             # Add task to memory
+            temporary = self.init_temporary()
+            task = f"{task}\n{temporary}" if temporary else task
             self.short_memory.add(role="Now Question", content=task)
-            self.init_temporary()
+
 
             # Set the loop count
             loop_count = 0
@@ -478,6 +483,8 @@ class DeepAgentExecutor(AgentExecutor):
             elif tool_info.type == ToolType.OPENAPI.value:
                 async for output in self.call_api(tool_info, parameters):
                     yield output
+            elif tool_info.type == ToolType.MCP.value:
+                await self.call_mcp(tool_info, parameters)
             else:
                 logger.error(f"Unknown tool type: {tool_info.type}")
         except Exception as error:
@@ -566,9 +573,11 @@ class DeepAgentExecutor(AgentExecutor):
                         logger.error(f"Missing required {param_type} parameters: {missing_params}")
                         self.short_memory.add(
                             role="Tool missing params",
-                            content=f"Missing required {param_type} parameters: {missing_params}"
                         )
                         return None
+            elif matching_tool.type == ToolType.MCP.value:
+                # For MCP tools, we just pass the parameters directly
+                extracted_params = function_data.get("parameters", {})
             
             # Return the matched tool and extracted parameters
             return matching_tool, extracted_params
@@ -589,6 +598,18 @@ class DeepAgentExecutor(AgentExecutor):
                     "query": {},
                     "path": {},
                     "body": {}
+                }
+            }
+        }
+        
+        # For MCP tools:
+        {
+            "type": "mcp",
+            "function": {
+                "name": "listing-coins",
+                "parameters": {
+                    "limit": 10,
+                    "convert": "USD"
                 }
             }
         }"""
@@ -708,7 +729,7 @@ class DeepAgentExecutor(AgentExecutor):
                     
             yield response
 
-    def init_temporary(self):
+    def init_temporary(self) -> str:
         # Add temporary data to short-term memory if available
         if hasattr(self.chat_context, 'temp_data') and self.chat_context.temp_data:
             for scenario, data in self.chat_context.temp_data.items():
@@ -723,7 +744,84 @@ class DeepAgentExecutor(AgentExecutor):
                 else:
                     content = str(data)
 
+                return f"Tool Result Data ({scenario}): {content}"
+        return ""
+
+    async def call_mcp(self, tool_info: ToolInfo, parameters: dict):
+        """
+        Call an MCP (Model-Calling Protocol) tool
+        
+        Args:
+            tool_info: Tool information with MCP details
+            parameters: Parameters to pass to the MCP tool
+            
+        Yields:
+            Generated output from the MCP tool
+        """
+        try:
+            import json
+            
+            origin = tool_info.origin
+            path = tool_info.path
+            tool_name = tool_info.name
+            
+            # Process parameters to recover sensitive data if needed
+            if tool_info.sensitive_data_config:
+                processed_parameters = self.sensitive_data_processor.process_tool_parameters(
+                    tool_info.name, 
+                    {"params": parameters},
+                    tool_info.sensitive_data_config
+                ).get("params", {})
+            else:
+                processed_parameters = parameters
+            
+            # Extract API key from auth_config if available
+            api_key = None
+            if tool_info.auth_config and tool_info.auth_config.get('key') == 'api_key':
+                api_key = tool_info.auth_config.get('value')
+            
+            # Check if origin is a URL (endpoint) or a file path
+            if origin.startswith(('http://', 'https://')):
+                # Remote MCP endpoint - Use mirascope.mcp sse_client
+                from mirascope.mcp import sse_client
+
+                url = origin + path
+                # Use streaming or non-streaming based on configuration
+                async with sse_client(url) as client:
+                    result: CallToolResult = await client._session.call_tool(tool_name, processed_parameters)
+                    
+                    # Check if the result indicates an error
+                    is_error = result.isError if hasattr(result, "isError") else False
+
+                    content = ""
+                    for data in result.content:
+                        if isinstance(data, TextContent):
+                            content += data.text if isinstance(data.text, str) else json.dumps(data.text, ensure_ascii=False)
+                        else:
+                            is_error = True
+                            content = "This data format is not supported for parsing."
+
+                    logger.error(f"call_mcp:{content}")
+                    if is_error:
+                        self.short_memory.add(
+                            role="Tool Executor",
+                            content=f"Response is ERROR: {content}"
+                        )
+                    else:
+                        self.short_memory.add(
+                            role="Tool Executor",
+                            content=content
+                        )
+
+            else:
                 self.short_memory.add(
-                    role=f"Temporary Data ({scenario})",
-                    content=content
+                    role="Tool Executor",
+                    content="tool config error!"
                 )
+                
+        except Exception as e:
+            logger.error(f"Error executing MCP tool: {e}", exc_info=True)
+            self.short_memory.add(
+                role="Tool Executor",
+                content=f"Error executing MCP tool: {str(e)}"
+            )

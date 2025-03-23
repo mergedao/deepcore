@@ -1,12 +1,12 @@
-import secrets
+import base64
 import logging
+from typing import Union
+
+import base58
+import nacl.exceptions
+import nacl.signing
 from eth_account import Account
 from eth_account.messages import encode_defunct
-from typing import Optional, Union
-import base58
-import base64
-import nacl.signing
-import nacl.exceptions
 
 from agents.protocol.schemas import ChainType
 

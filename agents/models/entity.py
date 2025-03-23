@@ -10,6 +10,7 @@ from agents.protocol.schemas import AgentDTO
 class ToolType(str, Enum):
     OPENAPI = "openapi"
     FUNCTION = "function"
+    MCP = "mcp"
 
 class ToolInfo(BaseModel):
     id: str

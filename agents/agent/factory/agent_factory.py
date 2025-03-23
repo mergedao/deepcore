@@ -2,6 +2,7 @@ from typing import Any
 
 from agents.agent.entity.agent_mode import AgentMode
 from agents.agent.executor.agent_executor import DeepAgentExecutor
+from agents.agent.executor.deep_thinking_executor import DeepThinkingExecutor
 from agents.agent.executor.prompt_executor import PromptAgentExecutor
 from agents.models.entity import ChatContext
 
@@ -15,7 +16,7 @@ class AgentExecutorFactory:
         Create an agent executor based on the specified mode.
         
         Args:
-            mode: The execution mode (ReAct/Prompt/Function)
+            mode: The execution mode (ReAct/Prompt/Function/DeepThinking)
             **kwargs: Keyword arguments including:
                 - name: Name of the agent
                 - user_name: Name of the user
@@ -52,6 +53,10 @@ class AgentExecutorFactory:
             # Function mode: Focused on API and function calls
             # TODO: Implement FunctionAgentExecutor
             raise NotImplementedError("Function mode not implemented yet")
+            
+        elif mode == AgentMode.DEEP_THINKING:
+            # DeepThinking mode: Advanced cognitive processing capabilities
+            return DeepThinkingExecutor(chat_context=chat_context, **kwargs)
             
         else:
             raise ValueError(f"Unsupported agent mode: {mode}") 
