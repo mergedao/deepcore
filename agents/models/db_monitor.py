@@ -33,15 +33,58 @@ class DatabaseMonitor:
             logger.error(f"Failed to connect to database for monitoring: {str(e)}")
             return None
             
+    async def get_performance_schema_columns(self, conn, table_name):
+        """Get the available columns in a performance_schema table"""
+        try:
+            async with conn.cursor() as cursor:
+                await cursor.execute(f"SHOW COLUMNS FROM performance_schema.{table_name}")
+                columns = [column[0].lower() for column in await cursor.fetchall()]
+                return columns
+        except Exception as e:
+            logger.warning(f"Error getting columns for performance_schema.{table_name}: {e}")
+            return []
+    
     async def get_idle_connections(self, conn, idle_threshold=1800):
         """Get connections idle for longer than specified time"""
+        # Check if performance_schema.processlist is available and get its columns
+        try:
+            columns = await self.get_performance_schema_columns(conn, "processlist")
+            has_performance_schema = len(columns) > 0
+            
+            # Determine the correct column names
+            id_column = "id"  # Default for information_schema
+            if has_performance_schema:
+                # Check which ID column exists in performance_schema
+                if "processlist_id" in columns:
+                    id_column = "processlist_id"
+                elif "id" in columns:
+                    id_column = "id"
+                elif "thread_id" in columns:
+                    id_column = "thread_id"
+                else:
+                    logger.warning("Could not find ID column in performance_schema.processlist")
+                    has_performance_schema = False
+        except Exception as e:
+            logger.warning(f"Error checking performance_schema: {e}")
+            has_performance_schema = False
+            
         async with conn.cursor() as cursor:
-            await cursor.execute(
-                "SELECT id, user, host, db, command, time, state, info "
-                "FROM information_schema.processlist "
-                "WHERE command = 'Sleep' AND time > %s AND user != 'system user'",
-                (idle_threshold,)
-            )
+            if has_performance_schema:
+                # Use performance_schema (recommended approach)
+                await cursor.execute(
+                    f"SELECT {id_column}, user, host, db, command, time, state, info "
+                    "FROM performance_schema.processlist "
+                    "WHERE command = 'Sleep' AND time > %s AND user != 'system user'",
+                    (idle_threshold,)
+                )
+            else:
+                # Fallback to information_schema (deprecated)
+                await cursor.execute(
+                    "SELECT id, user, host, db, command, time, state, info "
+                    "FROM information_schema.processlist "
+                    "WHERE command = 'Sleep' AND time > %s AND user != 'system user'",
+                    (idle_threshold,)
+                )
             return await cursor.fetchall()
             
     async def kill_idle_connection(self, conn, process_id):
@@ -90,6 +133,28 @@ class DatabaseMonitor:
             return
             
         try:
+            # Check if performance_schema.processlist is available and get its columns
+            try:
+                columns = await self.get_performance_schema_columns(conn, "processlist")
+                has_performance_schema = len(columns) > 0
+                
+                # Determine the correct column names
+                id_column = "id"  # Default for information_schema
+                if has_performance_schema:
+                    # Check which ID column exists in performance_schema
+                    if "processlist_id" in columns:
+                        id_column = "processlist_id"
+                    elif "id" in columns:
+                        id_column = "id"
+                    elif "thread_id" in columns:
+                        id_column = "thread_id"
+                    else:
+                        logger.warning("Could not find ID column in performance_schema.processlist")
+                        has_performance_schema = False
+            except Exception as e:
+                logger.warning(f"Error checking performance_schema: {e}")
+                has_performance_schema = False
+                
             async with conn.cursor() as cursor:
                 # First check if the sys schema is available
                 try:
@@ -181,41 +246,41 @@ class DatabaseMonitor:
                         else:
                             # Simplified approach if innodb_lock_waits is not available
                             logger.info("Using processlist for basic lock detection")
-                            await cursor.execute(
-                                "SELECT id, user, time, state, info FROM information_schema.processlist "
-                                "WHERE state LIKE '%waiting%for%lock%' OR state LIKE '%waiting%for%table%metadata%lock%'"
-                            )
-                            waiting_processes = await cursor.fetchall()
-                            
-                            if waiting_processes:
-                                logger.warning(f"Found {len(waiting_processes)} processes waiting for locks")
-                                for process in waiting_processes:
-                                    if len(process) >= 4:
-                                        pid, user, wait_time, state, info = process
-                                        logger.warning(
-                                            f"Process waiting for lock: ID={pid}, User={user}, "
-                                            f"Time={wait_time}s, State={state}"
-                                        )
+                            await self.check_waiting_processes(conn, cursor, has_performance_schema, id_column)
                     except Exception as e:
                         logger.warning(f"Error using alternative lock detection: {str(e)}")
                 
                 # Check for long-running queries
                 try:
-                    await cursor.execute(
-                        "SELECT id, user, host, db, command, time, state, info "
-                        "FROM information_schema.processlist "
-                        "WHERE command != 'Sleep' AND time > 60 "  # Queries running for more than 60 seconds
-                        "AND user != 'event_scheduler' "  # Exclude event scheduler
-                        "AND user != 'system user' "  # Exclude system user
-                        "AND command NOT IN ('Daemon', 'Binlog Dump', 'Binlog Dump GTID') "  # Exclude system processes
-                    )
+                    if has_performance_schema:
+                        # Use performance_schema (recommended)
+                        await cursor.execute(
+                            f"SELECT {id_column}, user, host, db, command, time, state, info "
+                            "FROM performance_schema.processlist "
+                            "WHERE command != 'Sleep' AND time > 60 "  # Queries running for more than 60 seconds
+                            "AND user != 'event_scheduler' "  # Exclude event scheduler
+                            "AND user != 'system user' "  # Exclude system user
+                            "AND command NOT IN ('Daemon', 'Binlog Dump', 'Binlog Dump GTID') "  # Exclude system processes
+                        )
+                    else:
+                        # Fallback to information_schema (deprecated)
+                        await cursor.execute(
+                            "SELECT id, user, host, db, command, time, state, info "
+                            "FROM information_schema.processlist "
+                            "WHERE command != 'Sleep' AND time > 60 "  # Queries running for more than 60 seconds
+                            "AND user != 'event_scheduler' "  # Exclude event scheduler
+                            "AND user != 'system user' "  # Exclude system user
+                            "AND command NOT IN ('Daemon', 'Binlog Dump', 'Binlog Dump GTID') "  # Exclude system processes
+                        )
                     long_queries = await cursor.fetchall()
                     
                     if long_queries:
                         logger.warning(f"Found {len(long_queries)} long-running queries")
                         for query in long_queries:
                             if len(query) >= 7:  # Ensure we have enough elements
-                                process_id, user, host, db, command, run_time, state = query[:7]
+                                # Process ID is at different positions depending on the schema used
+                                process_id = query[0]  # Both schemas have process ID at position 0
+                                user, host, db, command, run_time, state = query[1:7]
                                 info = query[7] if len(query) > 7 else None
                                 logger.warning(
                                     f"Long query: ID={process_id}, User={user}, DB={db or 'None'}, "
@@ -223,21 +288,32 @@ class DatabaseMonitor:
                                 )
                     
                     # Separately log system processes if they've been running for an extremely long time
-                    # This is informational only, not treated as a warning
-                    await cursor.execute(
-                        "SELECT id, user, host, db, command, time, state, info "
-                        "FROM information_schema.processlist "
-                        "WHERE (user = 'event_scheduler' OR user = 'system user' OR "
-                        "command IN ('Daemon', 'Binlog Dump', 'Binlog Dump GTID')) "
-                        "AND time > 86400"  # Running for more than 1 day
-                    )
+                    if has_performance_schema:
+                        # Use performance_schema
+                        await cursor.execute(
+                            f"SELECT {id_column}, user, host, db, command, time, state, info "
+                            "FROM performance_schema.processlist "
+                            "WHERE (user = 'event_scheduler' OR user = 'system user' OR "
+                            "command IN ('Daemon', 'Binlog Dump', 'Binlog Dump GTID')) "
+                            "AND time > 86400"  # Running for more than 1 day
+                        )
+                    else:
+                        # Fallback to information_schema
+                        await cursor.execute(
+                            "SELECT id, user, host, db, command, time, state, info "
+                            "FROM information_schema.processlist "
+                            "WHERE (user = 'event_scheduler' OR user = 'system user' OR "
+                            "command IN ('Daemon', 'Binlog Dump', 'Binlog Dump GTID')) "
+                            "AND time > 86400"  # Running for more than 1 day
+                        )
                     system_processes = await cursor.fetchall()
                     
                     if system_processes and logger.isEnabledFor(logging.DEBUG):  # Only log at debug level
                         logger.debug(f"Found {len(system_processes)} long-running system processes")
                         for process in system_processes:
                             if len(process) >= 7:
-                                process_id, user, host, db, command, run_time, state = process[:7]
+                                process_id = process[0]
+                                user, host, db, command, run_time, state = process[1:7]
                                 logger.debug(
                                     f"System process: ID={process_id}, User={user}, Command={command}, "
                                     f"Time={run_time}s, State={state}"
