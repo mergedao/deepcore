@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import AsyncIterator
 
 from agents.agent import AbstractAgent
+from agents.agent.entity.inner.custom_output import CustomOutput
 from agents.agent.entity.inner.node_data import NodeMessage
 from agents.agent.entity.inner.think_output import ThinkOutput
 from agents.agent.entity.inner.tool_output import ToolOutput
@@ -83,7 +84,7 @@ class ChatAgent(AbstractAgent):
                 if isinstance(output, (NodeMessage, ThinkOutput)):
                     yield output.to_stream()
                     continue
-                elif isinstance(output, (ToolOutput, WalletOutput)):
+                elif isinstance(output, (ToolOutput, WalletOutput, CustomOutput)):
                     yield output.to_stream()
                     response_buffer += output.get_response() if isinstance(output.get_response(), str) else str(output.get_response())
                     is_finalized = True
