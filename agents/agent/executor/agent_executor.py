@@ -707,27 +707,46 @@ class DeepAgentExecutor(AgentExecutor):
             }
         }
         function = self.function_map[tool_info.name]
-        async for response in (
-                parse_and_execute_json([function], json.dumps(data, ensure_ascii=False))):
-            if isinstance(response, FinishOutput):
-                self.should_stop = True
-                continue
-                
-            # Process response to mask sensitive data if needed
-            if tool_info.sensitive_data_config and not isinstance(response, FinishOutput):
-                processed_response = self.sensitive_data_processor.process_tool_response(
-                    tool_info.name,
-                    response.content if hasattr(response, 'content') else response,
-                    tool_info.sensitive_data_config
-                )
-                
-                # Update response content if it has content attribute
-                if hasattr(response, 'content'):
-                    response.content = processed_response
+        try:
+            text_content = ""
+            async for response in (
+                    parse_and_execute_json([function], json.dumps(data, ensure_ascii=False))):
+                if isinstance(response, FinishOutput):
+                    self.should_stop = True
+                    continue
+
+                # Process response to mask sensitive data if needed
+                if tool_info.sensitive_data_config and not isinstance(response, FinishOutput):
+                    processed_response = self.sensitive_data_processor.process_tool_response(
+                        tool_info.name,
+                        response.content if hasattr(response, 'content') else response,
+                        tool_info.sensitive_data_config
+                    )
+
+                    # Update response content if it has content attribute
+                    if hasattr(response, 'content'):
+                        response.content = processed_response
+                    else:
+                        response = processed_response
+
+                if isinstance(response, Output):
+                    yield response
+                elif isinstance(response, str):
+                    text_content += response
                 else:
-                    response = processed_response
-                    
-            yield response
+                    text_content += json.dumps(response, ensure_ascii=False)
+
+            if text_content:
+                self.short_memory.add(
+                    role="Call function",
+                    content=text_content
+                )
+        except Exception as e:
+            logger.error("call_function Exception", exc_info=True)
+            self.short_memory.add(
+                role="Call function Error",
+                content=f"error info:{str(e)}"
+            )
 
     def init_temporary(self) -> str:
         # Add temporary data to short-term memory if available
