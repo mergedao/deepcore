@@ -183,6 +183,35 @@ class TokenAnalyzer:
             ):
                 return response
     
+    async def search_x_posts(self, query: str, max_results: int = 10, cache_enabled: bool = True) -> Dict:
+        """
+        Search Twitter (X) posts related to a query
+        
+        Args:
+            query: Search query string
+            max_results: Maximum number of results to return
+            cache_enabled: Whether to use cached results
+            
+        Returns:
+            Dict: Twitter search results
+        """
+        path = "/api/sm/x/search/posts"
+        params = {
+            "query": query,
+            "max_results": max_results,
+            "cache_enabled": str(cache_enabled).lower()
+        }
+        
+        async with AsyncHttpClient(headers=self.headers) as client:
+            async for response in client.request(
+                method="GET",
+                base_url=self.base_url,
+                path=path,
+                params=params,
+                stream=False
+            ):
+                return response
+    
     # Pro API methods
     async def search_token_pro(self, query: str) -> Dict:
         """
@@ -415,6 +444,15 @@ async def comprehensive_token_analysis(token_query: str):
             yield CustomOutput({"type": "token_insights", "data": insights})
         except Exception as e:
             logger.warning(f"Failed to get token insights: {str(e)}")
+            
+        # Request X (Twitter) posts related to token
+        try:
+            # Create search query combining token symbol and name for better results
+            # search_query = f"${token_symbol}" if token_symbol else token_info.get("token_name", "")
+            x_posts = await analyzer.search_x_posts(token_query, max_results=20)
+            yield CustomOutput({"type": "xposts", "text": x_posts})
+        except Exception as e:
+            logger.warning(f"Failed to get X posts for token: {str(e)}")
 
     except Exception as e:
         logger.error(f"Comprehensive token analysis failed: {str(e)}")
@@ -475,6 +513,15 @@ async def comprehensive_pro_token_analysis(token_query: str):
             yield CustomOutput({"type": "token_holders_pro", "data": holders})
         except Exception as e:
             logger.warning(f"Failed to get pro token holders: {str(e)}")
+            
+        # Request X (Twitter) posts related to token
+        try:
+            # Use cashtag format for Twitter search
+            # search_query = f"${token_symbol}" if token_symbol else token_info.get("tokenName", "")
+            x_posts = await analyzer.search_x_posts(token_query, max_results=30)
+            yield CustomOutput({"type": "xposts", "text": x_posts})
+        except Exception as e:
+            logger.warning(f"Failed to get X posts for token: {str(e)}")
 
     except Exception as e:
         logger.error(f"Pro token analysis failed: {str(e)}")
@@ -528,6 +575,15 @@ async def analyze_token_pro(token_query: str, analysis_type: str = "search", cha
             
             token_address = search_result[0].get("tokenContractAddress")
             result = await analyzer.get_token_holders_pro(token_address, chain_for_pro)
+        elif analysis_type == "twitter" or analysis_type == "x":
+            # First search for the token to get its symbol
+            search_result = await analyzer.search_token_pro(token_query)
+            if not search_result or len(search_result) == 0:
+                raise Exception(f"Token not found: {token_query}")
+            
+            token_symbol = search_result[0].get("tokenSymbol")
+            search_query = f"${token_symbol}" if token_symbol else search_result[0].get("tokenName", token_query)
+            result = await analyzer.search_x_posts(search_query, max_results=30)
         else:
             result = {"error": f"Unsupported Pro analysis type: {analysis_type}"}
     except Exception as e:
