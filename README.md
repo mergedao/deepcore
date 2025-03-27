@@ -766,7 +766,3 @@ As AI technology and the blockchain ecosystem continue to evolve, DeepCore will 
 
 We welcome community contributions! If you're interested in participating in DeepCore's development, please check our contribution guidelines.
 
-## License
-
-[License Name] - See the LICENSE file for more details.
-
