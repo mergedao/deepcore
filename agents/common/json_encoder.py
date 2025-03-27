@@ -1,6 +1,11 @@
 import datetime
 import json
 from uuid import UUID
+try:
+    from pydantic import BaseModel
+    HAS_PYDANTIC = True
+except ImportError:
+    HAS_PYDANTIC = False
 
 # Type registry (can be extended as needed)
 _TYPE_REGISTRY = {
@@ -44,6 +49,14 @@ class UniversalEncoder(json.JSONEncoder):
         for cls, info in _TYPE_REGISTRY.items():
             if isinstance(obj, cls):
                 return {info['type_id']: info['serialize'](obj)}
+
+        # Support for Pydantic BaseModel
+        if HAS_PYDANTIC and isinstance(obj, BaseModel):
+            # Use model_dump() for Pydantic v2 or dict() for v1
+            if hasattr(obj, 'model_dump'):
+                return obj.model_dump()
+            else:
+                return obj.dict()
 
         # Handle custom classes (via __dict__)
         if hasattr(obj, '__dict__'):
@@ -106,3 +119,17 @@ if __name__ == '__main__':
     print(f"Type of timestamp: {type(restored_data['timestamp'])}")
     print(f"Type of user: {type(restored_data['user'])}")
     print(f"User name: {restored_data['user'].name}")
+
+    # Example with Pydantic if available
+    if HAS_PYDANTIC:
+        from pydantic import BaseModel
+        
+        class UserModel(BaseModel):
+            name: str
+            age: int
+        
+        # Test Pydantic model serialization
+        user_model = UserModel(name="Bob", age=30)
+        json_str = json.dumps({"pydantic_user": user_model}, cls=UniversalEncoder)
+        print("\nPydantic Model Serialized:")
+        print(json_str)

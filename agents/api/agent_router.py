@@ -498,3 +498,37 @@ async def store_agent_context(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
         )
+
+@router.post("/agents/cache/refresh", summary="Refresh Public Agents Cache")
+async def refresh_public_agents_cache(
+        user: dict = Depends(get_current_user)
+):
+    """
+    Manually refresh the Redis cache for public agents by incrementing the cache version.
+    
+    This endpoint should be called after database updates that affect public agent listings.
+    It requires administrator privileges.
+    
+    Instead of deleting existing cache entries, this approach simply increments a version number,
+    causing new requests to use a different cache key, effectively invalidating the old cache.
+    Old cache entries will expire naturally according to their TTL.
+    
+    Returns:
+        Information about the cache version update
+    """
+    try:
+        result = await agent_service.refresh_public_agents_cache()
+        return RestResponse(data={
+            "previous_version": result["previous_version"],
+            "new_version": result["new_version"],
+            "message": "Cache version updated successfully"
+        })
+    except CustomAgentException as e:
+        logger.error(f"Error refreshing public agents cache: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=e.message)
+    except Exception as e:
+        logger.error(f"Unexpected error refreshing public agents cache: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
