@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Optional, AsyncIterator, List
+from datetime import timedelta
 
 from fastapi import Depends
 from sqlalchemy import func
@@ -13,6 +14,7 @@ from agents.agent.chat_agent import ChatAgent
 from agents.agent.memory.agent_context_manager import agent_context_manager
 from agents.common.config import SETTINGS
 from agents.common.encryption_utils import encryption_utils
+from agents.common.json_encoder import UniversalEncoder, universal_decoder
 from agents.common.redis_utils import redis_utils
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
@@ -22,6 +24,11 @@ from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, Tool
 from agents.services.model_service import get_model_with_key
 
 logger = logging.getLogger(__name__)
+
+# Define cache constants
+CACHE_PREFIX = "public_agents"
+CACHE_VERSION_KEY = f"{CACHE_PREFIX}_version"
+CACHE_TTL = 600  # Cache TTL in seconds (10 minutes)
 
 
 async def dialogue(
@@ -282,7 +289,7 @@ async def list_public_agents(
         user: Optional[dict] = None
 ):
     """
-    List public or official agents
+    List public or official agents with pagination, using Redis cache with version control for improved performance.
 
     Args:
         status: Optional filter for agent status
@@ -303,22 +310,63 @@ async def list_public_agents(
             "total_pages": total number of pages
         }
     """
-    conditions = []
-
-    if only_official:
-        conditions.append(App.is_official == True)
-    elif only_hot:
-        conditions.append(App.is_hot == True)
-    else:
-        conditions.append(App.is_public == True)
-
-    if status:
-        conditions.append(App.status == status)
+    try:
+        # Calculate current page from skip and limit
+        page = (skip // limit) + 1
         
-    if category_id:
-        conditions.append(App.category_id == category_id)
+        # Get current cache version
+        current_version = redis_utils.get_value(CACHE_VERSION_KEY) or "0"
+        
+        # Generate versioned cache key based on parameters
+        base_cache_key = f"{CACHE_PREFIX}:{status or 'all'}:{only_official}:{only_hot}:{category_id or 'all'}:{page}:{limit}"
+        versioned_cache_key = f"{base_cache_key}:v{current_version}"
+        
+        # Try to get from cache first
+        cached_data = redis_utils.get_value(versioned_cache_key)
+        if cached_data:
+            logger.info("list_public_agents, use cached_data!")
+            try:
+                # Deserialize and return cached data using universal_decoder
+                return json.loads(cached_data, object_hook=universal_decoder)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON in cache for key: {versioned_cache_key}")
+                # Continue with database query if cache deserialization fails
+        
+        # If cache miss or invalid, query from database
+        conditions = []
 
-    return await _get_paginated_agents(conditions, skip, limit, user, session)
+        if only_official:
+            conditions.append(App.is_official == True)
+        elif only_hot:
+            conditions.append(App.is_hot == True)
+        else:
+            conditions.append(App.is_public == True)
+
+        if status:
+            conditions.append(App.status == status)
+            
+        if category_id:
+            conditions.append(App.category_id == category_id)
+
+        # Get data from database
+        result = await _get_paginated_agents(conditions, skip, limit, user, session)
+        
+        # Cache the result with version in the key using UniversalEncoder
+        redis_utils.set_value(
+            versioned_cache_key, 
+            json.dumps(result, cls=UniversalEncoder),
+            ex=CACHE_TTL
+        )
+        
+        return result
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing public agents: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to list public agents: {str(e)}"
+        )
 
 
 async def _get_paginated_agents(conditions: list, skip: int, limit: int, user: Optional[dict], session: AsyncSession):
@@ -373,13 +421,8 @@ async def update_agent(
     """
     Update an existing agent
     """
-    if not agent.id:
-        raise CustomAgentException(
-            ErrorCode.INVALID_REQUEST,
-            "Agent ID is required for update"
-        )
-
     try:
+        # Original update logic
         async with session.begin():
             # Check if agent exists and belongs to the user's tenant
             result = await session.execute(
@@ -451,7 +494,11 @@ async def update_agent(
                     )
                     session.add(agent_tool)
 
-            return agent
+        # Refresh cache if the agent is public, official, or hot
+        if existing_agent.is_public or existing_agent.is_official or existing_agent.is_hot:
+            await refresh_public_agents_cache()
+
+        return agent
     except CustomAgentException:
         logger.error(f"Error updating agent: ", exc_info=True)
         raise
@@ -470,19 +517,23 @@ async def delete_agent(
 ):
     try:
         async with session.begin():
-            # Verify agent exists and belongs to user
+            # Check if agent is public, official, or hot before deleting
             result = await session.execute(
                 select(App).where(
                     App.id == agent_id,
                     App.tenant_id == user.get('tenant_id')
                 )
             )
-            if not result.scalar_one_or_none():
+            agent = result.scalar_one_or_none()
+            
+            if not agent:
                 raise CustomAgentException(
                     ErrorCode.RESOURCE_NOT_FOUND,
                     "Agent not found or no permission to delete"
                 )
-
+                
+            is_cached = agent.is_public or agent.is_official or agent.is_hot
+            
             # Delete agent
             await session.execute(
                 delete(App).where(
@@ -490,6 +541,11 @@ async def delete_agent(
                     App.tenant_id == user.get('tenant_id')
                 )
             )
+            
+        # Refresh cache if the agent was public, official, or hot
+        if is_cached:
+            await refresh_public_agents_cache()
+            
     except CustomAgentException:
         raise
     except Exception as e:
@@ -534,6 +590,9 @@ async def publish_agent(
                     "Agent not found or no permission"
                 )
 
+            # Check if there's a change in public status
+            needs_cache_refresh = agent.is_public != is_public
+
             # Update publish status and fees
             stmt = update(App).where(
                 App.id == agent_id,
@@ -544,6 +603,11 @@ async def publish_agent(
                 price=price
             )
             await session.execute(stmt)
+            
+        # Refresh cache if the public status changed
+        if needs_cache_refresh:
+            await refresh_public_agents_cache()
+            
     except CustomAgentException:
         raise
     except Exception as e:
@@ -873,7 +937,7 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
             id=agent.model.id,
             name=agent.model.name,
             model_name=agent.model.model_name,
-            endpoint=agent.model.endpoint,
+            endpoint=agent.model.endpoint if is_full_config else None,
             is_official=agent.model.is_official,
             is_public=agent.model.is_public
         )
@@ -892,3 +956,40 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         )
     
     return agent_dto
+
+async def refresh_public_agents_cache():
+    """
+    Refresh the Redis cache for public agents by incrementing the cache version.
+    
+    This function should be called whenever there are changes to agent data 
+    that would affect the results of the list_public_agents function.
+    
+    Instead of deleting existing cache keys, this approach simply increments a version number,
+    causing new requests to use a different cache key, effectively invalidating the old cache.
+    Old cache entries will expire naturally according to their TTL.
+    
+    Returns:
+        dict: Information about the cache refresh operation
+    """
+    try:
+        # Get current version
+        current_version = redis_utils.get_value(CACHE_VERSION_KEY) or "0"
+        
+        # Increment version
+        new_version = str(int(current_version) + 1)
+        
+        # Set new version
+        redis_utils.set_value(CACHE_VERSION_KEY, new_version)
+        
+        logger.info(f"Successfully refreshed public agents cache: version incremented from {current_version} to {new_version}")
+        
+        return {
+            "previous_version": current_version,
+            "new_version": new_version
+        }
+    except Exception as e:
+        logger.error(f"Error refreshing public agents cache version: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.INTERNAL_ERROR,
+            f"Failed to refresh public agents cache: {str(e)}"
+        )
