@@ -236,6 +236,33 @@ class TokenAnalyzer:
             ):
                 return response
     
+    async def analyze_solana_token_twitter(self, token_address: str, chain: str = "solana") -> Dict:
+        """
+        Analyze Twitter data related to a cryptocurrency token
+        
+        Args:
+            token_address: Token address
+            chain: Blockchain network, can be 'solana', 'ether', or 'ton', defaults to 'solana'
+            
+        Returns:
+            Dict: Twitter analysis results for the token
+        """
+        path = "/p/data/analyze_solana_token_twitter"
+        json_data = {
+            "token": token_address,
+            "chain": chain
+        }
+        
+        async with AsyncHttpClient(headers=self.headers) as client:
+            async for response in client.request(
+                method="POST",
+                base_url=self.base_url,
+                path=path,
+                json_data=json_data,
+                stream=False
+            ):
+                return response
+    
     async def get_token_overview_pro(self, token_address: str, chain: str = "solana") -> Dict:
         """
         [Pro] Get comprehensive cryptocurrency token overview
@@ -513,7 +540,24 @@ async def comprehensive_pro_token_analysis(token_query: str):
             yield CustomOutput({"type": "token_holders_pro", "data": holders})
         except Exception as e:
             logger.warning(f"Failed to get pro token holders: {str(e)}")
+
+        # Request insights API
+        try:
+            # chain_for_insights = "sol" if chain_name == "solana" else ("eth" if chain_name == "ether" else chain_name)
+            insights = await analyzer.get_token_insights(token_address, token_symbol, chain_name)
+            yield CustomOutput({"type": "token_insights", "data": insights})
+        except Exception as e:
+            logger.warning(f"Failed to get token insights: {str(e)}")
             
+        # Request Solana token Twitter analysis
+        try:
+            # Use the original chain name for compatibility
+            original_chain = "solana" if chain_for_pro == "sol" else ("ether" if chain_for_pro == "eth" else chain_for_pro)
+            token_twitter_analysis = await analyzer.analyze_solana_token_twitter(token_address, chain=original_chain)
+            yield CustomOutput({"type": "token_twitter_analysis", "data": token_twitter_analysis})
+        except Exception as e:
+            logger.warning(f"Failed to get token Twitter analysis: {str(e)}")
+
         # Request X (Twitter) posts related to token
         try:
             # Use cashtag format for Twitter search

@@ -7,20 +7,15 @@ from pydantic import BaseModel, Field
 from agents.agent.llm.default_llm import openai
 
 gen_aegnt_prompt = """\
-Here's a refined version of your prompt that explicitly instructs the model to determine the language based on the user's input:  
+ **You are an expert in generating agent configurations. Your task is to generate an agent configuration based on the user's input while ensuring the output is always in English.**  
 
----
-
-**You are an expert in generating agent configurations. Your task is to generate an agent configuration based on the user's input while ensuring language consistency.**  
 
 ### **Requirements**  
-1. Detect the language of the user input.  
-2. Generate the agent configuration using the same language as the user input.  
+1. Regardless of the input language, generate the agent configuration in English.  
 
-**User Input:**  
-{input}  
+User Input: {input}
 
-**Now, generate the agent configuration in the detected language:**
+**Now, generate the agent configuration in English:**
 """
 
 logger = logging.getLogger(__name__)
