@@ -46,6 +46,56 @@ DeepCore's advantage over other solutions lies in providing a complete solution 
 
 DeepCore is built on the innovative MCP (Model-Controller-Protocol) architecture, a design pattern that enables us to build highly flexible and powerful intelligent agent systems.
 
+<p>
+  <img src="./docs/deepcore_architecture.jpg" alt="DeepCore Architecture" width="800"/>
+</p>
+
+DeepCore's architecture consists of three main layers:
+
+### 1. Web3 Agent Store Layer
+
+The top layer provides a marketplace of specialized agents for different purposes:
+- **Analysis Agent** - For data analytics and insights generation
+- **Trade Agent** - For executing trading strategies on various platforms
+- **Media Agent** - For content creation and media interaction
+- **DeepResearch Agent** - For in-depth research and knowledge discovery
+- **Additional specialized agents** - Extensible for various domain-specific tasks
+
+### 2. DeepCore Agent Protocol Layer
+
+The core protocol layer is where the main agent intelligence and orchestration happens:
+
+#### Service Components
+- **MCP Service** - Implements the Model-Controller-Protocol pattern
+- **SSE (Server-Sent Events)** - Provides real-time communication
+- **CMD** - Command interface for agent control
+- **HTTP Service** - RESTful API endpoints for integrations
+- **OpenAPIs** - Standardized API interfaces for external connectivity
+- **SDKs** - Software Development Kits for various programming languages
+
+#### Agent Orchestration
+- **Planner Agent** - Central coordinator that breaks down complex tasks
+- **TaskAgents** - Specialized agents that execute specific subtasks
+- **Tools Integration** - Various tool categories available to agents:
+  - **CodeAct** - For code generation and execution
+  - **Browser** - For web browsing and information retrieval
+  - **Initial Tools** - Basic built-in tooling
+  - **Search** - Search capabilities across various sources
+  - **Custom Tools** - User-defined or domain-specific tools
+
+#### Client Integration
+- **Tools Center** - Central registry for tool discovery and management
+- **Authorization** - Security and permissions management
+- **MCP Service for Client** - Client-facing interfaces for various platforms (APP | WEB | Desktop)
+
+### 3. Chain Foundation Layer
+
+The bottom layer provides blockchain and data infrastructure:
+- **Multi-chain Support** - Integration with major blockchains (BASE, BTC, ETH, BNB, SOL, APT, SUI, etc.)
+- **Social Media Integration** - Connections to platforms like X and Telegram
+- **DeFi Integration** - Support for DEX and CEX interactions
+- **Third-party Platform Support** - Extensible integration with external platforms
+
 ### Core Components
 
 #### Agent System
@@ -715,8 +765,4 @@ As AI technology and the blockchain ecosystem continue to evolve, DeepCore will 
 ## Contributions
 
 We welcome community contributions! If you're interested in participating in DeepCore's development, please check our contribution guidelines.
-
-## License
-
-[License Name] - See the LICENSE file for more details.
 

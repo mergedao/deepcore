@@ -10,12 +10,14 @@ from agents.api import agent_router, api_router, file_router, tool_router, promp
 from agents.api.auth_router import router as auth_router
 from agents.api.data_router import router as data_router
 from agents.api.mcp_router import router as mcp_router
+from agents.api.api_router import register_startup_events
 from agents.common.config import SETTINGS
 from agents.common.log import Log
 from agents.common.otel import Otel, OtelFastAPI
 from agents.middleware.auth_middleware import JWTAuthMiddleware
 from agents.middleware.gobal import exception_handler
 from agents.models.db import SessionLocal
+from agents.models.db_monitor import start_db_monitor, stop_db_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +26,31 @@ def create_app() -> FastAPI:
     # Initialize logging and telemetry
     Log.init()
     Otel.init()
-    logger.info("Server started.")
+    logger.info("Server starting...")
 
     app = FastAPI()
 
     # Add database session to app state
     app.state.db = SessionLocal
+
+    # Register startup and shutdown events
+    register_startup_events(app)
+    
+    # Register event to start database monitoring
+    @app.on_event("startup")
+    async def start_monitoring():
+        """Start database connection monitoring"""
+        logger.info("Starting database connection monitoring...")
+        await start_db_monitor(log_level=logging.INFO)
+        logger.info("Database connection monitoring started")
+    
+    # Register event to stop database monitoring
+    @app.on_event("shutdown")
+    async def stop_monitoring():
+        """Stop database connection monitoring"""
+        logger.info("Stopping database connection monitoring...")
+        await stop_db_monitor()
+        logger.info("Database connection monitoring stopped")
 
     # Add JWT middleware
     app.add_middleware(JWTAuthMiddleware)
@@ -58,6 +79,7 @@ def create_app() -> FastAPI:
     # Initialize OpenTelemetry
     OtelFastAPI.init(app)
 
+    logger.info("Application initialization complete")
     return app
 
 
