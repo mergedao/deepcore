@@ -1,8 +1,11 @@
 import logging
+import time
 
 import fastapi
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 
 from agents.agent.mcp import mcp_sse
 from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router, image_router, \
@@ -20,6 +23,35 @@ from agents.models.db import SessionLocal
 from agents.models.db_monitor import start_db_monitor, stop_db_monitor
 
 logger = logging.getLogger(__name__)
+
+
+class TimingMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to measure and log HTTP request execution time.
+    
+    This middleware calculates the time elapsed during request processing
+    and logs it along with the request method, path, and status code.
+    """
+    def __init__(self, app: ASGIApp):
+        super().__init__(app)
+        
+    async def dispatch(self, request: Request, call_next):
+        # Record start time
+        start_time = time.time()
+        
+        # Process the request
+        response = await call_next(request)
+        
+        # Calculate elapsed time
+        elapsed_time = time.time() - start_time
+        elapsed_ms = elapsed_time * 1000
+        
+        # Log the timing information
+        logger.info(
+            f"HTTP {request.method} {request.url.path} -> {response.status_code} took {elapsed_ms:.2f}ms"
+        )
+        
+        return response
 
 
 def create_app() -> FastAPI:
@@ -52,6 +84,9 @@ def create_app() -> FastAPI:
         await stop_db_monitor()
         logger.info("Database connection monitoring stopped")
 
+    # Add HTTP request timing middleware
+    app.add_middleware(TimingMiddleware)
+    
     # Add JWT middleware
     app.add_middleware(JWTAuthMiddleware)
 
