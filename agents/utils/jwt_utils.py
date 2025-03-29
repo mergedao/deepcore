@@ -9,27 +9,11 @@ from agents.common.config import SETTINGS
 # JWT configuration
 JWT_SECRET = SETTINGS.JWT_SECRET
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_DELTA = timedelta(days=SETTINGS.JWT_EXPIRATION_TIME)
 
-# Access token expires in 30 days
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 12 * 30
-# Refresh token expires in 60 days
-REFRESH_TOKEN_EXPIRE_DAYS = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = SETTINGS.ACCESS_TOKEN_EXPIRE_MINUTES
+REFRESH_TOKEN_EXPIRE_DAYS = SETTINGS.REFRESH_TOKEN_EXPIRE_DAYS
 
 logger = logging.getLogger(__name__)
-
-
-def generate_token(user_id: int, username: str, tenant_id: str) -> str:
-    """
-    Generate JWT token with user information including tenant_id
-    """
-    payload = {
-        'user_id': user_id,
-        'username': username,
-        'tenant_id': tenant_id,
-        'exp': datetime.utcnow() + JWT_EXPIRATION_DELTA
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
 
 def verify_token(token: str) -> Optional[Dict]:
     """
