@@ -515,7 +515,7 @@ async def comprehensive_pro_token_analysis(token_query: str):
         chain_name = token_info.get("chainName", "Solana").lower()
         
         # Ensure chain name is compatible with Pro API
-        chain_for_pro = "sol" if chain_name == "solana" else ("eth" if chain_name == "ethereum" else chain_name)
+        chain_for_pro = _transfer_chain_name(chain_name)
         
         # Yield pro search result
         yield CustomOutput({"type": "token_info_pro", "data": token_info})
@@ -543,8 +543,7 @@ async def comprehensive_pro_token_analysis(token_query: str):
 
         # Request insights API
         try:
-            # chain_for_insights = "sol" if chain_name == "solana" else ("eth" if chain_name == "ether" else chain_name)
-            insights = await analyzer.get_token_insights(token_address, token_symbol, chain_name)
+            insights = await analyzer.get_token_insights(token_address, token_symbol, chain_for_pro)
             yield CustomOutput({"type": "token_insights", "data": insights})
         except Exception as e:
             logger.warning(f"Failed to get token insights: {str(e)}")
@@ -552,8 +551,7 @@ async def comprehensive_pro_token_analysis(token_query: str):
         # Request Solana token Twitter analysis
         try:
             # Use the original chain name for compatibility
-            original_chain = "solana" if chain_for_pro == "sol" else ("ether" if chain_for_pro == "eth" else chain_for_pro)
-            token_twitter_analysis = await analyzer.analyze_solana_token_twitter(token_address, chain=original_chain)
+            token_twitter_analysis = await analyzer.analyze_solana_token_twitter(token_address, chain=chain_for_pro)
             yield CustomOutput({"type": "token_twitter_analysis", "data": token_twitter_analysis})
         except Exception as e:
             logger.warning(f"Failed to get token Twitter analysis: {str(e)}")
@@ -572,6 +570,19 @@ async def comprehensive_pro_token_analysis(token_query: str):
         raise Exception(f"Pro token analysis failed: {str(e)}")
     
     yield FinishOutput()
+
+def _transfer_chain_name(chain_name):
+    if chain_name == "ethereum" or chain_name == "eth":
+        return "ether"
+    elif chain_name == "BNB Chain".lower():
+        return "bnb"
+    elif chain_name == "zkSync Era".lower():
+        return "zksync"
+    elif chain_name == "Avalanche C".lower():
+        return "avalanche"
+
+    return chain_name
+
 
 async def analyze_token_pro(token_query: str, analysis_type: str = "search", chain: str = "solana"):
     """
