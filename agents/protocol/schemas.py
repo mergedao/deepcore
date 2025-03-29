@@ -120,6 +120,8 @@ class AgentDTO(BaseModel):
     symbol: Optional[str] = Field(None, description="Optional symbol for the agent token")
     photos: Optional[List[str]] = Field(default_factory=list, description="Optional photos for the agent")
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
+    is_paused: Optional[bool] = Field(False, description="Whether the agent's conversation is paused", exclude=True)
+    pause_message: Optional[str] = Field(None, description="Message to display when the agent is paused", exclude=True)
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
     custom_config: Optional[Dict] = Field(None, description="Custom configuration for the agent")
