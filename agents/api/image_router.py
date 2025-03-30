@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -8,19 +8,22 @@ from agents.common.response import RestResponse
 from ..common.error_messages import get_error_message
 from ..exceptions import ErrorCode
 from ..models.db import get_db
+from ..protocol.schemas import ImgProRemainingResp, ImgProTaskReq, ImgProTaskResp
 from ..services.image_service import ImageService
 
 router = APIRouter()
+
 
 class ImageGenerateRequest(BaseModel):
     content: str
     size: Optional[str] = "1024x1024"
     quality: Optional[str] = "standard"
 
+
 @router.post("/api/images/generate", response_model=RestResponse[Dict[str, Any]])
 async def generate_image(
-    request: ImageGenerateRequest,
-    session: AsyncSession = Depends(get_db)
+        request: ImageGenerateRequest,
+        session: AsyncSession = Depends(get_db)
 ):
     """
     Image Generation API
@@ -51,7 +54,7 @@ async def generate_image(
                 code=1,
                 msg=f"Invalid size parameter. Available options: {', '.join(valid_sizes)}"
             )
-            
+
         # Validate quality parameter
         valid_qualities = ['standard', 'hd']
         if request.quality not in valid_qualities:
@@ -59,7 +62,7 @@ async def generate_image(
                 code=1,
                 msg=f"Invalid quality parameter. Available options: {', '.join(valid_qualities)}"
             )
-        
+
         image_service = ImageService(session)
         result = await image_service.generate_image(
             content=request.content,
@@ -67,9 +70,30 @@ async def generate_image(
             quality=request.quality
         )
         return RestResponse(data=result)
-        
+
     except Exception as e:
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
         )
+
+
+@router.get("/api/images/generate-pro/remaining",
+            description="Determine whether the current user can use pro img",
+            response_model=RestResponse[ImgProRemainingResp])
+async def generate_pro_image_remaining():
+    return RestResponse(data=ImgProRemainingResp(enabled=True))
+
+
+@router.post("/api/images/generate-pro/task",
+             description="create pro img task",
+             response_model=RestResponse[bool])
+async def generate_pro_image(req: ImgProTaskReq):
+    return RestResponse(data=True)
+
+
+@router.get("/api/images/generate-pro/task",
+            description="get pro img task list",
+            response_model=RestResponse[List[ImgProTaskResp]])
+async def generate_pro_image_list():
+    return RestResponse(data=[])
