@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agents.common.response import RestResponse
 from ..common.error_messages import get_error_message
 from ..exceptions import ErrorCode
+from ..middleware.auth_middleware import get_current_user
 from ..models.db import get_db
 from ..protocol.schemas import ImgProRemainingResp, ImgProTaskReq, ImgProTaskResp
-from ..services.image_service import ImageService
+from ..services.image_service import ImageService, img_pro_remaining_service, generate_pro_image_service, \
+    pro_image_list_service
 
 router = APIRouter()
 
@@ -81,19 +83,23 @@ async def generate_image(
 @router.get("/api/images/generate-pro/remaining",
             description="Determine whether the current user can use pro img",
             response_model=RestResponse[ImgProRemainingResp])
-async def generate_pro_image_remaining():
-    return RestResponse(data=ImgProRemainingResp(enabled=True))
+async def generate_pro_image_remaining(user: dict = Depends(get_current_user), ):
+    ret = await img_pro_remaining_service(user)
+    return RestResponse(data=ret)
 
 
 @router.post("/api/images/generate-pro/task",
              description="create pro img task",
              response_model=RestResponse[bool])
-async def generate_pro_image(req: ImgProTaskReq):
-    return RestResponse(data=True)
+async def generate_pro_image(req: ImgProTaskReq,
+                             user: dict = Depends(get_current_user), ):
+    ret = await generate_pro_image_service(req, user)
+    return RestResponse(data=ret)
 
 
 @router.get("/api/images/generate-pro/task",
             description="get pro img task list",
             response_model=RestResponse[List[ImgProTaskResp]])
-async def generate_pro_image_list():
-    return RestResponse(data=[])
+async def generate_pro_image_list(user: dict = Depends(get_current_user), ):
+    ret = await pro_image_list_service(user)
+    return RestResponse(data=ret)
