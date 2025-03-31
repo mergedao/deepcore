@@ -121,7 +121,7 @@ async def img_pro_remaining_service(user: dict):
                 url,
                 headers=data_headers,
                 params={
-                    "user_id": user["id"],
+                    "user_id": user.get('tenant_id'),
                 },
                 timeout=httpx.Timeout(30.0)
             )
@@ -135,18 +135,18 @@ async def img_pro_remaining_service(user: dict):
 async def generate_pro_image_service(req: ImgProTaskReq, user: dict):
     try:
         data = req.model_dump()
-        data.update({"user_id": user["id"]})
+        data.update({"user_id": user.get('tenant_id')})
 
         url = f"{SETTINGS.DATA_API_BASE}/p/inner/create_img_task"
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 url,
                 headers=data_headers,
-                data=data,
+                json=data,
                 timeout=httpx.Timeout(30.0)
             )
             response.raise_for_status()
-            return True
+            return response.text
     except Exception as err:
         logger.error(f"Failed to create generate pro image trask: {str(err)}", exc_info=True)
     return False
@@ -160,7 +160,7 @@ async def pro_image_list_service(user: dict):
                 url,
                 headers=data_headers,
                 params={
-                    "user_id": user["id"],
+                    "user_id": user.get('tenant_id'),
                 },
                 timeout=httpx.Timeout(30.0)
             )
