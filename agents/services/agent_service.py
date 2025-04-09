@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from agents.agent.chat_agent import ChatAgent
 from agents.agent.memory.agent_context_manager import agent_context_manager
+from agents.agent.tools.message_tool import send_markdown
 from agents.common.config import SETTINGS
 from agents.common.encryption_utils import encryption_utils
 from agents.common.json_encoder import UniversalEncoder, universal_decoder
@@ -56,6 +57,9 @@ async def dialogue(
             ErrorCode.RESOURCE_NOT_FOUND,
             "Agent not found or no permission"
         )
+    if agent.is_paused:
+        yield send_markdown(agent.pause_message)
+        return
 
     # Get the initialization flag
     chat_context = ChatContext(
@@ -859,10 +863,14 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
     """
     # Parse model_json if exists
     shouldInitializeDialog = False
+    is_paused = False
+    pause_message = ""
     if agent.model_json:
         try:
             model_json_data = json.loads(agent.model_json)
             shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
+            is_paused = model_json_data.get("isPaused", False)
+            pause_message = model_json_data.get("pauseMessage", "")
         except (json.JSONDecodeError, TypeError):
             logger.warning(f"Failed to parse model_json for agent {agent.id}")
     
@@ -901,7 +909,9 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         update_time=agent.update_time,
         create_fee=float(agent.create_fee) if agent.create_fee else None,
         price=float(agent.price) if agent.price else None,
-        shouldInitializeDialog=shouldInitializeDialog
+        shouldInitializeDialog=shouldInitializeDialog,
+        is_paused=is_paused,
+        pause_message=pause_message,
     )
     
     # Add tools to the DTO

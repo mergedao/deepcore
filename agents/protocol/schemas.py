@@ -13,9 +13,9 @@ class ToolType(str, Enum):
 
 
 class AgentMode(str, Enum):
-    REACT = "ReAct"    # ReAct mode for complex task decomposition and tool calling
+    REACT = "ReAct"  # ReAct mode for complex task decomposition and tool calling
     PROMPT = "Prompt"  # Simple prompt mode for direct conversation
-    CALL = "call"      # Legacy mode for backward compatibility
+    CALL = "call"  # Legacy mode for backward compatibility
     DEEP_THINKING = "DeepThinking"  # Advanced mode with sophisticated cognitive processing capabilities
 
 
@@ -120,17 +120,19 @@ class AgentDTO(BaseModel):
     symbol: Optional[str] = Field(None, description="Optional symbol for the agent token")
     photos: Optional[List[str]] = Field(default_factory=list, description="Optional photos for the agent")
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
+    is_paused: Optional[bool] = Field(False, description="Whether the agent's conversation is paused", exclude=True)
+    pause_message: Optional[str] = Field(None, description="Message to display when the agent is paused", exclude=True)
     tool_prompt: Optional[str] = Field(None, description="Optional tool prompt for the agent")
     max_loops: int = Field(default=3, description="Maximum number of loops the agent can perform")
     custom_config: Optional[Dict] = Field(None, description="Custom configuration for the agent")
     create_time: Optional[datetime] = Field(None, description="Creation time")
     update_time: Optional[datetime] = Field(None, description="Last update time")
     tools: Optional[List[Union[str, ToolInfo]]] = Field(
-        default_factory=list, 
+        default_factory=list,
         description="List of tool UUIDs to associate with the agent when creating/updating, or list of ToolInfo when getting agent details"
     )
     suggested_questions: Optional[List[str]] = Field(
-        default_factory=list, 
+        default_factory=list,
         description="List of suggested questions for users to ask"
     )
     model_id: Optional[int] = Field(None, description="ID of the associated model")
@@ -142,7 +144,8 @@ class AgentDTO(BaseModel):
     is_hot: Optional[bool] = Field(False, description="Whether the agent is hot", exclude=True)
     create_fee: Optional[float] = Field(None, description="Creation fee for the agent")
     price: Optional[float] = Field(None, description="Price for the agent")
-    shouldInitializeDialog: Optional[bool] = Field(False, description="Whether to initialize dialog when creating the agent")
+    shouldInitializeDialog: Optional[bool] = Field(False,
+                                                   description="Whether to initialize dialog when creating the agent")
 
     class Config:
         from_attributes = True
@@ -344,4 +347,24 @@ class AgentContextStoreRequest(BaseModel):
     scenario: str = Field(..., description="Scenario identifier for the context data")
     data: Dict = Field(..., description="Context data to store")
     ttl: Optional[int] = Field(86400, description="Time to live in seconds (default: 24 hours)")
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional metadata for the context data")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict,
+                                               description="Additional metadata for the context data")
+
+
+class ImgProRemainingResp(BaseModel):
+    """ImgProRemaining"""
+    enabled: bool = Field(..., description="can upload img")
+
+
+class ImgProTaskReq(BaseModel):
+    """ImgProTaskReq"""
+    img_url: str = Field(..., description="img url")
+    gen_img_type: int = Field(0, description="gen img type")
+
+
+class ImgProTaskResp(BaseModel):
+    """ImgProTaskResp"""
+    task_id: str = Field(..., description="task id")
+    img_url: str = Field(..., description="img url")
+    result_img_url: Optional[str] = Field("", description="Result img url")
+    status: Optional[str] = Field("TODO", description="status")
