@@ -13,6 +13,7 @@ from agents.api import agent_router, api_router, file_router, tool_router, promp
 from agents.api.auth_router import router as auth_router
 from agents.api.data_router import router as data_router
 from agents.api.mcp_router import router as mcp_router
+from agents.api.ai_image_router import router as ai_image_router
 from agents.api.api_router import register_startup_events
 from agents.common.config import SETTINGS
 from agents.common.log import Log
@@ -107,6 +108,7 @@ def create_app() -> FastAPI:
     app.include_router(open_router.router, prefix="/api/open", tags=["open"])
     app.include_router(data_router, prefix="/api/p", tags=["data"])
     app.include_router(mcp_router, prefix="/api", tags=["mcp"])
+    app.include_router(ai_image_router, prefix="/api", tags=["ai_image"])
 
     # add mcp
     app.mount("/", mcp_sse.get_application())
