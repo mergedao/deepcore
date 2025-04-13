@@ -30,12 +30,14 @@ CREATE TABLE `app` (
   `category_id` bigint DEFAULT NULL COMMENT 'ID of the category',
   `create_fee` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for creating the agent (tips for creator)',
   `price` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for using the agent',
+  `vip_level` int DEFAULT 0 COMMENT 'Required VIP level to access this agent (0 for normal users, 1 for VIP users)',
   PRIMARY KEY (`id`),
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_model` (`model_id`),
   KEY `idx_category` (`category_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
-  KEY `idx_hot` (`is_hot`)
+  KEY `idx_hot` (`is_hot`),
+  KEY `idx_vip_level` (`vip_level`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
@@ -254,3 +256,34 @@ CREATE TABLE `mcp_resource` (
 
 -- Add icon field to models table
 -- ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;
+
+
+-- Create membership table
+CREATE TABLE IF NOT EXISTS vip_memberships (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    level INTEGER DEFAULT 1,
+    start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expire_time TIMESTAMP NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create membership package table
+CREATE TABLE IF NOT EXISTS vip_packages (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    level INTEGER NOT NULL,
+    duration INTEGER NOT NULL,
+    price DECIMAL(18,9) NOT NULL,
+    description TEXT,
+    features JSONB,
+    is_active BOOLEAN DEFAULT true,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes
+CREATE INDEX idx_vip_memberships_user_status ON vip_memberships(user_id, status);
+CREATE INDEX idx_vip_packages_level_duration ON vip_packages(level, duration);

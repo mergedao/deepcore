@@ -368,3 +368,60 @@ class ImgProTaskResp(BaseModel):
     img_url: str = Field(..., description="img url")
     result_img_url: Optional[str] = Field("", description="Result img url")
     status: Optional[str] = Field("TODO", description="status")
+
+
+class VipMembershipDTO(BaseModel):
+    """VIP Membership DTO"""
+    id: int
+    user_id: int
+    level: int
+    start_time: datetime
+    expire_time: datetime
+    status: str
+    create_time: datetime
+    update_time: datetime
+
+
+class VipPackageDTO(BaseModel):
+    """VIP Package DTO"""
+    id: int
+    name: str
+    level: int
+    duration: int
+    price: float
+    description: Optional[str] = None
+    features: Optional[dict] = None
+    is_active: bool
+    create_time: datetime
+    update_time: datetime
+
+
+class VipOrderDTO(BaseModel):
+    """VIP Order DTO"""
+    id: int
+    order_no: str
+    user_id: int
+    package_id: int
+    amount: float
+    status: str
+    payment_method: Optional[str] = None
+    payment_time: Optional[datetime] = None
+    create_time: datetime
+    update_time: datetime
+
+
+class VipPackageCreateDTO(BaseModel):
+    """Create VIP Package DTO"""
+    name: str
+    level: int
+    duration: int
+    price: float
+    description: Optional[str] = None
+    features: Optional[dict] = None
+
+
+class VipOrderCreateDTO(BaseModel):
+    """Create VIP Order DTO"""
+    package_id: int
+    amount: float
+    payment_method: str

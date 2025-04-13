@@ -23,6 +23,7 @@ from agents.models.entity import AgentInfo, ModelInfo, ChatContext
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO, ModelDTO
 from agents.services.model_service import get_model_with_key
+from agents.services.vip_service import VipService
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ async def dialogue(
         user: Optional[dict],
         session: AsyncSession = Depends(get_db)
 ) -> AsyncIterator[str]:
-    # Add tenant filter
+    # Get agent info
     agent = await get_agent(agent_id, user, session, True)
     agent_info = AgentInfo.from_dto(agent)
     
@@ -57,6 +58,19 @@ async def dialogue(
             ErrorCode.RESOURCE_NOT_FOUND,
             "Agent not found or no permission"
         )
+    
+    # Check VIP level access
+    if agent.vip_level > 0:  # If agent requires VIP access
+        if not user:
+            raise CustomAgentException(
+                ErrorCode.UNAUTHORIZED,
+                "Please login to access this agent"
+            )
+        user_vip_level = await VipService.get_user_vip_level(user["id"], session)
+        if user_vip_level.value < agent.vip_level:
+            yield send_markdown("VIP membership required to access this agent")
+            return
+    
     if agent.is_paused:
         yield send_markdown(agent.pause_message)
         return
