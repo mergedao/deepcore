@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Column, String, Boolean, DateTime, func, JSON, Text, LargeBinary, BigInteger, Integer, \
-    ForeignKey, Numeric, UUID, UniqueConstraint
+    ForeignKey, Numeric, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -260,4 +260,70 @@ class MCPResource(Base):
     
     __table_args__ = (
         UniqueConstraint('mcp_server_id', 'uri', name='uq_mcp_resource_uri'),
+    )
+
+
+class VipMembership(Base):
+    """Membership table"""
+    __tablename__ = "vip_memberships"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="User ID")
+    level = Column(Integer, default=1, comment="Membership level")
+    start_time = Column(DateTime, nullable=False, default=datetime.utcnow, comment="Membership start time")
+    expire_time = Column(DateTime, nullable=False, comment="Membership expiration time")
+    status = Column(String(20), default="active", comment="Membership status: active, expired, cancelled")
+    create_time = Column(DateTime, default=datetime.utcnow, comment="Creation time")
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Update time")
+    
+    # Relationships
+    user = relationship("User", back_populates="vip_memberships")
+    
+    __table_args__ = (
+        Index("idx_vip_memberships_user_status", "user_id", "status"),
+    )
+
+
+class VipPackage(Base):
+    """Membership package table"""
+    __tablename__ = "vip_packages"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, comment="Package name")
+    level = Column(Integer, nullable=False, comment="Membership level")
+    duration = Column(Integer, nullable=False, comment="Package duration (days)")
+    price = Column(Numeric(10, 2), nullable=False, comment="Package price")
+    description = Column(Text, nullable=True, comment="Package description")
+    features = Column(JSON, nullable=True, comment="Package features")
+    is_active = Column(Boolean, default=True, comment="Is active")
+    create_time = Column(DateTime, default=datetime.utcnow, comment="Creation time")
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Update time")
+    
+    __table_args__ = (
+        Index("idx_vip_packages_level_duration", "level", "duration"),
+    )
+
+
+class VipOrder(Base):
+    """Membership order table"""
+    __tablename__ = "vip_orders"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_no = Column(String(50), unique=True, nullable=False, comment="Order number")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="User ID")
+    package_id = Column(Integer, ForeignKey("vip_packages.id"), nullable=False, comment="Package ID")
+    amount = Column(Numeric(10, 2), nullable=False, comment="Order amount")
+    status = Column(String(20), default="pending", comment="Order status: pending, paid, cancelled, refunded")
+    payment_method = Column(String(50), nullable=True, comment="Payment method")
+    payment_time = Column(DateTime, nullable=True, comment="Payment time")
+    create_time = Column(DateTime, default=datetime.utcnow, comment="Creation time")
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Update time")
+    
+    # Relationships
+    user = relationship("User", back_populates="vip_orders")
+    package = relationship("VipPackage")
+    
+    __table_args__ = (
+        Index("idx_vip_orders_user_status", "user_id", "status"),
+        Index("idx_vip_orders_order_no", "order_no"),
     )
