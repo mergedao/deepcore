@@ -144,6 +144,7 @@ class AgentDTO(BaseModel):
     is_hot: Optional[bool] = Field(False, description="Whether the agent is hot", exclude=True)
     create_fee: Optional[float] = Field(None, description="Creation fee for the agent")
     price: Optional[float] = Field(None, description="Price for the agent")
+    vip_level: Optional[int] = Field(0, description="VIP level required to access this agent")
     shouldInitializeDialog: Optional[bool] = Field(False,
                                                    description="Whether to initialize dialog when creating the agent")
 
