@@ -52,6 +52,7 @@ class App(Base):
     is_hot = Column(Boolean, default=False, comment="Whether the agent is hot")
     create_fee = Column(Numeric(20, 9), default=0.000000000, comment="Fee for creating the agent (tips for creator)")
     price = Column(Numeric(20, 9), default=0.000000000, comment="Fee for using the agent")
+    vip_level = Column(Integer, default=0, comment="VIP level required to access this agent")
     tools = relationship('Tool', secondary='agent_tools', backref='agents')
     suggested_questions = Column(JSON, comment="List of suggested questions for the agent")
     model_id = Column(BigInteger, ForeignKey('models.id'), comment="ID of the associated model")
@@ -117,6 +118,7 @@ class User(Base):
 
     # Relationships
     open_platform_keys = relationship("OpenPlatformKey", back_populates="user")
+    vip_memberships = relationship("VipMembership", back_populates="user")
 
     def set_password(self, password):
         """Set password."""
@@ -320,7 +322,7 @@ class VipOrder(Base):
     update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Update time")
     
     # Relationships
-    user = relationship("User", back_populates="vip_orders")
+    user = relationship("User")
     package = relationship("VipPackage")
     
     __table_args__ = (

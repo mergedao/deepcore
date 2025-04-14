@@ -923,6 +923,7 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         update_time=agent.update_time,
         create_fee=float(agent.create_fee) if agent.create_fee else None,
         price=float(agent.price) if agent.price else None,
+        vip_level=agent.vip_level,
         shouldInitializeDialog=shouldInitializeDialog,
         is_paused=is_paused,
         pause_message=pause_message,

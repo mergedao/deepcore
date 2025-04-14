@@ -258,30 +258,34 @@ CREATE TABLE `mcp_resource` (
 -- ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;
 
 
+ALTER TABLE `app` ADD COLUMN `vip_level` int DEFAULT 0 COMMENT 'Required VIP level to access this agent (0 for normal users, 1 for VIP users)'
+ALTER TABLE `app` ADD COLUMN
+
 -- Create membership table
 CREATE TABLE IF NOT EXISTS vip_memberships (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
     user_id INTEGER NOT NULL,
     level INTEGER DEFAULT 1,
     start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expire_time TIMESTAMP NOT NULL,
     status VARCHAR(20) DEFAULT 'active',
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
 -- Create membership package table
 CREATE TABLE IF NOT EXISTS vip_packages (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(100) NOT NULL,
     level INTEGER NOT NULL,
     duration INTEGER NOT NULL,
     price DECIMAL(18,9) NOT NULL,
     description TEXT,
-    features JSONB,
-    is_active BOOLEAN DEFAULT true,
+    features JSON COMMENT 'Features of the package',
+    is_active tinyint(1) DEFAULT 1 COMMENT 'Whether the package is active',
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- Create indexes
