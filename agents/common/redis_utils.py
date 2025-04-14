@@ -32,7 +32,7 @@ class RedisUtils:
             db=db,
             password=password,
             decode_responses=True,
-            ssl=False
+            ssl=ssl
         )
 
     def set_value(self, key: str, value: Any, ex: Optional[int] = None) -> bool:

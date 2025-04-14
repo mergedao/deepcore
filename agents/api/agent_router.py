@@ -36,6 +36,8 @@ defaults = {
     'tool_prompt': "",
     'tools': [],
     'suggested_questions': [],
+    'shouldInitializeDialog': False,
+    'initializeDialogQuestion': None,
 }
 
 
@@ -56,6 +58,7 @@ async def create_agent(
     - **model_id**: Optional ID of the model to use
     - **suggested_questions**: Optional list of suggested questions
     - **shouldInitializeDialog**: Optional boolean to indicate whether to initialize dialog when creating the agent
+    - **initializeDialogQuestion**: Optional string to specify the question to send when initializing dialog
     """
     try:
         logger.info(f"Creating agent with data: {agent.model_dump()}")
@@ -200,6 +203,17 @@ async def update_agent(
 ):
     """
     Update an existing agent.
+    
+    Parameters:
+    - **id**: ID of the agent to update
+    - **name**: Name of the agent
+    - **description**: Description of the agent
+    - **mode**: Mode of the agent (ReAct/Prompt/call)
+    - **tools**: Optional list of tools to associate
+    - **model_id**: Optional ID of the model to use
+    - **suggested_questions**: Optional list of suggested questions
+    - **shouldInitializeDialog**: Optional boolean to indicate whether to initialize dialog when creating the agent
+    - **initializeDialogQuestion**: Optional string to specify the question to send when initializing dialog
     """
     try:
         agent = await agent_service.update_agent(
@@ -210,7 +224,7 @@ async def update_agent(
         return RestResponse(data=agent)
     except CustomAgentException as e:
         logger.error(f"Error updating agent: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error updating agent: {str(e)}", exc_info=True)
         return RestResponse(

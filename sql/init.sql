@@ -258,8 +258,7 @@ CREATE TABLE `mcp_resource` (
 -- ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;
 
 
-ALTER TABLE `app` ADD COLUMN `vip_level` int DEFAULT 0 COMMENT 'Required VIP level to access this agent (0 for normal users, 1 for VIP users)'
-ALTER TABLE `app` ADD COLUMN
+ALTER TABLE `app` ADD COLUMN `vip_level` int DEFAULT 0 COMMENT 'Required VIP level to access this agent (0 for normal users, 1 for VIP users)';
 
 -- Create membership table
 CREATE TABLE IF NOT EXISTS vip_memberships (
@@ -270,8 +269,7 @@ CREATE TABLE IF NOT EXISTS vip_memberships (
     expire_time TIMESTAMP NOT NULL,
     status VARCHAR(20) DEFAULT 'active',
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- Create membership package table
