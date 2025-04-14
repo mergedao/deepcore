@@ -115,7 +115,6 @@ class AgentDTO(BaseModel):
     twitter_link: Optional[str] = Field(None, description="Optional twitter link for the agent")
     telegram_bot_id: Optional[str] = Field(None, description="Optional telegram bot id for the agent")
     telegram_bot_name: Optional[str] = Field(None, description="Optional telegram bot name for the agent")
-    # telegram_bot_token: Optional[str] = Field(None, description="Optional masked telegram bot token")
     token: Optional[str] = Field(None, description="Optional token for the agent")
     symbol: Optional[str] = Field(None, description="Optional symbol for the agent token")
     photos: Optional[List[str]] = Field(default_factory=list, description="Optional photos for the agent")
@@ -145,8 +144,8 @@ class AgentDTO(BaseModel):
     create_fee: Optional[float] = Field(None, description="Creation fee for the agent")
     price: Optional[float] = Field(None, description="Price for the agent")
     vip_level: Optional[int] = Field(0, description="VIP level required to access this agent")
-    shouldInitializeDialog: Optional[bool] = Field(False,
-                                                   description="Whether to initialize dialog when creating the agent")
+    shouldInitializeDialog: Optional[bool] = Field(False, description="Whether to initialize dialog when creating the agent")
+    initializeDialogQuestion: Optional[str] = Field(None, description="Question to send when initializing dialog")
 
     class Config:
         from_attributes = True

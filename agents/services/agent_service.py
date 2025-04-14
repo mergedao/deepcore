@@ -202,6 +202,8 @@ async def create_agent(
             model_json_data = {}
             if agent.shouldInitializeDialog is not None:
                 model_json_data["shouldInitializeDialog"] = agent.shouldInitializeDialog
+            if agent.initializeDialogQuestion is not None:
+                model_json_data["initializeDialogQuestion"] = agent.initializeDialogQuestion
 
             new_agent = App(
                 id=agent.id,
@@ -465,6 +467,8 @@ async def update_agent(
             model_json_data = {}
             if agent.shouldInitializeDialog is not None:
                 model_json_data["shouldInitializeDialog"] = agent.shouldInitializeDialog
+            if agent.initializeDialogQuestion is not None:
+                model_json_data["initializeDialogQuestion"] = agent.initializeDialogQuestion
             
             # If there was existing model_json data, preserve it and update only what's needed
             if existing_agent.model_json:
@@ -877,12 +881,14 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
     """
     # Parse model_json if exists
     shouldInitializeDialog = False
+    initializeDialogQuestion = None
     is_paused = False
     pause_message = ""
     if agent.model_json:
         try:
             model_json_data = json.loads(agent.model_json)
             shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
+            initializeDialogQuestion = model_json_data.get("initializeDialogQuestion")
             is_paused = model_json_data.get("isPaused", False)
             pause_message = model_json_data.get("pauseMessage", "")
         except (json.JSONDecodeError, TypeError):
@@ -925,6 +931,7 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         price=float(agent.price) if agent.price else None,
         vip_level=agent.vip_level,
         shouldInitializeDialog=shouldInitializeDialog,
+        initializeDialogQuestion=initializeDialogQuestion,
         is_paused=is_paused,
         pause_message=pause_message,
     )
