@@ -146,6 +146,7 @@ class AgentDTO(BaseModel):
     vip_level: Optional[int] = Field(0, description="VIP level required to access this agent")
     shouldInitializeDialog: Optional[bool] = Field(False, description="Whether to initialize dialog when creating the agent")
     initializeDialogQuestion: Optional[str] = Field(None, description="Question to send when initializing dialog")
+    dev: Optional[str] = Field(None, description="Developer wallet address")
 
     class Config:
         from_attributes = True

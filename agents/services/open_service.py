@@ -42,7 +42,7 @@ async def get_or_create_credentials(user: dict, session: AsyncSession) -> dict:
     user_id = user.get("user_id")
     if not user_id:
         raise CustomAgentException(
-            error_code=ErrorCode.INVALID_REQUEST,
+            error_code=ErrorCode.INVALID_PARAMETERS,
             message="User ID is required"
         )
 
@@ -87,12 +87,51 @@ async def get_credentials(access_key: str, session: AsyncSession) -> Optional[Op
     result = await session.execute(query)
     return result.scalar_one_or_none()
 
+
+async def get_credentials_by_token(token: str, session: AsyncSession) -> Optional[OpenPlatformKey]:
+    """Get credentials by token"""
+    query = select(OpenPlatformKey).where(
+        OpenPlatformKey.token == token,
+        OpenPlatformKey.is_deleted == False
+    )
+    result = await session.execute(query)
+    return result.scalar_one_or_none()
+
+async def verify_token_and_get_credentials(token: str, session: AsyncSession) -> Optional[Dict[str, Any]]:
+    """Verify token and get credentials"""
+    if not token or not token.startswith("tk_") or len(token) != 23:  # "tk_" + 20 chars
+        return None
+        
+    from sqlalchemy import select
+    from agents.models.models import OpenPlatformKey, User
+
+    stmt = (
+        select(OpenPlatformKey, User)
+        .join(User, OpenPlatformKey.user_id == User.id)
+        .where(OpenPlatformKey.token == token)
+    )
+    
+    result = await session.execute(stmt)
+    row = result.first()
+    
+    if not row:
+        return None
+        
+    credentials, user = row
+    
+    return {
+        "user_id": credentials.user_id,
+        "type": "api_token",
+        "access_key": credentials.access_key,
+        "tenant_id": user.tenant_id
+    }
+
 async def generate_token(access_key: str, session: AsyncSession) -> Dict[str, Any]:
     """Generate a token for open platform API access"""
     credentials = await get_credentials(access_key, session)
     if not credentials:
         raise CustomAgentException(
-            error_code=ErrorCode.INVALID_REQUEST,
+            error_code=ErrorCode.INVALID_PARAMETERS,
             message="Invalid access key"
         )
     

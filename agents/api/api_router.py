@@ -1,13 +1,10 @@
 import logging
-import uuid
 
-from fastapi import Query, APIRouter, HTTPException, status, FastAPI
-from starlette.responses import StreamingResponse, Response
+from fastapi import APIRouter, HTTPException, status, FastAPI
+from starlette.responses import Response
 
 from agents.common.response import RestResponse
 from .image_router import router as image_router
-from ..common.error_messages import get_error_message
-from ..exceptions import ErrorCode
 from ..models.db import detect_connection_leaks, get_pool_status, test_connection, initialize_pool
 
 logger = logging.getLogger(__name__)

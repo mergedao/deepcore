@@ -289,3 +289,5 @@ CREATE TABLE IF NOT EXISTS vip_packages (
 -- Create indexes
 CREATE INDEX idx_vip_memberships_user_status ON vip_memberships(user_id, status);
 CREATE INDEX idx_vip_packages_level_duration ON vip_packages(level, duration);
+
+ALTER TABLE `app` ADD COLUMN `dev` varchar(255) DEFAULT NULL COMMENT 'Developer wallet address';

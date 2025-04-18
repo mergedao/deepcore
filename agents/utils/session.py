@@ -2,11 +2,12 @@
 Session and user information handling utilities
 """
 
-import logging
-from contextlib import asynccontextmanager
-from starlette.requests import Request
 import asyncio
 import inspect
+import logging
+from contextlib import asynccontextmanager
+
+from starlette.requests import Request
 
 logger = logging.getLogger(__name__)
 
@@ -90,9 +91,6 @@ async def get_user_from_request(request: Request) -> dict:
         user = request.state.user
         return user
     except AttributeError:
-        # If no user information in request, use default values
-        # In production, this should return None to indicate unauthenticated
-        # But for development and testing purposes, we return a default user
         logger.warning("No user information found in request, using default user")
         return {
             "id": "default",

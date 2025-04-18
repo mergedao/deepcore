@@ -6,7 +6,6 @@ Avoids long table locks, suitable for production environments
 
 import argparse
 import logging
-import os
 import subprocess
 import sys
 from typing import List, Dict, Any

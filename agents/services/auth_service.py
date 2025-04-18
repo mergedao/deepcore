@@ -338,3 +338,4 @@ async def refresh_token(refresh_token: str, session: AsyncSession) -> TokenRespo
         "refresh_token_expires_in": REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # convert to seconds
         "user": user.to_dict()
     }
+

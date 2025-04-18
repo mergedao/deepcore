@@ -5,7 +5,6 @@ from typing import Optional
 
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
-from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
@@ -13,7 +12,6 @@ from agents.common.error_messages import get_error_message
 from agents.common.http_utils import add_cors_headers
 from agents.common.response import RestResponse
 from agents.exceptions import ErrorCode
-from agents.models.models import OpenPlatformKey
 from agents.services import open_service
 from agents.utils.jwt_utils import verify_token
 
@@ -95,30 +93,15 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
             token = request.headers.get("X-API-Token")
             if not token:
                 return False
-
-            # Validate token format (check prefix and length)
-            if not token.startswith("tk_") or len(token) != 23:  # "tk_" + 20 chars
-                return False
                 
-            # Directly look up the token in the database
+            # Verify token and get credentials
             try:
                 async with request.app.state.db() as session:
-                    query = select(OpenPlatformKey).where(
-                        OpenPlatformKey.token == token,
-                        OpenPlatformKey.is_deleted == False
-                    )
-                    result = await session.execute(query)
-                    credentials = result.scalar_one_or_none()
-                    
-                    if not credentials:
+                    user_info = await open_service.verify_token_and_get_credentials(token, session)
+                    if not user_info:
                         return False
-                    
-                    # Set user information
-                    request.state.user = {
-                        "user_id": credentials.user_id,
-                        "type": "api_token",
-                        "access_key": credentials.access_key
-                    }
+                        
+                    request.state.user = user_info
                     return True
             except Exception as e:
                 logger.error(f"Database operation failed: {str(e)}", exc_info=True)
