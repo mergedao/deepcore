@@ -6,7 +6,7 @@ import mcp.types as types
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.sse import SseServerTransport
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import Response
@@ -16,7 +16,7 @@ from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import MCPServer, MCPTool, MCPPrompt, MCPResource
 from agents.services.tool_service import get_tool, get_tools_by_ids
 from agents.utils.http_client import async_client
-from agents.utils.session import get_async_session, get_async_session_ctx
+from agents.utils.session import get_async_session_ctx
 
 logger = logging.getLogger(__name__)
 

@@ -60,6 +60,7 @@ class AppModel(BaseModel):
     update_time: Optional[datetime] = None
     create_time: Optional[datetime] = None
     tools: Optional[List[ToolModel]] = None
+    dev: Optional[str] = None  # Developer wallet address
 
     class Config:
         from_attributes = True

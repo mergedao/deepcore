@@ -59,6 +59,7 @@ class App(Base):
     category_id = Column(BigInteger, ForeignKey('categories.id'), comment="ID of the category")
     model = relationship('Model')
     category = relationship('Category')
+    dev = Column(String(255), comment="Developer wallet address")
 
 
 class Tool(Base):

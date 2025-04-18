@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.models import VipMembership, VipPackage
-from agents.protocol.schemas import VipMembershipDTO, VipPackageDTO
 from agents.protocol.enums import VipLevel
 
 logger = logging.getLogger(__name__)

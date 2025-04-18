@@ -1,16 +1,15 @@
 import logging
-from typing import List, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Body
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.common.response import RestResponse
-from agents.exceptions import CustomAgentException, ErrorCode
+from agents.exceptions import ErrorCode
 from agents.middleware.auth_middleware import get_current_user
 from agents.models.db import get_db
 from agents.models.models import VipPackage
 from agents.protocol.schemas import VipPackageDTO, VipMembershipDTO, VipPackageCreateDTO
-from agents.protocol.enums import VipLevel
 from agents.services.vip_service import VipService
 
 router = APIRouter()

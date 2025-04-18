@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Body, Path, Query
+from fastapi import APIRouter, Depends, Body, Path
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 

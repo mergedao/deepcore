@@ -1,7 +1,6 @@
 import json
 import logging
 from typing import Optional, AsyncIterator, List
-from datetime import timedelta
 
 from fastapi import Depends
 from sqlalchemy import func
@@ -222,7 +221,8 @@ async def create_agent(
                 model_id=agent.model_id,
                 category_id=agent.category_id,
                 model_json=json.dumps(model_json_data) if model_json_data else None,
-                tenant_id=user.get('tenant_id')
+                tenant_id=user.get('tenant_id'),
+                dev=user.get('wallet_address')  # Add developer wallet address
             )
             session.add(new_agent)
             await session.flush()
@@ -912,7 +912,6 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         twitter_link=agent.twitter_link,
         telegram_bot_id=agent.telegram_bot_id,
         telegram_bot_name=agent.telegram_bot_name,
-        # telegram_bot_token=masked_token,
         token=agent.token,
         symbol=agent.symbol,
         photos=agent.photos,
@@ -934,6 +933,7 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         initializeDialogQuestion=initializeDialogQuestion,
         is_paused=is_paused,
         pause_message=pause_message,
+        dev=agent.dev  # Add developer wallet address
     )
     
     # Add tools to the DTO

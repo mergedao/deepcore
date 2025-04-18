@@ -10,11 +10,11 @@ from starlette.types import ASGIApp
 from agents.agent.mcp import mcp_sse
 from agents.api import agent_router, api_router, file_router, tool_router, prompt_router, model_router, image_router, \
     category_router, open_router
+from agents.api.ai_image_router import router as ai_image_router
+from agents.api.api_router import register_startup_events
 from agents.api.auth_router import router as auth_router
 from agents.api.data_router import router as data_router
 from agents.api.mcp_router import router as mcp_router
-from agents.api.ai_image_router import router as ai_image_router
-from agents.api.api_router import register_startup_events
 from agents.api.vip_router import router as vip_router
 from agents.common.config import SETTINGS
 from agents.common.log import Log
