@@ -48,6 +48,7 @@ class AppModel(BaseModel):
     token: Optional[str] = None
     symbol: Optional[str] = None
     photos: Optional[List[str]] = None
+    demo_video: Optional[str] = None
     tool_prompt: Optional[str] = None
     max_loops: int = 3
     custom_config: Optional[Dict] = None

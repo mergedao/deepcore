@@ -41,6 +41,7 @@ class App(Base):
     token = Column(String(255), comment="Token symbol for the agent")
     symbol = Column(String(50), comment="Symbol for the agent token")
     photos = Column(JSON, comment="Photos for the agent")
+    demo_video = Column(String(255), comment="Demo video URL for the agent")
     tool_prompt = Column(Text, comment="Tool prompt for the agent")
     max_loops = Column(Integer, default=3, comment="Maximum number of loops the agent can perform")
     model_json = Column(JSON, comment="Additional fields merged into a JSON column")

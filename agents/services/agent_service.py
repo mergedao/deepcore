@@ -930,6 +930,7 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         token=agent.token,
         symbol=agent.symbol,
         photos=agent.photos,
+        demo_video=agent.demo_video,
         tool_prompt=agent.tool_prompt,
         max_loops=agent.max_loops,
         custom_config=agent.custom_config,
