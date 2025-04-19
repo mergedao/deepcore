@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Dict, Any
 
 from sqlalchemy import Column, String, Boolean, DateTime, func, JSON, Text, LargeBinary, BigInteger, Integer, \
     ForeignKey, Numeric, UniqueConstraint, Index
@@ -330,3 +331,45 @@ class VipOrder(Base):
         Index("idx_vip_orders_user_status", "user_id", "status"),
         Index("idx_vip_orders_order_no", "order_no"),
     )
+
+
+class MCPStore(Base):
+    """MCP Store Model"""
+    __tablename__ = "mcp_stores"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), unique=True, nullable=False)
+    icon = Column(String(255), comment="Store icon URL")
+    description = Column(Text)
+    store_type = Column(String(50), nullable=False)
+    tags = Column(JSON, comment="Store tags as JSON list")
+    content = Column(Text, comment="Store content")
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    author = Column(String(255), comment="Author name")
+    github_url = Column(String(255), comment="GitHub repository URL")
+    tenant_id = Column(String(255), nullable=False)
+    is_public = Column(Boolean, default=False, comment="Whether the store is public")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    creator = relationship("User")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "icon": self.icon,
+            "description": self.description,
+            "store_type": self.store_type,
+            "tags": self.tags or [],
+            "content": self.content,
+            "author": self.author,
+            "github_url": self.github_url,
+            "creator": self.creator.to_dict() if self.creator else None,
+            "tenant_id": self.tenant_id,
+            "is_public": self.is_public,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }

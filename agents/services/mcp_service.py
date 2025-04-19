@@ -6,14 +6,14 @@ import mcp.types as types
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.sse import SseServerTransport
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import Response
 
 from agents.common.config import SETTINGS
 from agents.exceptions import CustomAgentException, ErrorCode
-from agents.models.models import MCPServer, MCPTool, MCPPrompt, MCPResource
+from agents.models.models import MCPServer, MCPTool, MCPPrompt, MCPResource, MCPStore
 from agents.services.tool_service import get_tool, get_tools_by_ids
 from agents.utils.http_client import async_client
 from agents.utils.session import get_async_session_ctx
@@ -990,3 +990,241 @@ def get_coin_api_mcp_service(user):
     
     logger.info("Creating coin-api MCP service instance")
     return coin_api_mcp.server.server
+
+async def create_mcp_store(
+    store_name: str,
+    store_type: str,
+    user: dict,
+    session: AsyncSession,
+    icon: Optional[str] = None,
+    description: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    content: Optional[str] = None,
+    author: Optional[str] = None,
+    github_url: Optional[str] = None,
+    is_public: Optional[bool] = False,
+) -> Dict[str, Any]:
+    """
+    Create a new MCP Store
+    
+    Args:
+        store_name: Name of the store
+        store_type: Type of the store
+        user: Current user information
+        session: Database session
+        icon: Store icon URL (optional)
+        description: Store description (optional)
+        tags: List of store tags (optional)
+        content: Store content (optional)
+        author: Author name (optional)
+        github_url: GitHub URL for the store (optional)
+        is_public: Whether the store is public (optional)
+        
+    Returns:
+        Dictionary containing store information
+    """
+    try:
+        # Check if the name is already in use
+        existing_store = await session.execute(
+            select(MCPStore).where(MCPStore.name == store_name)
+        )
+        if existing_store.scalar_one_or_none():
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_ALREADY_EXISTS,
+                f"MCP store with name '{store_name}' already exists"
+            )
+            
+        # Create MCP Store record
+        mcp_store = MCPStore(
+            name=store_name,
+            icon=icon,
+            description=description,
+            store_type=store_type,
+            tags=tags,
+            content=content,
+            author=author,
+            creator_id=user["id"],
+            github_url=github_url,
+            tenant_id=user["tenant_id"],
+            is_public=is_public
+        )
+        session.add(mcp_store)
+        await session.commit()
+        await session.refresh(mcp_store)
+            
+        return mcp_store.to_dict()
+        
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating MCP store: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to create MCP store: {str(e)}"
+        )
+
+async def get_registered_mcp_stores(
+    page: int,
+    page_size: int,
+    keyword: Optional[str] = None,
+    store_type: Optional[str] = None,
+    is_public: Optional[bool] = None,
+    session: Optional[AsyncSession] = None,
+    user: Optional[dict] = None
+) -> Dict[str, Any]:
+    """
+    Get registered MCP Stores with pagination and search support
+    
+    Args:
+        page: Page number
+        page_size: Number of items per page
+        keyword: Search keyword (optional)
+        store_type: Filter by store type (optional)
+        is_public: Filter by public status (optional)
+        session: Optional database session
+        user: Current user information (optional)
+        
+    Returns:
+        Dictionary containing pagination info and store list
+    """
+    if session is None:
+        async with get_async_session_ctx() as session:
+            return await _get_registered_mcp_stores_impl(
+                page, page_size, keyword, store_type, is_public, session, user
+            )
+    return await _get_registered_mcp_stores_impl(
+        page, page_size, keyword, store_type, is_public, session, user
+    )
+
+async def _get_registered_mcp_stores_impl(
+    page: int,
+    page_size: int,
+    keyword: Optional[str],
+    store_type: Optional[str],
+    is_public: Optional[bool],
+    session: AsyncSession,
+    user: Optional[dict] = None
+) -> Dict[str, Any]:
+    """
+    Implementation of get_registered_mcp_stores
+    
+    Args:
+        page: Page number
+        page_size: Number of items per page
+        keyword: Search keyword (optional)
+        store_type: Filter by store type (optional)
+        is_public: Filter by public status (optional)
+        session: Database session
+        user: Current user information (optional)
+        
+    Returns:
+        Dictionary containing pagination info and store list
+    """
+    try:
+        # Build query
+        query = select(MCPStore).options(selectinload(MCPStore.creator))
+        
+        # Add filters
+        if keyword:
+            query = query.where(
+                or_(
+                    MCPStore.name.ilike(f"%{keyword}%"),
+                    MCPStore.description.ilike(f"%{keyword}%")
+                )
+            )
+        
+        if store_type:
+            query = query.where(MCPStore.store_type == store_type)
+            
+        # Users can view their own stores or public stores
+        if user and isinstance(user, dict):
+            user_id = user.get("id")
+            if user_id:
+                query = query.where(
+                    or_(
+                        MCPStore.creator_id == user_id,
+                        MCPStore.is_public == True
+                    )
+                )
+            else:
+                # If user ID is not available, only show public stores
+                query = query.where(MCPStore.is_public == True)
+            
+        # Calculate total count
+        total_query = select(func.count()).select_from(query.subquery())
+        total = await session.scalar(total_query)
+        
+        # Add pagination
+        query = query.offset((page - 1) * page_size).limit(page_size)
+        
+        # Execute query
+        result = await session.execute(query)
+        stores = result.scalars().all()
+        
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": [store.to_dict() for store in stores]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting registered MCP stores: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to get registered MCP stores: {str(e)}"
+        )
+
+async def get_mcp_store_detail(
+    store_id: int,
+    session: Optional[AsyncSession] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Get detailed information about a specific MCP Store
+    
+    Args:
+        store_id: ID of the store
+        session: Optional database session
+        
+    Returns:
+        Store details if found, None otherwise
+    """
+    if session is None:
+        async with get_async_session_ctx() as session:
+            return await _get_mcp_store_detail_impl(store_id, session)
+    return await _get_mcp_store_detail_impl(store_id, session)
+
+async def _get_mcp_store_detail_impl(
+    store_id: int,
+    session: AsyncSession
+) -> Optional[Dict[str, Any]]:
+    """
+    Implementation of get_mcp_store_detail
+    
+    Args:
+        store_id: ID of the store
+        session: Database session
+        
+    Returns:
+        Store details if found, None otherwise
+    """
+    try:
+        # Query store
+        result = await session.execute(
+            select(MCPStore)
+            .options(selectinload(MCPStore.creator))
+            .where(MCPStore.id == store_id)
+        )
+        store = result.scalar_one_or_none()
+        
+        if not store:
+            return None
+            
+        return store.to_dict()
+        
+    except Exception as e:
+        logger.error(f"Error getting MCP store detail: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to get MCP store detail: {str(e)}"
+        )

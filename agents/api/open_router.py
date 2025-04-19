@@ -81,15 +81,7 @@ async def get_example(
         try:
             # Get or create credentials for the user
             credentials = await open_service.get_or_create_credentials(user, session)
-            access_key = credentials["access_key"]
-            
-            # Get stored token or generate a new one
-            stored_token = await open_service.get_token(access_key, session)
-            if stored_token:
-                token = stored_token
-            else:
-                token_data = await open_service.generate_token(access_key, session)
-                token = token_data.get("token", "your_api_token")
+            token = credentials["token"]
         except Exception:
             logger.warning("Failed to get user token for examples", exc_info=True)
     
@@ -287,21 +279,12 @@ async def get_api_token(
     try:
         # Get or create credentials for the user
         credentials = await open_service.get_or_create_credentials(user, session)
-        access_key = credentials["access_key"]
-        
-        # Check if there is a stored token
-        stored_token = await open_service.get_token(access_key, session)
-        
-        if stored_token:
-            # If token already exists, return it directly
-            return RestResponse(data={
-                "token": stored_token,
-                # "token_type": "Bearer"
-            })
-        
-        # If no token exists, generate a new one
-        token_data = await open_service.generate_token(access_key, session)
-        return RestResponse(data=token_data)
+        stored_token = credentials["access_key"]
+
+        return RestResponse(data={
+            "token": stored_token,
+            # "token_type": "Bearer"
+        })
     except CustomAgentException as e:
         logger.error(f"Error generating open platform token: {str(e)}", exc_info=True)
         return RestResponse(code=e.error_code, msg=str(e))
