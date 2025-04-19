@@ -118,6 +118,7 @@ class AgentDTO(BaseModel):
     token: Optional[str] = Field(None, description="Optional token for the agent")
     symbol: Optional[str] = Field(None, description="Optional symbol for the agent token")
     photos: Optional[List[str]] = Field(default_factory=list, description="Optional photos for the agent")
+    demo_video: Optional[str] = Field(None, description="Optional demo video URL for the agent")
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     is_paused: Optional[bool] = Field(False, description="Whether the agent's conversation is paused", exclude=True)
     pause_message: Optional[str] = Field(None, description="Message to display when the agent is paused", exclude=True)

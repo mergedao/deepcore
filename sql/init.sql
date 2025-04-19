@@ -14,6 +14,7 @@ CREATE TABLE `app` (
   `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Token symbol for the agent',
   `symbol` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Symbol for the agent token',
   `photos` JSON COMMENT 'Photos for the agent',
+  `demo_video` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Demo video URL for the agent',
   `tool_prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Tool prompt for the agent',
   `max_loops` int DEFAULT 3 COMMENT 'Maximum number of loops the agent can perform',
   `is_deleted` tinyint(1) DEFAULT NULL COMMENT 'Logical deletion flag',

@@ -38,6 +38,7 @@ defaults = {
     'suggested_questions': [],
     'shouldInitializeDialog': False,
     'initializeDialogQuestion': None,
+    'demo_video': None,
 }
 
 
