@@ -57,15 +57,18 @@ async def get_or_create_credentials(user: dict, session: AsyncSession) -> dict:
     if credentials:
         return {
             "access_key": credentials.access_key,
-            "secret_key": credentials.secret_key
+            "secret_key": credentials.secret_key,
+            "token": credentials.token
         }
     
     # Create new credentials if none exist
     access_key, secret_key = generate_key_pair()
+    token = generate_token_string()
     credentials = OpenPlatformKey(
         name=f"User {user_id} Open Platform Key",
         access_key=access_key,
         secret_key=secret_key,
+        token=token,
         user_id=user_id,
         created_at=datetime.utcnow()
     )
@@ -75,7 +78,8 @@ async def get_or_create_credentials(user: dict, session: AsyncSession) -> dict:
     
     return {
         "access_key": access_key,
-        "secret_key": secret_key
+        "secret_key": secret_key,
+        "token": token,
     }
 
 async def get_credentials(access_key: str, session: AsyncSession) -> Optional[OpenPlatformKey]:
@@ -126,6 +130,28 @@ async def verify_token_and_get_credentials(token: str, session: AsyncSession) ->
         "tenant_id": user.tenant_id
     }
 
+def generate_token_string() -> str:
+    """Generate a new token string"""
+    # Generate a simple token, using UUID to ensure uniqueness
+    # Using 20 characters instead of 16 to further reduce collision probability
+    return f"tk_{uuid.uuid4().hex[:20]}"
+
+async def save_token(access_key: str, token: str, session: AsyncSession) -> None:
+    """Save token to database"""
+    try:
+        # Store token in database
+        stmt = (
+            update(OpenPlatformKey)
+            .where(OpenPlatformKey.access_key == access_key)
+            .values(token=token, token_created_at=datetime.utcnow())
+        )
+        await session.execute(stmt)
+        await session.commit()
+    except Exception as e:
+        logger.error(f"Error saving token: {str(e)}", exc_info=True)
+        await session.rollback()
+        raise
+
 async def generate_token(access_key: str, session: AsyncSession) -> Dict[str, Any]:
     """Generate a token for open platform API access"""
     credentials = await get_credentials(access_key, session)
@@ -141,22 +167,14 @@ async def generate_token(access_key: str, session: AsyncSession) -> Dict[str, An
     
     while retry_count < max_retries:
         try:
-            # Generate a simple token, using UUID to ensure uniqueness
-            # Using 20 characters instead of 16 to further reduce collision probability
-            token = f"tk_{uuid.uuid4().hex[:20]}"
+            # Generate token string
+            token = generate_token_string()
             
-            # Store token in database
-            stmt = (
-                update(OpenPlatformKey)
-                .where(OpenPlatformKey.access_key == access_key)
-                .values(token=token, token_created_at=datetime.utcnow())
-            )
-            await session.execute(stmt)
-            await session.commit()
+            # Save token to database
+            await save_token(access_key, token, session)
             
             return {
                 "token": token,
-                # "token_type": "Bearer"
             }
         except Exception as e:
             # If there's a unique constraint violation, retry with a new token
@@ -190,7 +208,7 @@ async def reset_token(access_key: str, session: AsyncSession) -> Dict[str, Any]:
     credentials = await get_credentials(access_key, session)
     if not credentials:
         raise CustomAgentException(
-            error_code=ErrorCode.INVALID_REQUEST,
+            error_code=ErrorCode.INVALID_PARAMETERS,
             message="Invalid access key"
         )
     

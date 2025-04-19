@@ -149,13 +149,14 @@ CREATE TABLE `open_platform_keys` (
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the API key',
   `access_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Access key for API authentication',
   `secret_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Secret key for API authentication',
-  `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
+  `token` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
   `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time',
   `user_id` bigint NOT NULL COMMENT 'ID of the associated user',
   `created_at` datetime DEFAULT (now()) COMMENT 'Creation time',
   `is_deleted` tinyint(1) DEFAULT 0 COMMENT 'Logical deletion flag',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_access_key` (`access_key`),
+  UNIQUE KEY `uk_token` (`token`),
   KEY `idx_user` (`user_id`),
   CONSTRAINT `fk_open_platform_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -291,3 +292,27 @@ CREATE INDEX idx_vip_memberships_user_status ON vip_memberships(user_id, status)
 CREATE INDEX idx_vip_packages_level_duration ON vip_packages(level, duration);
 
 ALTER TABLE `app` ADD COLUMN `dev` varchar(255) DEFAULT NULL COMMENT 'Developer wallet address';
+
+-- Create mcp_stores table
+CREATE TABLE IF NOT EXISTS mcp_stores (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    icon VARCHAR(255) COMMENT 'Store icon URL',
+    description TEXT,
+    store_type VARCHAR(50) NOT NULL,
+    tags JSON COMMENT 'Store tags as JSON list',
+    content TEXT COMMENT 'Store content',
+    creator_id INTEGER NOT NULL REFERENCES users(id),
+    author VARCHAR(255) COMMENT 'Author name',
+    github_url VARCHAR(255) COMMENT 'GitHub repository URL',
+    tenant_id VARCHAR(255) NOT NULL,
+    is_public BOOLEAN DEFAULT FALSE COMMENT 'Whether the store is public',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Add indexes for mcp_stores
+CREATE INDEX idx_mcp_stores_name ON mcp_stores(name);
+CREATE INDEX idx_mcp_stores_tenant_id ON mcp_stores(tenant_id);
+CREATE INDEX idx_mcp_stores_creator ON mcp_stores(creator_id);
+CREATE INDEX idx_mcp_stores_store_type ON mcp_stores(store_type);

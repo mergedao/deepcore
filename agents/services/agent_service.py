@@ -22,7 +22,9 @@ from agents.models.entity import AgentInfo, ModelInfo, ChatContext
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO, ModelDTO
 from agents.services.model_service import get_model_with_key
+from agents.services.open_service import get_or_create_credentials
 from agents.services.vip_service import VipService
+from agents.utils.session import get_async_session_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -875,6 +877,8 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
     
     Args:
         agent: App model instance
+        user: Optional user information
+        is_full_config: Whether to include full configuration
         
     Returns:
         AgentDTO: Converted DTO
@@ -898,6 +902,17 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
     masked_token = None
     if agent.telegram_bot_token:
         masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
+    
+    # Get API key for MCP URL if user is provided
+    mcp_url = None
+    if user and user.get("tenant_id"):
+        try:
+            async with get_async_session_ctx() as session:
+                credentials = await get_or_create_credentials(user, session)
+                if credentials and credentials.get("token"):
+                    mcp_url = f"{SETTINGS.API_BASE_URL}/mcp/assistant/{agent.id}?api-key={credentials['token']}"
+        except Exception as e:
+            logger.warning(f"Failed to generate MCP URL for agent {agent.id}: {e}")
     
     # Convert to DTO
     agent_dto = AgentDTO(
@@ -933,7 +948,8 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         initializeDialogQuestion=initializeDialogQuestion,
         is_paused=is_paused,
         pause_message=pause_message,
-        dev=agent.dev  # Add developer wallet address
+        dev=agent.dev,
+        mcp_url=mcp_url  # Add MCP URL
     )
     
     # Add tools to the DTO
