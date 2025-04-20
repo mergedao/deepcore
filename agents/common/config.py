@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     COINMARKETCAP_BASE_HOST: str = ""
     COINMARKETCAP_API_KEY: str = ""
 
+    MONGO_STRING: str = ""
+    TUZI_API_KEY: str = ""
+
 
 
 SETTINGS = Settings()
