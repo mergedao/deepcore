@@ -144,10 +144,12 @@ class AgentDTO(BaseModel):
     is_hot: Optional[bool] = Field(False, description="Whether the agent is hot", exclude=True)
     create_fee: Optional[float] = Field(None, description="Creation fee for the agent")
     price: Optional[float] = Field(None, description="Price for the agent")
+    mcp_url: Optional[str] = Field(None, description="MCP url for the agent")
     vip_level: Optional[int] = Field(0, description="VIP level required to access this agent")
     shouldInitializeDialog: Optional[bool] = Field(False, description="Whether to initialize dialog when creating the agent")
     initializeDialogQuestion: Optional[str] = Field(None, description="Question to send when initializing dialog")
     dev: Optional[str] = Field(None, description="Developer wallet address")
+    tenant_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -427,3 +429,11 @@ class VipOrderCreateDTO(BaseModel):
     package_id: int
     amount: float
     payment_method: str
+
+
+class PublishAgentToStoreRequest(BaseModel):
+    """Request model for publishing an agent to MCP Store"""
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    tags: Optional[List[str]] = None
+    github_url: Optional[str] = None

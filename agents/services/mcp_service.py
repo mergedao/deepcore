@@ -13,12 +13,20 @@ from starlette.responses import Response
 
 from agents.common.config import SETTINGS
 from agents.exceptions import CustomAgentException, ErrorCode
-from agents.models.models import MCPServer, MCPTool, MCPPrompt, MCPResource, MCPStore
+from agents.models.models import MCPServer, MCPTool, MCPPrompt, MCPResource, MCPStore, App
 from agents.services.tool_service import get_tool, get_tools_by_ids
 from agents.utils.http_client import async_client
 from agents.utils.session import get_async_session_ctx
 
 logger = logging.getLogger(__name__)
+
+# MCP Store types
+MCP_STORE_TYPE_LOCAL = "local"
+MCP_STORE_TYPE_REMOTE = "remote"
+MCP_STORE_TYPE_AGENT = "agent"
+MCP_STORE_TYPE_TOOL = "tool"
+MCP_STORE_TYPE_PROMPT = "prompt"
+MCP_STORE_TYPE_RESOURCE = "resource"
 
 async def create_mcp_server_from_tools(
     mcp_name: str,
@@ -1122,7 +1130,7 @@ async def _get_registered_mcp_stores_impl(
     """
     try:
         # Build query
-        query = select(MCPStore).options(selectinload(MCPStore.creator))
+        query = select(MCPStore)
         
         # Add filters
         if keyword:
@@ -1175,28 +1183,10 @@ async def _get_registered_mcp_stores_impl(
             f"Failed to get registered MCP stores: {str(e)}"
         )
 
-async def get_mcp_store_detail(
-    store_id: int,
-    session: Optional[AsyncSession] = None
-) -> Optional[Dict[str, Any]]:
-    """
-    Get detailed information about a specific MCP Store
-    
-    Args:
-        store_id: ID of the store
-        session: Optional database session
-        
-    Returns:
-        Store details if found, None otherwise
-    """
-    if session is None:
-        async with get_async_session_ctx() as session:
-            return await _get_mcp_store_detail_impl(store_id, session)
-    return await _get_mcp_store_detail_impl(store_id, session)
-
 async def _get_mcp_store_detail_impl(
     store_id: int,
-    session: AsyncSession
+    session: AsyncSession,
+    user: Optional[dict] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Implementation of get_mcp_store_detail
@@ -1204,6 +1194,7 @@ async def _get_mcp_store_detail_impl(
     Args:
         store_id: ID of the store
         session: Database session
+        user: Current user information (optional)
         
     Returns:
         Store details if found, None otherwise
@@ -1212,13 +1203,18 @@ async def _get_mcp_store_detail_impl(
         # Query store
         result = await session.execute(
             select(MCPStore)
-            .options(selectinload(MCPStore.creator))
             .where(MCPStore.id == store_id)
         )
         store = result.scalar_one_or_none()
         
         if not store:
             return None
+            
+        # If it's an agent store, set the content
+        if store.store_type == MCP_STORE_TYPE_AGENT and store.agent_id:
+            content = await get_store_content(str(store_id), session, user)
+            if content:
+                store.content = content
             
         return store.to_dict()
         
@@ -1228,3 +1224,246 @@ async def _get_mcp_store_detail_impl(
             ErrorCode.API_CALL_ERROR,
             f"Failed to get MCP store detail: {str(e)}"
         )
+
+async def get_mcp_store_detail(
+    store_id: int,
+    session: Optional[AsyncSession] = None,
+    user: Optional[dict] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Get detailed information about a specific MCP Store
+    
+    Args:
+        store_id: ID of the store
+        session: Optional database session
+        user: Current user information (optional)
+        
+    Returns:
+        Store details if found, None otherwise
+    """
+    if session is None:
+        async with get_async_session_ctx() as session:
+            return await _get_mcp_store_detail_impl(store_id, session, user)
+    return await _get_mcp_store_detail_impl(store_id, session, user)
+
+async def create_agent_store(
+    agent_id: str,
+    user: dict,
+    session: AsyncSession,
+    name: str,
+    icon: Optional[str] = None,
+    description: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    author: Optional[str] = None,
+    github_url: Optional[str] = None,
+    is_public: bool = False
+) -> Dict[str, Any]:
+    """
+    Create or update an agent store in the database
+    
+    Args:
+        agent_id: ID of the agent to create store for
+        user: Current user information
+        session: Database session
+        name: Name of the store
+        icon: Optional icon URL
+        description: Optional description
+        tags: Optional list of tags
+        author: Optional author name
+        github_url: Optional GitHub repository URL
+        is_public: Whether the store is public
+        
+    Returns:
+        Dictionary containing store information
+    """
+    try:
+        # Check if store with same agent_id already exists
+        existing_store = await session.execute(
+            select(MCPStore).where(MCPStore.agent_id == agent_id)
+        )
+        store = existing_store.scalar_one_or_none()
+        
+        # Check if there's another store with the same name (excluding current store if exists)
+        name_check_query = select(MCPStore).where(MCPStore.name == name)
+        if store:
+            name_check_query = name_check_query.where(MCPStore.id != store.id)
+        name_check_result = await session.execute(name_check_query)
+        if name_check_result.scalar_one_or_none():
+            raise CustomAgentException(
+                ErrorCode.INVALID_PARAMETERS,
+                f"Store with name '{name}' already exists"
+            )
+        
+        if store:
+            # Update existing store
+            store.name = name
+            store.icon = icon
+            store.description = description
+            store.tags = json.dumps(tags or [])
+            store.author = author or user.get("wallet_address", "")
+            store.github_url = github_url
+            store.is_public = is_public
+            store.tenant_id = user["tenant_id"]
+        else:
+            # Create new store
+            store = MCPStore(
+                name=name,
+                icon=icon,
+                description=description,
+                store_type="agent",
+                tags=json.dumps(tags or []),
+                content="",
+                creator_id=user.get("id", 0),  # Use the integer user ID
+                author=author or user.get("wallet_address", ""),
+                github_url=github_url,
+                tenant_id=user["tenant_id"],
+                is_public=is_public,
+                agent_id=agent_id
+            )
+            session.add(store)
+        
+        await session.commit()
+        await session.refresh(store)
+        
+        return store.to_dict()
+        
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating/updating agent store: {str(e)}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to create/update agent store: {str(e)}"
+        )
+
+async def get_stores_by_name(name: str, session: AsyncSession):
+    """
+    Get stores by name
+    
+    Args:
+        name: Store name to search for
+        session: Database session
+        
+    Returns:
+        List of stores with matching name
+    """
+    result = await session.execute(
+        select(MCPStore).where(MCPStore.name == name)
+    )
+    stores = result.scalars().all()
+    return stores
+
+async def get_store_content(store_id: str, session: AsyncSession, user: Optional[dict] = None) -> str:
+    """
+    Get store content with special handling for agent stores
+    
+    Args:
+        store_id: ID of the store
+        session: Database session
+        user: Current user information (optional)
+        
+    Returns:
+        Formatted content string
+    """
+    result = await session.execute(
+        select(MCPStore).where(MCPStore.id == store_id)
+    )
+    store = result.scalar_one_or_none()
+    
+    if not store:
+        return ""
+        
+    if store.store_type == MCP_STORE_TYPE_AGENT and store.agent_id:
+        # For agent stores, generate content from template
+        agent_result = await session.execute(
+            select(App).where(App.id == store.agent_id)
+        )
+        agent = agent_result.scalar_one_or_none()
+        
+        if agent:
+            # Get API Key based on user authentication
+            api_key = "your-api-key"
+            if user:
+                try:
+                    from agents.services.open_service import get_or_create_credentials
+                    credentials = await get_or_create_credentials(user, session)
+                    if credentials and credentials.get("token"):
+                        api_key = credentials["token"]
+                except Exception as e:
+                    logger.warning(f"Failed to get API Key for user: {str(e)}")
+            
+            # Generate markdown content with agent details
+            content = f"""# DeepCore MCP Client Guide
+<p align="center">
+  <img src="http://deepcore.top/deepcore.png" alt="DeepCore Logo" width="200"/>
+</p>
+
+## Introduction
+
+DeepCore provides AI Agent services based on MCP (Model Context Protocol), allowing AI models to access and operate various tools through standardized interfaces. This guide will explain how to configure and use DeepCore MCP services in different MCP clients.
+
+## Quick Start
+
+### 1. Get API Key
+
+First, you need to obtain an API Key from the DeepCore platform:
+1. Log in to the DeepCore platform (https://deepcore.top)
+2. Go to User Center
+3. Create a new API Key in the API Management page
+
+### 2. Configure MCP Client
+
+Choose the appropriate configuration method based on your MCP client:
+
+#### Claude Desktop
+
+1. Open Claude Desktop Settings
+2. Go to `Developer > Edit Config`
+3. Add the following configuration to `claude_desktop_config.json`:
+
+```json
+{{
+  "mcpServers": {{
+    "deepcore-agent": {{
+      "url": "{SETTINGS.API_BASE_URL}/mcp/assistant/{agent.id}?api-key={api_key}"
+    }}
+  }}
+}}
+```
+
+#### Cursor
+
+1. Open Cursor Settings
+2. Go to `Preferences > Cursor Settings > MCP`
+3. Click `Add new global MCP Server`
+4. Add the following configuration:
+
+```json
+{{
+  "mcpServers": {{
+    "deepcore-agent": {{
+      "url": "{SETTINGS.API_BASE_URL}/mcp/assistant/{agent.id}?api-key={api_key}"
+    }}
+  }}
+}}
+```
+
+### 3. Usage Example
+
+After configuration, you can directly use DeepCore Agent's features in conversations. For example:
+
+```
+User: Help me check the weather in Beijing
+AI: I'll use DeepCore Agent to query the weather information for Beijing.
+```
+
+## Technical Support
+
+If you encounter any issues during use, you can get support through the following channels:
+
+1. Visit DeepCore Documentation Center: https://docs.deepcore.top
+2. Join DeepCore Community: https://community.deepcore.top
+3. Contact Technical Support: support@deepcore.top"""
+            return content
+            
+    return store.content

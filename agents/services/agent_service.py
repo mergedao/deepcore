@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Optional, AsyncIterator, List
+from typing import Optional, AsyncIterator, List, Dict, Any
 
 from fastapi import Depends
 from sqlalchemy import func
@@ -21,10 +21,9 @@ from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo, ChatContext
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO, ModelDTO
+from agents.services import mcp_service
 from agents.services.model_service import get_model_with_key
-from agents.services.open_service import get_or_create_credentials
 from agents.services.vip_service import VipService
-from agents.utils.session import get_async_session_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -903,17 +902,6 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
     if agent.telegram_bot_token:
         masked_token = mask_token(decrypt_token(agent.telegram_bot_token))
     
-    # Get API key for MCP URL if user is provided
-    mcp_url = None
-    if user and user.get("tenant_id"):
-        try:
-            async with get_async_session_ctx() as session:
-                credentials = await get_or_create_credentials(user, session)
-                if credentials and credentials.get("token"):
-                    mcp_url = f"{SETTINGS.API_BASE_URL}/mcp/assistant/{agent.id}?api-key={credentials['token']}"
-        except Exception as e:
-            logger.warning(f"Failed to generate MCP URL for agent {agent.id}: {e}")
-    
     # Convert to DTO
     agent_dto = AgentDTO(
         id=agent.id,
@@ -950,7 +938,7 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         is_paused=is_paused,
         pause_message=pause_message,
         dev=agent.dev,
-        mcp_url=mcp_url  # Add MCP URL
+        tenant_id=agent.tenant_id,
     )
     
     # Add tools to the DTO
@@ -1042,3 +1030,76 @@ async def refresh_public_agents_cache():
             ErrorCode.INTERNAL_ERROR,
             f"Failed to refresh public agents cache: {str(e)}"
         )
+
+async def publish_to_store(
+    agent_id: str,
+    user: dict,
+    session: AsyncSession,
+    name: Optional[str] = None,
+    icon: Optional[str] = None,
+    description: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    author: Optional[str] = None,
+    github_url: Optional[str] = None,
+    is_public: bool = True
+) -> Dict[str, Any]:
+    """
+    Publish an agent to MCP Store
+    
+    Args:
+        agent_id: ID of the agent to publish
+        user: Current user information
+        session: Database session
+        name: Optional custom name for the store (defaults to agent's name)
+        icon: Optional icon URL for the agent
+        description: Optional description of the agent
+        tags: Optional list of tags for the agent
+        author: Optional author name
+        github_url: Optional GitHub repository URL
+        is_public: Whether the store is public
+        
+    Returns:
+        Dictionary containing store information
+    """
+    try:
+        # Get agent information
+        agent = await get_agent(agent_id, user, session)
+        
+        if not agent:
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                f"Agent with ID '{agent_id}' not found"
+            )
+            
+        # Check if agent belongs to user's tenant
+        if agent.tenant_id != user["tenant_id"]:
+            raise CustomAgentException(
+                ErrorCode.PERMISSION_DENIED,
+                "You don't have permission to publish this agent"
+            )
+            
+        # Create store in MCP Store
+        store = await mcp_service.create_agent_store(
+            agent_id=agent_id,
+            user=user,
+            session=session,
+            name=name or agent.name,
+            icon=icon or agent.icon,
+            description=description or agent.description,
+            tags=tags or [],
+            author=author or user.get("wallet_address", ""),
+            github_url=github_url,
+            is_public=is_public
+        )
+        
+        return store
+        
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error publishing agent to store: {str(e)}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to publish agent to store: {str(e)}"
+        )
+

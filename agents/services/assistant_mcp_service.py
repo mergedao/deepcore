@@ -47,7 +47,7 @@ async def create_assistant_mcp_server(user: dict, session: AsyncSession) -> Serv
             for app in apps:
                 tools.append(types.Tool(
                     name=f"chat-with-{app.id}",
-                    description=f"Chat with assistant: {app.name}",
+                    description=f"{app.description}",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -174,7 +174,7 @@ async def create_single_assistant_mcp_server(user: dict, session: AsyncSession, 
     
     if not app:
         raise CustomAgentException(
-            ErrorCode.NOT_FOUND,
+            ErrorCode.INVALID_PARAMETERS,
             f"Assistant not found: {assistant_id}"
         )
     
@@ -183,8 +183,8 @@ async def create_single_assistant_mcp_server(user: dict, session: AsyncSession, 
     async def handle_list_tools() -> List[types.Tool]:
         """List available tools for the specific assistant"""
         return [types.Tool(
-            name=f"chat-with-{app.id}",
-            description=f"Chat with assistant: {app.name}",
+            name=f"{app.name}",
+            description=f"{app.description}",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -207,9 +207,6 @@ async def create_single_assistant_mcp_server(user: dict, session: AsyncSession, 
     async def handle_call_tool(name: str, arguments: Dict[str, Any] = None) -> list[types.TextContent | types.ImageContent]:
         """Handle assistant chat requests"""
         try:
-            if not name.startswith("chat-with-"):
-                return [types.TextContent(type="text", text=f"Unknown tool: {name}")]
-            
             # Prepare dialogue request
             from agents.protocol.schemas import DialogueRequest
             dialogue_request = DialogueRequest(
