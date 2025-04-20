@@ -309,7 +309,8 @@ CREATE TABLE IF NOT EXISTS mcp_stores (
     tenant_id VARCHAR(255) NOT NULL,
     is_public BOOLEAN DEFAULT FALSE COMMENT 'Whether the store is public',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    agent_id VARCHAR(36) COMMENT 'ID of the associated agent'
 );
 
 -- Add indexes for mcp_stores
@@ -317,3 +318,4 @@ CREATE INDEX idx_mcp_stores_name ON mcp_stores(name);
 CREATE INDEX idx_mcp_stores_tenant_id ON mcp_stores(tenant_id);
 CREATE INDEX idx_mcp_stores_creator ON mcp_stores(creator_id);
 CREATE INDEX idx_mcp_stores_store_type ON mcp_stores(store_type);
+CREATE INDEX idx_mcp_stores_agent_id ON mcp_stores(agent_id);

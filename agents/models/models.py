@@ -345,16 +345,17 @@ class MCPStore(Base):
     store_type = Column(String(50), nullable=False)
     tags = Column(JSON, comment="Store tags as JSON list")
     content = Column(Text, comment="Store content")
-    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    creator_id = Column(Integer, nullable=False)
     author = Column(String(255), comment="Author name")
     github_url = Column(String(255), comment="GitHub repository URL")
     tenant_id = Column(String(255), nullable=False)
     is_public = Column(Boolean, default=False, comment="Whether the store is public")
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    agent_id = Column(String(36), ForeignKey("app.id"), nullable=True, comment="ID of the associated agent")
 
     # Relationships
-    creator = relationship("User")
+    agent = relationship("App")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary"""
@@ -368,9 +369,10 @@ class MCPStore(Base):
             "content": self.content,
             "author": self.author,
             "github_url": self.github_url,
-            "creator": self.creator.to_dict() if self.creator else None,
+            "creator": self.creator_id,
             "tenant_id": self.tenant_id,
             "is_public": self.is_public,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "agent_id": self.agent_id
         }

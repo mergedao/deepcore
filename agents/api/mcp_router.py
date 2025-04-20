@@ -367,7 +367,7 @@ async def get_mcp_store(
     - **store_id**: ID of the store
     """
     try:
-        result = await mcp_service.get_mcp_store_detail(store_id, session)
+        result = await mcp_service.get_mcp_store_detail(store_id, session, user)
         if not result:
             return RestResponse(
                 code=ErrorCode.RESOURCE_NOT_FOUND,
