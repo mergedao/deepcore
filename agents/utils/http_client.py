@@ -117,7 +117,7 @@ class AsyncHttpClient:
 
         url = self._get_full_url(base_url, path)
         url, merged_headers = self._apply_auth_config(url, merged_headers, auth_config)
-        logger.info(f"Sending HTTP request: {method} {url} {json_data}")
+        logger.info(f"Sending HTTP request: {method} {url} params={params} json={json_data} data={data}")
         try:
             async with self._session.request(
                 method=method,

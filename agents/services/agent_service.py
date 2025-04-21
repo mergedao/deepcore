@@ -584,8 +584,9 @@ async def publish_agent(
         is_public: bool,
         create_fee: float,
         price: float,
-        user: dict,
-        session: AsyncSession):
+        enable_mcp: bool = False,
+        user: dict = None,
+        session: AsyncSession = None):
     """
     Publish or unpublish an agent
 
@@ -594,6 +595,7 @@ async def publish_agent(
         is_public: Whether to make the agent public
         create_fee: Fee for creating the agent (tips for creator)
         price: Fee for using the agent
+        enable_mcp: Whether to enable MCP for this agent
         user: Current user info
         session: Database session
     """
@@ -623,7 +625,8 @@ async def publish_agent(
             ).values(
                 is_public=is_public,
                 create_fee=create_fee,
-                price=price
+                price=price,
+                enable_mcp=enable_mcp
             )
             await session.execute(stmt)
             
@@ -939,6 +942,7 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         pause_message=pause_message,
         dev=agent.dev,
         tenant_id=agent.tenant_id,
+        enable_mcp=agent.enable_mcp if hasattr(agent, 'enable_mcp') else False,
     )
     
     # Add tools to the DTO
