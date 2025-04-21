@@ -1,7 +1,6 @@
 import json
 import logging
-from typing import Optional, AsyncIterator, List
-from datetime import timedelta
+from typing import Optional, AsyncIterator, List, Dict, Any
 
 from fastapi import Depends
 from sqlalchemy import func
@@ -22,7 +21,9 @@ from agents.models.db import get_db
 from agents.models.entity import AgentInfo, ModelInfo, ChatContext
 from agents.models.models import App, Tool, AgentTool
 from agents.protocol.schemas import AgentStatus, DialogueRequest, AgentDTO, ToolInfo, CategoryDTO, ModelDTO
+from agents.services import mcp_service
 from agents.services.model_service import get_model_with_key
+from agents.services.vip_service import VipService
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ async def dialogue(
         user: Optional[dict],
         session: AsyncSession = Depends(get_db)
 ) -> AsyncIterator[str]:
-    # Add tenant filter
+    # Get agent info
     agent = await get_agent(agent_id, user, session, True)
     agent_info = AgentInfo.from_dto(agent)
     
@@ -57,6 +58,19 @@ async def dialogue(
             ErrorCode.RESOURCE_NOT_FOUND,
             "Agent not found or no permission"
         )
+    
+    # Check VIP level access
+    if agent.vip_level > 0:  # If agent requires VIP access
+        if not user:
+            raise CustomAgentException(
+                ErrorCode.UNAUTHORIZED,
+                "Please login to access this agent"
+            )
+        user_vip_level = await VipService.get_user_vip_level(user["id"], session)
+        if user_vip_level.value < agent.vip_level:
+            yield send_markdown("VIP membership required to access this agent")
+            return
+    
     if agent.is_paused:
         yield send_markdown(agent.pause_message)
         return
@@ -188,6 +202,8 @@ async def create_agent(
             model_json_data = {}
             if agent.shouldInitializeDialog is not None:
                 model_json_data["shouldInitializeDialog"] = agent.shouldInitializeDialog
+            if agent.initializeDialogQuestion is not None:
+                model_json_data["initializeDialogQuestion"] = agent.initializeDialogQuestion
 
             new_agent = App(
                 id=agent.id,
@@ -206,7 +222,8 @@ async def create_agent(
                 model_id=agent.model_id,
                 category_id=agent.category_id,
                 model_json=json.dumps(model_json_data) if model_json_data else None,
-                tenant_id=user.get('tenant_id')
+                tenant_id=user.get('tenant_id'),
+                dev=user.get('wallet_address')  # Add developer wallet address
             )
             session.add(new_agent)
             await session.flush()
@@ -451,6 +468,8 @@ async def update_agent(
             model_json_data = {}
             if agent.shouldInitializeDialog is not None:
                 model_json_data["shouldInitializeDialog"] = agent.shouldInitializeDialog
+            if agent.initializeDialogQuestion is not None:
+                model_json_data["initializeDialogQuestion"] = agent.initializeDialogQuestion
             
             # If there was existing model_json data, preserve it and update only what's needed
             if existing_agent.model_json:
@@ -857,18 +876,22 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
     
     Args:
         agent: App model instance
+        user: Optional user information
+        is_full_config: Whether to include full configuration
         
     Returns:
         AgentDTO: Converted DTO
     """
     # Parse model_json if exists
     shouldInitializeDialog = False
+    initializeDialogQuestion = None
     is_paused = False
     pause_message = ""
     if agent.model_json:
         try:
             model_json_data = json.loads(agent.model_json)
             shouldInitializeDialog = model_json_data.get("shouldInitializeDialog", False)
+            initializeDialogQuestion = model_json_data.get("initializeDialogQuestion")
             is_paused = model_json_data.get("isPaused", False)
             pause_message = model_json_data.get("pauseMessage", "")
         except (json.JSONDecodeError, TypeError):
@@ -892,10 +915,10 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         twitter_link=agent.twitter_link,
         telegram_bot_id=agent.telegram_bot_id,
         telegram_bot_name=agent.telegram_bot_name,
-        # telegram_bot_token=masked_token,
         token=agent.token,
         symbol=agent.symbol,
         photos=agent.photos,
+        demo_video=agent.demo_video,
         tool_prompt=agent.tool_prompt,
         max_loops=agent.max_loops,
         custom_config=agent.custom_config,
@@ -909,9 +932,13 @@ async def _convert_to_agent_dto(agent: App, user: Optional[dict], is_full_config
         update_time=agent.update_time,
         create_fee=float(agent.create_fee) if agent.create_fee else None,
         price=float(agent.price) if agent.price else None,
+        vip_level=agent.vip_level,
         shouldInitializeDialog=shouldInitializeDialog,
+        initializeDialogQuestion=initializeDialogQuestion,
         is_paused=is_paused,
         pause_message=pause_message,
+        dev=agent.dev,
+        tenant_id=agent.tenant_id,
     )
     
     # Add tools to the DTO
@@ -1003,3 +1030,76 @@ async def refresh_public_agents_cache():
             ErrorCode.INTERNAL_ERROR,
             f"Failed to refresh public agents cache: {str(e)}"
         )
+
+async def publish_to_store(
+    agent_id: str,
+    user: dict,
+    session: AsyncSession,
+    name: Optional[str] = None,
+    icon: Optional[str] = None,
+    description: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    author: Optional[str] = None,
+    github_url: Optional[str] = None,
+    is_public: bool = True
+) -> Dict[str, Any]:
+    """
+    Publish an agent to MCP Store
+    
+    Args:
+        agent_id: ID of the agent to publish
+        user: Current user information
+        session: Database session
+        name: Optional custom name for the store (defaults to agent's name)
+        icon: Optional icon URL for the agent
+        description: Optional description of the agent
+        tags: Optional list of tags for the agent
+        author: Optional author name
+        github_url: Optional GitHub repository URL
+        is_public: Whether the store is public
+        
+    Returns:
+        Dictionary containing store information
+    """
+    try:
+        # Get agent information
+        agent = await get_agent(agent_id, user, session)
+        
+        if not agent:
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_NOT_FOUND,
+                f"Agent with ID '{agent_id}' not found"
+            )
+            
+        # Check if agent belongs to user's tenant
+        if agent.tenant_id != user["tenant_id"]:
+            raise CustomAgentException(
+                ErrorCode.PERMISSION_DENIED,
+                "You don't have permission to publish this agent"
+            )
+            
+        # Create store in MCP Store
+        store = await mcp_service.create_agent_store(
+            agent_id=agent_id,
+            user=user,
+            session=session,
+            name=name or agent.name,
+            icon=icon or agent.icon,
+            description=description or agent.description,
+            tags=tags or [],
+            author=author or user.get("wallet_address", ""),
+            github_url=github_url,
+            is_public=is_public
+        )
+        
+        return store
+        
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error publishing agent to store: {str(e)}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to publish agent to store: {str(e)}"
+        )
+

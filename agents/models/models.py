@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
+from typing import Dict, Any
 
 from sqlalchemy import Column, String, Boolean, DateTime, func, JSON, Text, LargeBinary, BigInteger, Integer, \
-    ForeignKey, Numeric, UUID, UniqueConstraint
+    ForeignKey, Numeric, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -40,6 +41,7 @@ class App(Base):
     token = Column(String(255), comment="Token symbol for the agent")
     symbol = Column(String(50), comment="Symbol for the agent token")
     photos = Column(JSON, comment="Photos for the agent")
+    demo_video = Column(String(255), comment="Demo video URL for the agent")
     tool_prompt = Column(Text, comment="Tool prompt for the agent")
     max_loops = Column(Integer, default=3, comment="Maximum number of loops the agent can perform")
     model_json = Column(JSON, comment="Additional fields merged into a JSON column")
@@ -52,12 +54,14 @@ class App(Base):
     is_hot = Column(Boolean, default=False, comment="Whether the agent is hot")
     create_fee = Column(Numeric(20, 9), default=0.000000000, comment="Fee for creating the agent (tips for creator)")
     price = Column(Numeric(20, 9), default=0.000000000, comment="Fee for using the agent")
+    vip_level = Column(Integer, default=0, comment="VIP level required to access this agent")
     tools = relationship('Tool', secondary='agent_tools', backref='agents')
     suggested_questions = Column(JSON, comment="List of suggested questions for the agent")
     model_id = Column(BigInteger, ForeignKey('models.id'), comment="ID of the associated model")
     category_id = Column(BigInteger, ForeignKey('categories.id'), comment="ID of the category")
     model = relationship('Model')
     category = relationship('Category')
+    dev = Column(String(255), comment="Developer wallet address")
 
 
 class Tool(Base):
@@ -117,6 +121,7 @@ class User(Base):
 
     # Relationships
     open_platform_keys = relationship("OpenPlatformKey", back_populates="user")
+    vip_memberships = relationship("VipMembership", back_populates="user")
 
     def set_password(self, password):
         """Set password."""
@@ -261,3 +266,113 @@ class MCPResource(Base):
     __table_args__ = (
         UniqueConstraint('mcp_server_id', 'uri', name='uq_mcp_resource_uri'),
     )
+
+
+class VipMembership(Base):
+    """Membership table"""
+    __tablename__ = "vip_memberships"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="User ID")
+    level = Column(Integer, default=1, comment="Membership level")
+    start_time = Column(DateTime, nullable=False, default=datetime.utcnow, comment="Membership start time")
+    expire_time = Column(DateTime, nullable=False, comment="Membership expiration time")
+    status = Column(String(20), default="active", comment="Membership status: active, expired, cancelled")
+    create_time = Column(DateTime, default=datetime.utcnow, comment="Creation time")
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Update time")
+    
+    # Relationships
+    user = relationship("User", back_populates="vip_memberships")
+    
+    __table_args__ = (
+        Index("idx_vip_memberships_user_status", "user_id", "status"),
+    )
+
+
+class VipPackage(Base):
+    """Membership package table"""
+    __tablename__ = "vip_packages"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, comment="Package name")
+    level = Column(Integer, nullable=False, comment="Membership level")
+    duration = Column(Integer, nullable=False, comment="Package duration (days)")
+    price = Column(Numeric(10, 2), nullable=False, comment="Package price")
+    description = Column(Text, nullable=True, comment="Package description")
+    features = Column(JSON, nullable=True, comment="Package features")
+    is_active = Column(Boolean, default=True, comment="Is active")
+    create_time = Column(DateTime, default=datetime.utcnow, comment="Creation time")
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Update time")
+    
+    __table_args__ = (
+        Index("idx_vip_packages_level_duration", "level", "duration"),
+    )
+
+
+class VipOrder(Base):
+    """Membership order table"""
+    __tablename__ = "vip_orders"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_no = Column(String(50), unique=True, nullable=False, comment="Order number")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, comment="User ID")
+    package_id = Column(Integer, ForeignKey("vip_packages.id"), nullable=False, comment="Package ID")
+    amount = Column(Numeric(10, 2), nullable=False, comment="Order amount")
+    status = Column(String(20), default="pending", comment="Order status: pending, paid, cancelled, refunded")
+    payment_method = Column(String(50), nullable=True, comment="Payment method")
+    payment_time = Column(DateTime, nullable=True, comment="Payment time")
+    create_time = Column(DateTime, default=datetime.utcnow, comment="Creation time")
+    update_time = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment="Update time")
+    
+    # Relationships
+    user = relationship("User")
+    package = relationship("VipPackage")
+    
+    __table_args__ = (
+        Index("idx_vip_orders_user_status", "user_id", "status"),
+        Index("idx_vip_orders_order_no", "order_no"),
+    )
+
+
+class MCPStore(Base):
+    """MCP Store Model"""
+    __tablename__ = "mcp_stores"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), unique=True, nullable=False)
+    icon = Column(String(255), comment="Store icon URL")
+    description = Column(Text)
+    store_type = Column(String(50), nullable=False)
+    tags = Column(JSON, comment="Store tags as JSON list")
+    content = Column(Text, comment="Store content")
+    creator_id = Column(Integer, nullable=False)
+    author = Column(String(255), comment="Author name")
+    github_url = Column(String(255), comment="GitHub repository URL")
+    tenant_id = Column(String(255), nullable=False)
+    is_public = Column(Boolean, default=False, comment="Whether the store is public")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    agent_id = Column(String(36), ForeignKey("app.id"), nullable=True, comment="ID of the associated agent")
+
+    # Relationships
+    agent = relationship("App")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "icon": self.icon,
+            "description": self.description,
+            "store_type": self.store_type,
+            "tags": self.tags or [],
+            "content": self.content,
+            "author": self.author,
+            "github_url": self.github_url,
+            "creator": self.creator_id,
+            "tenant_id": self.tenant_id,
+            "is_public": self.is_public,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "agent_id": self.agent_id
+        }

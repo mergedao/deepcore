@@ -2,11 +2,15 @@
 Session and user information handling utilities
 """
 
-import logging
-from contextlib import asynccontextmanager
-from starlette.requests import Request
 import asyncio
 import inspect
+import logging
+from contextlib import asynccontextmanager
+from typing import Optional
+
+from starlette.requests import Request
+
+from agents.services import verify_token_and_get_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +79,7 @@ async def get_async_session_ctx():
         elapsed = asyncio.get_event_loop().time() - start_time
         logger.debug(f"Session closed after {elapsed:.2f}s")
 
-async def get_user_from_request(request: Request) -> dict:
+async def get_user_from_request(request: Request) -> Optional[dict]:
     """
     Extract user information from request
     
@@ -85,16 +89,14 @@ async def get_user_from_request(request: Request) -> dict:
     Returns:
         User information dictionary
     """
+    token = request.query_params.get("api-key")
+    if not token:
+        return None
+
     try:
-        # Get user information from request state
-        user = request.state.user
-        return user
-    except AttributeError:
-        # If no user information in request, use default values
-        # In production, this should return None to indicate unauthenticated
-        # But for development and testing purposes, we return a default user
-        logger.warning("No user information found in request, using default user")
-        return {
-            "id": "default",
-            "tenant_id": "default"
-        } 
+        async with get_async_session_ctx() as session:
+            credentials = await verify_token_and_get_credentials(token, session)
+            return credentials
+    except Exception as e:
+        logger.error(f"get_user_from_request error, {e}", exc_info=True)
+    return None

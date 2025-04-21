@@ -115,10 +115,10 @@ class AgentDTO(BaseModel):
     twitter_link: Optional[str] = Field(None, description="Optional twitter link for the agent")
     telegram_bot_id: Optional[str] = Field(None, description="Optional telegram bot id for the agent")
     telegram_bot_name: Optional[str] = Field(None, description="Optional telegram bot name for the agent")
-    # telegram_bot_token: Optional[str] = Field(None, description="Optional masked telegram bot token")
     token: Optional[str] = Field(None, description="Optional token for the agent")
     symbol: Optional[str] = Field(None, description="Optional symbol for the agent token")
     photos: Optional[List[str]] = Field(default_factory=list, description="Optional photos for the agent")
+    demo_video: Optional[str] = Field(None, description="Optional demo video URL for the agent")
     status: AgentStatus = Field(default=AgentStatus.ACTIVE, description="Status can be active, inactive, or draft")
     is_paused: Optional[bool] = Field(False, description="Whether the agent's conversation is paused", exclude=True)
     pause_message: Optional[str] = Field(None, description="Message to display when the agent is paused", exclude=True)
@@ -144,8 +144,12 @@ class AgentDTO(BaseModel):
     is_hot: Optional[bool] = Field(False, description="Whether the agent is hot", exclude=True)
     create_fee: Optional[float] = Field(None, description="Creation fee for the agent")
     price: Optional[float] = Field(None, description="Price for the agent")
-    shouldInitializeDialog: Optional[bool] = Field(False,
-                                                   description="Whether to initialize dialog when creating the agent")
+    mcp_url: Optional[str] = Field(None, description="MCP url for the agent")
+    vip_level: Optional[int] = Field(0, description="VIP level required to access this agent")
+    shouldInitializeDialog: Optional[bool] = Field(False, description="Whether to initialize dialog when creating the agent")
+    initializeDialogQuestion: Optional[str] = Field(None, description="Question to send when initializing dialog")
+    dev: Optional[str] = Field(None, description="Developer wallet address")
+    tenant_id: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -368,3 +372,68 @@ class ImgProTaskResp(BaseModel):
     img_url: str = Field(..., description="img url")
     result_img_url: Optional[str] = Field("", description="Result img url")
     status: Optional[str] = Field("TODO", description="status")
+
+
+class VipMembershipDTO(BaseModel):
+    """VIP Membership DTO"""
+    id: int
+    user_id: int
+    level: int
+    start_time: datetime
+    expire_time: datetime
+    status: str
+    create_time: datetime
+    update_time: datetime
+
+
+class VipPackageDTO(BaseModel):
+    """VIP Package DTO"""
+    id: int
+    name: str
+    level: int
+    duration: int
+    price: float
+    description: Optional[str] = None
+    features: Optional[dict] = None
+    is_active: bool
+    create_time: datetime
+    update_time: datetime
+
+
+class VipOrderDTO(BaseModel):
+    """VIP Order DTO"""
+    id: int
+    order_no: str
+    user_id: int
+    package_id: int
+    amount: float
+    status: str
+    payment_method: Optional[str] = None
+    payment_time: Optional[datetime] = None
+    create_time: datetime
+    update_time: datetime
+
+
+class VipPackageCreateDTO(BaseModel):
+    """Create VIP Package DTO"""
+    name: str
+    level: int
+    duration: int
+    price: float
+    description: Optional[str] = None
+    features: Optional[dict] = None
+
+
+class VipOrderCreateDTO(BaseModel):
+    """Create VIP Order DTO"""
+    package_id: int
+    amount: float
+    payment_method: str
+
+
+class PublishAgentToStoreRequest(BaseModel):
+    """Request model for publishing an agent to MCP Store"""
+    name: Optional[str] = None
+    icon: Optional[str] = None
+    tags: Optional[List[str]] = None
+    github_url: Optional[str] = None

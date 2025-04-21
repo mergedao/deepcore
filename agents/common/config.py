@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = None
+    REDIS_SSL: bool = False
     REDIS_DB: int = 0
     REDIS_PREFIX: str = "default"
     LOG_LEVEL: str = "INFO"
@@ -73,6 +74,9 @@ class Settings(BaseSettings):
 
     COINMARKETCAP_BASE_HOST: str = ""
     COINMARKETCAP_API_KEY: str = ""
+
+    MONGO_STRING: str = ""
+    TUZI_API_KEY: str = ""
 
 
 

@@ -6,19 +6,27 @@ import mcp.types as types
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 from mcp.server.sse import SseServerTransport
-from sqlalchemy import select, delete
+from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette.responses import Response
 
 from agents.common.config import SETTINGS
 from agents.exceptions import CustomAgentException, ErrorCode
-from agents.models.models import MCPServer, MCPTool, MCPPrompt, MCPResource
+from agents.models.models import MCPServer, MCPTool, MCPPrompt, MCPResource, MCPStore, App
 from agents.services.tool_service import get_tool, get_tools_by_ids
 from agents.utils.http_client import async_client
-from agents.utils.session import get_async_session, get_async_session_ctx
+from agents.utils.session import get_async_session_ctx
 
 logger = logging.getLogger(__name__)
+
+# MCP Store types
+MCP_STORE_TYPE_LOCAL = "local"
+MCP_STORE_TYPE_REMOTE = "remote"
+MCP_STORE_TYPE_AGENT = "agent"
+MCP_STORE_TYPE_TOOL = "tool"
+MCP_STORE_TYPE_PROMPT = "prompt"
+MCP_STORE_TYPE_RESOURCE = "resource"
 
 async def create_mcp_server_from_tools(
     mcp_name: str,
@@ -990,3 +998,472 @@ def get_coin_api_mcp_service(user):
     
     logger.info("Creating coin-api MCP service instance")
     return coin_api_mcp.server.server
+
+async def create_mcp_store(
+    store_name: str,
+    store_type: str,
+    user: dict,
+    session: AsyncSession,
+    icon: Optional[str] = None,
+    description: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    content: Optional[str] = None,
+    author: Optional[str] = None,
+    github_url: Optional[str] = None,
+    is_public: Optional[bool] = False,
+) -> Dict[str, Any]:
+    """
+    Create a new MCP Store
+    
+    Args:
+        store_name: Name of the store
+        store_type: Type of the store
+        user: Current user information
+        session: Database session
+        icon: Store icon URL (optional)
+        description: Store description (optional)
+        tags: List of store tags (optional)
+        content: Store content (optional)
+        author: Author name (optional)
+        github_url: GitHub URL for the store (optional)
+        is_public: Whether the store is public (optional)
+        
+    Returns:
+        Dictionary containing store information
+    """
+    try:
+        # Check if the name is already in use
+        existing_store = await session.execute(
+            select(MCPStore).where(MCPStore.name == store_name)
+        )
+        if existing_store.scalar_one_or_none():
+            raise CustomAgentException(
+                ErrorCode.RESOURCE_ALREADY_EXISTS,
+                f"MCP store with name '{store_name}' already exists"
+            )
+            
+        # Create MCP Store record
+        mcp_store = MCPStore(
+            name=store_name,
+            icon=icon,
+            description=description,
+            store_type=store_type,
+            tags=tags,
+            content=content,
+            author=author,
+            creator_id=user["id"],
+            github_url=github_url,
+            tenant_id=user["tenant_id"],
+            is_public=is_public
+        )
+        session.add(mcp_store)
+        await session.commit()
+        await session.refresh(mcp_store)
+            
+        return mcp_store.to_dict()
+        
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating MCP store: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to create MCP store: {str(e)}"
+        )
+
+async def get_registered_mcp_stores(
+    page: int,
+    page_size: int,
+    keyword: Optional[str] = None,
+    store_type: Optional[str] = None,
+    is_public: Optional[bool] = None,
+    session: Optional[AsyncSession] = None,
+    user: Optional[dict] = None
+) -> Dict[str, Any]:
+    """
+    Get registered MCP Stores with pagination and search support
+    
+    Args:
+        page: Page number
+        page_size: Number of items per page
+        keyword: Search keyword (optional)
+        store_type: Filter by store type (optional)
+        is_public: Filter by public status (optional)
+        session: Optional database session
+        user: Current user information (optional)
+        
+    Returns:
+        Dictionary containing pagination info and store list
+    """
+    if session is None:
+        async with get_async_session_ctx() as session:
+            return await _get_registered_mcp_stores_impl(
+                page, page_size, keyword, store_type, is_public, session, user
+            )
+    return await _get_registered_mcp_stores_impl(
+        page, page_size, keyword, store_type, is_public, session, user
+    )
+
+async def _get_registered_mcp_stores_impl(
+    page: int,
+    page_size: int,
+    keyword: Optional[str],
+    store_type: Optional[str],
+    is_public: Optional[bool],
+    session: AsyncSession,
+    user: Optional[dict] = None
+) -> Dict[str, Any]:
+    """
+    Implementation of get_registered_mcp_stores
+    
+    Args:
+        page: Page number
+        page_size: Number of items per page
+        keyword: Search keyword (optional)
+        store_type: Filter by store type (optional)
+        is_public: Filter by public status (optional)
+        session: Database session
+        user: Current user information (optional)
+        
+    Returns:
+        Dictionary containing pagination info and store list
+    """
+    try:
+        # Build query
+        query = select(MCPStore)
+        
+        # Add filters
+        if keyword:
+            query = query.where(
+                or_(
+                    MCPStore.name.ilike(f"%{keyword}%"),
+                    MCPStore.description.ilike(f"%{keyword}%")
+                )
+            )
+        
+        if store_type:
+            query = query.where(MCPStore.store_type == store_type)
+            
+        # Users can view their own stores or public stores
+        if user and isinstance(user, dict):
+            user_id = user.get("id")
+            if user_id:
+                query = query.where(
+                    or_(
+                        MCPStore.creator_id == user_id,
+                        MCPStore.is_public == True
+                    )
+                )
+            else:
+                # If user ID is not available, only show public stores
+                query = query.where(MCPStore.is_public == True)
+            
+        # Calculate total count
+        total_query = select(func.count()).select_from(query.subquery())
+        total = await session.scalar(total_query)
+        
+        # Add pagination
+        query = query.offset((page - 1) * page_size).limit(page_size)
+        
+        # Execute query
+        result = await session.execute(query)
+        stores = result.scalars().all()
+        
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "items": [store.to_dict() for store in stores]
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting registered MCP stores: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to get registered MCP stores: {str(e)}"
+        )
+
+async def _get_mcp_store_detail_impl(
+    store_id: int,
+    session: AsyncSession,
+    user: Optional[dict] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Implementation of get_mcp_store_detail
+    
+    Args:
+        store_id: ID of the store
+        session: Database session
+        user: Current user information (optional)
+        
+    Returns:
+        Store details if found, None otherwise
+    """
+    try:
+        # Query store
+        result = await session.execute(
+            select(MCPStore)
+            .where(MCPStore.id == store_id)
+        )
+        store = result.scalar_one_or_none()
+        
+        if not store:
+            return None
+            
+        # If it's an agent store, set the content
+        if store.store_type == MCP_STORE_TYPE_AGENT and store.agent_id:
+            content = await get_store_content(str(store_id), session, user)
+            if content:
+                store.content = content
+            
+        return store.to_dict()
+        
+    except Exception as e:
+        logger.error(f"Error getting MCP store detail: {e}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to get MCP store detail: {str(e)}"
+        )
+
+async def get_mcp_store_detail(
+    store_id: int,
+    session: Optional[AsyncSession] = None,
+    user: Optional[dict] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Get detailed information about a specific MCP Store
+    
+    Args:
+        store_id: ID of the store
+        session: Optional database session
+        user: Current user information (optional)
+        
+    Returns:
+        Store details if found, None otherwise
+    """
+    if session is None:
+        async with get_async_session_ctx() as session:
+            return await _get_mcp_store_detail_impl(store_id, session, user)
+    return await _get_mcp_store_detail_impl(store_id, session, user)
+
+async def create_agent_store(
+    agent_id: str,
+    user: dict,
+    session: AsyncSession,
+    name: str,
+    icon: Optional[str] = None,
+    description: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    author: Optional[str] = None,
+    github_url: Optional[str] = None,
+    is_public: bool = False
+) -> Dict[str, Any]:
+    """
+    Create or update an agent store in the database
+    
+    Args:
+        agent_id: ID of the agent to create store for
+        user: Current user information
+        session: Database session
+        name: Name of the store
+        icon: Optional icon URL
+        description: Optional description
+        tags: Optional list of tags
+        author: Optional author name
+        github_url: Optional GitHub repository URL
+        is_public: Whether the store is public
+        
+    Returns:
+        Dictionary containing store information
+    """
+    try:
+        # Check if store with same agent_id already exists
+        existing_store = await session.execute(
+            select(MCPStore).where(MCPStore.agent_id == agent_id)
+        )
+        store = existing_store.scalar_one_or_none()
+        
+        # Check if there's another store with the same name (excluding current store if exists)
+        name_check_query = select(MCPStore).where(MCPStore.name == name)
+        if store:
+            name_check_query = name_check_query.where(MCPStore.id != store.id)
+        name_check_result = await session.execute(name_check_query)
+        if name_check_result.scalar_one_or_none():
+            raise CustomAgentException(
+                ErrorCode.INVALID_PARAMETERS,
+                f"Store with name '{name}' already exists"
+            )
+        
+        if store:
+            # Update existing store
+            store.name = name
+            store.icon = icon
+            store.description = description
+            store.tags = json.dumps(tags or [])
+            store.author = author or user.get("wallet_address", "")
+            store.github_url = github_url
+            store.is_public = is_public
+            store.tenant_id = user["tenant_id"]
+        else:
+            # Create new store
+            store = MCPStore(
+                name=name,
+                icon=icon,
+                description=description,
+                store_type="agent",
+                tags=json.dumps(tags or []),
+                content="",
+                creator_id=user.get("id", 0),  # Use the integer user ID
+                author=author or user.get("wallet_address", ""),
+                github_url=github_url,
+                tenant_id=user["tenant_id"],
+                is_public=is_public,
+                agent_id=agent_id
+            )
+            session.add(store)
+        
+        await session.commit()
+        await session.refresh(store)
+        
+        return store.to_dict()
+        
+    except CustomAgentException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating/updating agent store: {str(e)}", exc_info=True)
+        raise CustomAgentException(
+            ErrorCode.API_CALL_ERROR,
+            f"Failed to create/update agent store: {str(e)}"
+        )
+
+async def get_stores_by_name(name: str, session: AsyncSession):
+    """
+    Get stores by name
+    
+    Args:
+        name: Store name to search for
+        session: Database session
+        
+    Returns:
+        List of stores with matching name
+    """
+    result = await session.execute(
+        select(MCPStore).where(MCPStore.name == name)
+    )
+    stores = result.scalars().all()
+    return stores
+
+async def get_store_content(store_id: str, session: AsyncSession, user: Optional[dict] = None) -> str:
+    """
+    Get store content with special handling for agent stores
+    
+    Args:
+        store_id: ID of the store
+        session: Database session
+        user: Current user information (optional)
+        
+    Returns:
+        Formatted content string
+    """
+    result = await session.execute(
+        select(MCPStore).where(MCPStore.id == store_id)
+    )
+    store = result.scalar_one_or_none()
+    
+    if not store:
+        return ""
+        
+    if store.store_type == MCP_STORE_TYPE_AGENT and store.agent_id:
+        # For agent stores, generate content from template
+        agent_result = await session.execute(
+            select(App).where(App.id == store.agent_id)
+        )
+        agent = agent_result.scalar_one_or_none()
+        
+        if agent:
+            # Get API Key based on user authentication
+            api_key = "your-api-key"
+            if user:
+                try:
+                    from agents.services.open_service import get_or_create_credentials
+                    credentials = await get_or_create_credentials(user, session)
+                    if credentials and credentials.get("token"):
+                        api_key = credentials["token"]
+                except Exception as e:
+                    logger.warning(f"Failed to get API Key for user: {str(e)}")
+            
+            # Generate markdown content with agent details
+            content = f"""# DeepCore MCP Client Guide
+<p align="center">
+  <img src="http://deepcore.top/deepcore.png" alt="DeepCore Logo" width="200"/>
+</p>
+
+## Introduction
+
+DeepCore provides AI Agent services based on MCP (Model Context Protocol), allowing AI models to access and operate various tools through standardized interfaces. This guide will explain how to configure and use DeepCore MCP services in different MCP clients.
+
+## Quick Start
+
+### 1. Get API Key
+
+First, you need to obtain an API Key from the DeepCore platform:
+1. Log in to the DeepCore platform (https://deepcore.top)
+2. Go to User Center
+3. Create a new API Key in the API Management page
+
+### 2. Configure MCP Client
+
+Choose the appropriate configuration method based on your MCP client:
+
+#### Claude Desktop
+
+1. Open Claude Desktop Settings
+2. Go to `Developer > Edit Config`
+3. Add the following configuration to `claude_desktop_config.json`:
+
+```json
+{{
+  "mcpServers": {{
+    "deepcore-agent": {{
+      "url": "{SETTINGS.API_BASE_URL}/mcp/assistant/{agent.id}?api-key={api_key}"
+    }}
+  }}
+}}
+```
+
+#### Cursor
+
+1. Open Cursor Settings
+2. Go to `Preferences > Cursor Settings > MCP`
+3. Click `Add new global MCP Server`
+4. Add the following configuration:
+
+```json
+{{
+  "mcpServers": {{
+    "deepcore-agent": {{
+      "url": "{SETTINGS.API_BASE_URL}/mcp/assistant/{agent.id}?api-key={api_key}"
+    }}
+  }}
+}}
+```
+
+### 3. Usage Example
+
+After configuration, you can directly use DeepCore Agent's features in conversations. For example:
+
+```
+User: Help me check the weather in Beijing
+AI: I'll use DeepCore Agent to query the weather information for Beijing.
+```
+
+## Technical Support
+
+If you encounter any issues during use, you can get support through the following channels:
+
+1. Visit DeepCore Documentation Center: https://docs.deepcore.top
+2. Join DeepCore Community: https://community.deepcore.top
+3. Contact Technical Support: support@deepcore.top"""
+            return content
+            
+    return store.content

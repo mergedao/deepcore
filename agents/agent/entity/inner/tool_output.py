@@ -14,5 +14,5 @@ class ToolOutput(Output):
         return self.data
 
     def get_response(self) -> str:
-        return ""
+        return self.data
 

@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Body
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +8,7 @@ from starlette.responses import StreamingResponse
 
 from agents.agent.factory.gen_agent import gen_agent
 from agents.agent.memory.agent_context_manager import agent_context_manager
+from agents.common.config import SETTINGS
 from agents.common.context_scenarios import SUPPORTED_CONTEXT_SCENARIOS
 from agents.common.error_messages import get_error_message
 from agents.common.response import RestResponse
@@ -15,8 +16,9 @@ from agents.exceptions import CustomAgentException, ErrorCode
 from agents.middleware.auth_middleware import get_current_user, get_optional_current_user
 from agents.models.db import get_db
 from agents.protocol.schemas import AgentDTO, DialogueRequest, AgentStatus, \
-    PaginationParams, AgentMode, TelegramBotRequest, AgentSettingRequest, AgentContextStoreRequest
-from agents.services import agent_service
+    PaginationParams, AgentMode, TelegramBotRequest, AgentSettingRequest, AgentContextStoreRequest, \
+    PublishAgentToStoreRequest
+from agents.services import agent_service, get_or_create_credentials
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -36,6 +38,9 @@ defaults = {
     'tool_prompt': "",
     'tools': [],
     'suggested_questions': [],
+    'shouldInitializeDialog': False,
+    'initializeDialogQuestion': None,
+    'demo_video': None,
 }
 
 
@@ -56,6 +61,7 @@ async def create_agent(
     - **model_id**: Optional ID of the model to use
     - **suggested_questions**: Optional list of suggested questions
     - **shouldInitializeDialog**: Optional boolean to indicate whether to initialize dialog when creating the agent
+    - **initializeDialogQuestion**: Optional string to specify the question to send when initializing dialog
     """
     try:
         logger.info(f"Creating agent with data: {agent.model_dump()}")
@@ -180,6 +186,17 @@ async def get_agent(
 ):
     try:
         agents = await agent_service.get_agent(agent_id, user, session=session)
+        # Get API key for MCP URL if user is provided
+        mcp_url = None
+        if user and user.get("tenant_id"):
+            try:
+                async with session:
+                    credentials = await get_or_create_credentials(user, session)
+                    if credentials and credentials.get("token"):
+                        mcp_url = f"{SETTINGS.API_BASE_URL}/mcp/assistant/{agents.id}?api-key={credentials['token']}"
+            except Exception as e:
+                logger.warning(f"Failed to generate MCP URL for agent {agents.id}: {e}")
+        agents.mcp_url = mcp_url
         return RestResponse(data=agents)
     except CustomAgentException as e:
         logger.error(f"Error getting agent details: {str(e)}", exc_info=True)
@@ -200,6 +217,17 @@ async def update_agent(
 ):
     """
     Update an existing agent.
+    
+    Parameters:
+    - **id**: ID of the agent to update
+    - **name**: Name of the agent
+    - **description**: Description of the agent
+    - **mode**: Mode of the agent (ReAct/Prompt/call)
+    - **tools**: Optional list of tools to associate
+    - **model_id**: Optional ID of the model to use
+    - **suggested_questions**: Optional list of suggested questions
+    - **shouldInitializeDialog**: Optional boolean to indicate whether to initialize dialog when creating the agent
+    - **initializeDialogQuestion**: Optional string to specify the question to send when initializing dialog
     """
     try:
         agent = await agent_service.update_agent(
@@ -210,7 +238,7 @@ async def update_agent(
         return RestResponse(data=agent)
     except CustomAgentException as e:
         logger.error(f"Error updating agent: {str(e)}", exc_info=True)
-        return RestResponse(code=e.error_code, msg=str(e))
+        return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error updating agent: {str(e)}", exc_info=True)
         return RestResponse(
@@ -528,6 +556,42 @@ async def refresh_public_agents_cache(
         return RestResponse(code=e.error_code, msg=e.message)
     except Exception as e:
         logger.error(f"Unexpected error refreshing public agents cache: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+@router.post("/agents/{agent_id}/publish-to-store", summary="Publish Agent to MCP Store")
+async def publish_agent_to_store(
+    agent_id: str,
+    request: PublishAgentToStoreRequest,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Publish an agent to MCP Store
+    
+    Parameters:
+    - **agent_id**: ID of the agent to publish
+    - **icon**: (Optional) Icon URL for the agent
+    - **tags**: (Optional) List of tags for the agent
+    - **github_url**: (Optional) GitHub repository URL
+    """
+    try:
+        store = await agent_service.publish_to_store(
+            agent_id=agent_id,
+            user=user,
+            session=session,
+            icon=request.icon,
+            tags=request.tags,
+            github_url=request.github_url
+        )
+        return RestResponse(data=store)
+    except CustomAgentException as e:
+        logger.error(f"Error publishing agent to store: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=e.message)
+    except Exception as e:
+        logger.error(f"Unexpected error publishing agent to store: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

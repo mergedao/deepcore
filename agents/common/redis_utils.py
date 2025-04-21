@@ -16,7 +16,8 @@ def datetime_serializer(obj):
     raise TypeError("Type not serializable")
 
 class RedisUtils:
-    def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0, password: Optional[str] = None):
+    def __init__(self, host: str = 'localhost', port: int = 6379, db: int = 0, password: Optional[str] = None,
+                 ssl=False):
         """
         Initialize the Redis connection.
 
@@ -30,7 +31,8 @@ class RedisUtils:
             port=port,
             db=db,
             password=password,
-            decode_responses=True
+            decode_responses=True,
+            ssl=ssl
         )
 
     def set_value(self, key: str, value: Any, ex: Optional[int] = None) -> bool:
@@ -230,5 +232,6 @@ redis_utils = RedisUtils(
     host=SETTINGS.REDIS_HOST,
     port=SETTINGS.REDIS_PORT,
     db=SETTINGS.REDIS_DB,
-    password=SETTINGS.REDIS_PASSWORD
+    password=SETTINGS.REDIS_PASSWORD,
+    ssl=SETTINGS.REDIS_SSL
 )

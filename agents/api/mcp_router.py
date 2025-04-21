@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Body, Path, Query
+from fastapi import APIRouter, Depends, Body, Path
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +36,26 @@ class AddResourceRequest(BaseModel):
     resource_uri: str
     content: str
     mime_type: str = "text/plain"
+
+
+class MCPStoreRequest(BaseModel):
+    """MCP Store Request"""
+    store_name: str
+    icon: Optional[str] = None
+    description: Optional[str] = None
+    store_type: str
+    tags: Optional[List[str]] = None
+    content: Optional[str] = None
+    author: Optional[str] = None
+    github_url: Optional[str] = None
+
+
+class MCPStoreQueryParams(BaseModel):
+    """MCP Store Query Parameters"""
+    page: int = 1
+    page_size: int = 10
+    keyword: Optional[str] = None
+    store_type: Optional[str] = None
 
 
 @router.post("/mcp/create", summary="Create MCP Server")
@@ -244,6 +264,152 @@ async def get_tool_mcp_info(
         return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
         logger.error(f"Unexpected error getting tool MCP info: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.post("/mcp/store", summary="Create MCP Store")
+async def create_mcp_store(
+    request: MCPStoreRequest,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new MCP Store
+    
+    Parameters:
+    - **store_name**: Name of the store
+    - **icon**: Store icon URL (optional)
+    - **description**: Store description (optional)
+    - **store_type**: Type of the store
+    - **tags**: List of store tags (optional)
+    - **content**: Store content (optional)
+    - **author**: Author name (optional)
+    """
+    try:
+        result = await mcp_service.create_mcp_store(
+            store_name=request.store_name,
+            icon=request.icon,
+            store_type=request.store_type,
+            description=request.description,
+            tags=request.tags,
+            content=request.content,
+            author=request.author,
+            user=user,
+            session=session
+        )
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error creating MCP store: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error creating MCP store: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.get("/mcp/stores", summary="List MCP Stores")
+async def list_mcp_stores(
+    page: int = 1,
+    page_size: int = 10,
+    keyword: Optional[str] = None,
+    store_type: Optional[str] = None,
+    is_public: Optional[bool] = None,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    List all registered MCP Stores with pagination and search support
+    
+    Parameters:
+    - **page**: Page number (default: 1)
+    - **page_size**: Number of items per page (default: 10)
+    - **keyword**: Search keyword, matches name and description (optional)
+    - **store_type**: Filter by store type (optional)
+    - **is_public**: Filter by public status (optional)
+    """
+    try:
+        result = await mcp_service.get_registered_mcp_stores(
+            page=page,
+            page_size=page_size,
+            keyword=keyword,
+            store_type=store_type,
+            is_public=is_public,
+            session=session,
+            user=user
+        )
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error listing MCP stores: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error listing MCP stores: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.get("/mcp/store/{store_id}", summary="Get MCP Store Detail")
+async def get_mcp_store(
+    store_id: int,
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Get detailed information about a specific MCP Store
+    
+    Parameters:
+    - **store_id**: ID of the store
+    """
+    try:
+        result = await mcp_service.get_mcp_store_detail(store_id, session, user)
+        if not result:
+            return RestResponse(
+                code=ErrorCode.RESOURCE_NOT_FOUND,
+                msg=f"MCP store with ID {store_id} not found"
+            )
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error getting MCP store detail: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error getting MCP store detail: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+
+@router.delete("/mcp/store/{store_name}", summary="Delete MCP Store")
+async def delete_mcp_store(
+    store_name: str = Path(..., description="Store name"),
+    user: dict = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a specific MCP Store
+    
+    Parameters:
+    - **store_name**: Name of the store to delete
+    """
+    try:
+        result = await mcp_service.delete_mcp_store(store_name, session)
+        if not result:
+            return RestResponse(
+                code=ErrorCode.RESOURCE_NOT_FOUND,
+                msg=f"MCP store '{store_name}' not found"
+            )
+        return RestResponse(data={"success": True})
+    except CustomAgentException as e:
+        logger.error(f"Error deleting MCP store: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error deleting MCP store: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

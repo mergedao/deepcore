@@ -48,6 +48,7 @@ class AppModel(BaseModel):
     token: Optional[str] = None
     symbol: Optional[str] = None
     photos: Optional[List[str]] = None
+    demo_video: Optional[str] = None
     tool_prompt: Optional[str] = None
     max_loops: int = 3
     custom_config: Optional[Dict] = None
@@ -60,6 +61,7 @@ class AppModel(BaseModel):
     update_time: Optional[datetime] = None
     create_time: Optional[datetime] = None
     tools: Optional[List[ToolModel]] = None
+    dev: Optional[str] = None  # Developer wallet address
 
     class Config:
         from_attributes = True
