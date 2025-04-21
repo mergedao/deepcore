@@ -188,7 +188,7 @@ async def get_agent(
         agents = await agent_service.get_agent(agent_id, user, session=session)
         # Get API key for MCP URL if user is provided
         mcp_url = None
-        if user and user.get("tenant_id"):
+        if agents.enable_mcp and user and user.get("tenant_id"):
             try:
                 async with session:
                     credentials = await get_or_create_credentials(user, session)
@@ -380,6 +380,7 @@ async def publish_agent(
         is_public: bool = Query(True, description="Set agent as public"),
         create_fee: float = Query(0.0, description="Fee for creating the agent (tips for creator)"),
         price: float = Query(0.0, description="Fee for using the agent"),
+        enable_mcp: bool = Query(False, description="Whether to enable MCP for this agent"),
         user: dict = Depends(get_current_user),
         session: AsyncSession = Depends(get_db)
 ):
@@ -391,9 +392,10 @@ async def publish_agent(
     - **is_public**: Whether to make the agent public
     - **create_fee**: Fee for creating the agent (tips for creator)
     - **price**: Fee for using the agent
+    - **enable_mcp**: Whether to enable MCP for this agent
     """
     try:
-        await agent_service.publish_agent(agent_id, is_public, create_fee, price, user, session)
+        await agent_service.publish_agent(agent_id, is_public, create_fee, price, enable_mcp, user, session)
         return RestResponse(data="ok")
     except CustomAgentException as e:
         logger.error(f"Error publishing agent: {str(e)}", exc_info=True)

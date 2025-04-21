@@ -49,7 +49,7 @@ async def handle_mcp_request(
         # Get user information
         user = await get_user_from_request(request)
         if not user:
-            return Response({"error": "Invalid API key"}, status_code=401)
+            return JSONResponse({"error": "Invalid API key"}, status_code=401)
         
         # Get MCP service instance
         mcp_service = await get_service_func(user, *args, **kwargs)

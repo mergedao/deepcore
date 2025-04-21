@@ -62,6 +62,7 @@ class App(Base):
     model = relationship('Model')
     category = relationship('Category')
     dev = Column(String(255), comment="Developer wallet address")
+    enable_mcp = Column(Boolean, default=False, comment="Whether MCP is enabled for this agent")
 
 
 class Tool(Base):

@@ -1,3 +1,23 @@
+-- Core Tables
+CREATE TABLE `users` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `username` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Username',
+  `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email address',
+  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Hashed password',
+  `wallet_address` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ethereum wallet address',
+  `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana',
+  `nonce` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nonce for wallet signature',
+  `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Registration time',
+  `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_username` (`username`),
+  UNIQUE KEY `uk_email` (`email`),
+  UNIQUE KEY `uk_wallet_address` (`wallet_address`),
+  KEY `idx_tenant` (`tenant_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Application Related Tables
 CREATE TABLE `app` (
   `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the app',
@@ -17,10 +37,6 @@ CREATE TABLE `app` (
   `demo_video` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Demo video URL for the agent',
   `tool_prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Tool prompt for the agent',
   `max_loops` int DEFAULT 3 COMMENT 'Maximum number of loops the agent can perform',
-  `is_deleted` tinyint(1) DEFAULT NULL COMMENT 'Logical deletion flag',
-  `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
-  `update_time` datetime DEFAULT (now()) COMMENT 'Last update time',
-  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
   `model_json` JSON COMMENT 'Additional fields merged into a JSON column',
   `custom_config` JSON COMMENT 'Custom configuration for the agent stored as JSON',
   `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the agent is public',
@@ -32,29 +48,24 @@ CREATE TABLE `app` (
   `create_fee` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for creating the agent (tips for creator)',
   `price` DECIMAL(20,9) DEFAULT 0.000000000 COMMENT 'Fee for using the agent',
   `vip_level` int DEFAULT 0 COMMENT 'Required VIP level to access this agent (0 for normal users, 1 for VIP users)',
+  `sensitive_data_config` json DEFAULT NULL COMMENT 'Configuration for sensitive data handling',
+  `dev` varchar(255) DEFAULT NULL COMMENT 'Developer wallet address',
+  `enable_mcp` tinyint(1) DEFAULT '0' COMMENT 'Whether MCP is enabled for this agent',
+  `is_deleted` tinyint(1) DEFAULT NULL COMMENT 'Logical deletion flag',
+  `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
+  `update_time` datetime DEFAULT (now()) COMMENT 'Last update time',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
   PRIMARY KEY (`id`),
   KEY `idx_tenant` (`tenant_id`),
   KEY `idx_model` (`model_id`),
   KEY `idx_category` (`category_id`),
   KEY `idx_public_official` (`is_public`, `is_official`),
   KEY `idx_hot` (`is_hot`),
-  KEY `idx_vip_level` (`vip_level`)
+  KEY `idx_vip_level` (`vip_level`),
+  KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
-CREATE TABLE `file_storage` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
-  `file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the file',
-  `file_uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'file UUID',
-  `file_content` LONGBLOB NULL COMMENT 'Content of the file (null for S3 storage)',
-  `size` bigint NOT NULL COMMENT 'Size of the file',
-  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
-  `storage_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'database' COMMENT 'Storage type: database or s3',
-  `storage_location` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT 'Storage location for external storage',
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-
+-- Tool Related Tables
 CREATE TABLE `tools` (
   `id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the tool',
@@ -83,23 +94,6 @@ CREATE TABLE `tools` (
   KEY `idx_category` (`category_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `users` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
-  `username` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Username',
-  `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Email address',
-  `password` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Hashed password',
-  `wallet_address` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ethereum wallet address',
-  `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana',
-  `nonce` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nonce for wallet signature',
-  `tenant_id` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Tenant ID',
-  `create_time` datetime DEFAULT (now()) COMMENT 'Registration time',
-  `update_time` datetime DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_username` (`username`),
-  UNIQUE KEY `uk_email` (`email`),
-  UNIQUE KEY `uk_wallet_address` (`wallet_address`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE `agent_tools` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `agent_id` varchar(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID of the agent',
@@ -111,6 +105,7 @@ CREATE TABLE `agent_tools` (
   KEY `idx_tenant` (`tenant_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Model Related Tables
 CREATE TABLE `models` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the model',
@@ -129,7 +124,7 @@ CREATE TABLE `models` (
   KEY `idx_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
+-- Category Related Tables
 CREATE TABLE `categories` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the category',
@@ -145,6 +140,21 @@ CREATE TABLE `categories` (
   KEY `idx_sort` (`sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- File Storage Related Tables
+CREATE TABLE `file_storage` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `file_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the file',
+  `file_uuid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'File UUID',
+  `file_content` LONGBLOB NULL COMMENT 'Content of the file (null for S3 storage)',
+  `size` bigint NOT NULL COMMENT 'Size of the file',
+  `create_time` datetime DEFAULT (now()) COMMENT 'Creation time',
+  `storage_type` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'database' COMMENT 'Storage type: database or s3',
+  `storage_location` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NULL COMMENT 'Storage location for external storage',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_file_uuid` (`file_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- API Key Related Tables
 CREATE TABLE `open_platform_keys` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the API key',
@@ -158,52 +168,11 @@ CREATE TABLE `open_platform_keys` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_access_key` (`access_key`),
   UNIQUE KEY `uk_token` (`token`),
-  KEY `idx_user` (`user_id`),
-  CONSTRAINT `fk_open_platform_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+  UNIQUE KEY `uk_user_id` (`user_id`),
+  KEY `idx_user` (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE `file_storage` ADD UNIQUE INDEX `uk_file_uuid` (`file_uuid`);
-ALTER TABLE `users` ADD INDEX `idx_tenant` (`tenant_id`);
-ALTER TABLE `app` ADD INDEX `idx_status` (`status`);
-
-
--- ALTER TABLE models
--- ADD COLUMN model_name varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL
--- COMMENT 'Name of the underlying model (e.g. gpt-4, claude-3)'
--- AFTER name;
-
--- Add new fields to app table
--- ALTER TABLE app
--- ADD COLUMN telegram_bot_name varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Telegram bot name' AFTER telegram_bot_id,
--- ADD COLUMN telegram_bot_token varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted Telegram bot token' AFTER telegram_bot_name;
---
--- -- Add icon field to tools table
--- ALTER TABLE tools
--- ADD COLUMN icon varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the tool' AFTER auth_config;
---
--- -- Add token and token_created_at columns to open_platform_keys table
--- ALTER TABLE `open_platform_keys`
--- ADD COLUMN `token` varchar(1000) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Encrypted permanent token for API authentication',
--- ADD COLUMN `token_created_at` datetime DEFAULT NULL COMMENT 'Token creation time';
---
---
--- UPDATE `file_storage` SET `storage_type` = 'database' WHERE `storage_type` IS NULL;
---
--- -- Add token, symbol, and photos columns to app table if they don't exist
--- ALTER TABLE `app` ADD COLUMN `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Token symbol for the agent';
--- ALTER TABLE `app` ADD COLUMN `symbol` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Symbol for the agent token';
--- ALTER TABLE `app` ADD COLUMN `photos` JSON COMMENT 'Photos for the agent';
---
--- ALTER TABLE app ADD COLUMN custom_config JSON COMMENT 'Custom configuration for the agent stored as JSON' AFTER model_json;
-
-
-
--- ALTER TABLE `tools` ADD COLUMN `sensitive_data_config` JSON DEFAULT NULL COMMENT 'Configuration for sensitive data handling' ,ALGORITHM=INPLACE,LOCK=NONE;
-
--- ALTER TABLE `users`
--- ADD COLUMN `chain_type` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'ethereum' COMMENT 'Blockchain type, e.g., ethereum or solana'
--- AFTER `wallet_address`;
--- Add MCP persistence tables
+-- MCP Related Tables
 CREATE TABLE `mcp_server` (
   `id` int NOT NULL AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
   `name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Name of the MCP server',
@@ -256,66 +225,52 @@ CREATE TABLE `mcp_resource` (
   KEY `idx_mcp_server` (`mcp_server_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Add icon field to models table
--- ALTER TABLE `models` ADD COLUMN `icon` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Icon URL of the model' AFTER `is_public`;
+CREATE TABLE `mcp_stores` (
+  `id` SERIAL PRIMARY KEY COMMENT 'Auto-incrementing ID',
+  `name` VARCHAR(255) NOT NULL COMMENT 'Name of the store',
+  `icon` VARCHAR(255) COMMENT 'Store icon URL',
+  `description` TEXT COMMENT 'Description of the store',
+  `store_type` VARCHAR(50) NOT NULL COMMENT 'Type of the store',
+  `tags` JSON COMMENT 'Store tags as JSON list',
+  `content` TEXT COMMENT 'Store content',
+  `creator_id` INTEGER NOT NULL COMMENT 'ID of the creator',
+  `author` VARCHAR(255) COMMENT 'Name of the author',
+  `github_url` VARCHAR(255) COMMENT 'GitHub repository URL',
+  `tenant_id` VARCHAR(255) NOT NULL COMMENT 'Tenant ID',
+  `is_public` BOOLEAN DEFAULT FALSE COMMENT 'Whether the store is public',
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation time',
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  `agent_id` VARCHAR(36) COMMENT 'ID of the associated agent',
+  UNIQUE KEY `uk_name` (`name`),
+  KEY `idx_tenant_id` (`tenant_id`),
+  KEY `idx_creator` (`creator_id`),
+  KEY `idx_store_type` (`store_type`),
+  KEY `idx_agent_id` (`agent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- VIP Membership Related Tables
+CREATE TABLE `vip_memberships` (
+  `id` INTEGER PRIMARY KEY AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `user_id` INTEGER NOT NULL COMMENT 'ID of the user',
+  `level` INTEGER DEFAULT 1 COMMENT 'Membership level',
+  `start_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Start time',
+  `expire_time` TIMESTAMP NOT NULL COMMENT 'Expiration time',
+  `status` VARCHAR(20) DEFAULT 'active' COMMENT 'Status',
+  `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation time',
+  `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  KEY `idx_vip_memberships_user_status` (`user_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-ALTER TABLE `app` ADD COLUMN `vip_level` int DEFAULT 0 COMMENT 'Required VIP level to access this agent (0 for normal users, 1 for VIP users)';
-
--- Create membership table
-CREATE TABLE IF NOT EXISTS vip_memberships (
-    id INTEGER PRIMARY KEY AUTO_INCREMENT,
-    user_id INTEGER NOT NULL,
-    level INTEGER DEFAULT 1,
-    start_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    expire_time TIMESTAMP NOT NULL,
-    status VARCHAR(20) DEFAULT 'active',
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- Create membership package table
-CREATE TABLE IF NOT EXISTS vip_packages (
-    id INTEGER PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(100) NOT NULL,
-    level INTEGER NOT NULL,
-    duration INTEGER NOT NULL,
-    price DECIMAL(18,9) NOT NULL,
-    description TEXT,
-    features JSON COMMENT 'Features of the package',
-    is_active tinyint(1) DEFAULT 1 COMMENT 'Whether the package is active',
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- Create indexes
-CREATE INDEX idx_vip_memberships_user_status ON vip_memberships(user_id, status);
-CREATE INDEX idx_vip_packages_level_duration ON vip_packages(level, duration);
-
-ALTER TABLE `app` ADD COLUMN `dev` varchar(255) DEFAULT NULL COMMENT 'Developer wallet address';
-
--- Create mcp_stores table
-CREATE TABLE IF NOT EXISTS mcp_stores (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    icon VARCHAR(255) COMMENT 'Store icon URL',
-    description TEXT,
-    store_type VARCHAR(50) NOT NULL,
-    tags JSON COMMENT 'Store tags as JSON list',
-    content TEXT COMMENT 'Store content',
-    creator_id INTEGER NOT NULL REFERENCES users(id),
-    author VARCHAR(255) COMMENT 'Author name',
-    github_url VARCHAR(255) COMMENT 'GitHub repository URL',
-    tenant_id VARCHAR(255) NOT NULL,
-    is_public BOOLEAN DEFAULT FALSE COMMENT 'Whether the store is public',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    agent_id VARCHAR(36) COMMENT 'ID of the associated agent'
-);
-
--- Add indexes for mcp_stores
-CREATE INDEX idx_mcp_stores_name ON mcp_stores(name);
-CREATE INDEX idx_mcp_stores_tenant_id ON mcp_stores(tenant_id);
-CREATE INDEX idx_mcp_stores_creator ON mcp_stores(creator_id);
-CREATE INDEX idx_mcp_stores_store_type ON mcp_stores(store_type);
-CREATE INDEX idx_mcp_stores_agent_id ON mcp_stores(agent_id);
+CREATE TABLE `vip_packages` (
+  `id` INTEGER PRIMARY KEY AUTO_INCREMENT COMMENT 'Auto-incrementing ID',
+  `name` VARCHAR(100) NOT NULL COMMENT 'Name of the package',
+  `level` INTEGER NOT NULL COMMENT 'Membership level',
+  `duration` INTEGER NOT NULL COMMENT 'Duration in days',
+  `price` DECIMAL(18,9) NOT NULL COMMENT 'Price',
+  `description` TEXT COMMENT 'Description',
+  `features` JSON COMMENT 'Features of the package',
+  `is_active` tinyint(1) DEFAULT 1 COMMENT 'Whether the package is active',
+  `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT 'Creation time',
+  `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Last update time',
+  KEY `idx_vip_packages_level_duration` (`level`, `duration`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

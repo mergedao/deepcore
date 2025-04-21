@@ -4,7 +4,7 @@ from typing import Dict, List, Any, Optional
 
 import mcp.types as types
 from mcp.server import Server
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.exceptions import CustomAgentException, ErrorCode
@@ -162,13 +162,27 @@ async def create_single_assistant_mcp_server(user: dict, session: AsyncSession, 
     server = Server(f"assistant-{assistant_id}-api")
     
     # Get specific app from database
-    query = select(App).where(
+    from agents.models.models import MCPStore
+    query = select(App).join(
+        MCPStore,
+        App.id == MCPStore.agent_id,
+        isouter=True
+    ).where(
         or_(
+            # Current tenant's apps
             App.tenant_id == user.get("tenant_id"),
-            App.is_public == True
+            # Public apps
+            App.is_public == True,
+            # Apps in public MCP stores
+            and_(
+                MCPStore.is_public == True,
+                MCPStore.agent_id == assistant_id
+            )
         ),
-        App.id == assistant_id
-    )
+        App.id == assistant_id,
+        App.enable_mcp == True,
+    ).distinct()
+    
     result = await session.execute(query)
     app = result.scalar_one_or_none()
     
