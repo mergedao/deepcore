@@ -1299,7 +1299,7 @@ async def create_agent_store(
             store.name = name
             store.icon = icon
             store.description = description
-            store.tags = json.dumps(tags or [])
+            store.tags = tags or []
             store.author = author or user.get("wallet_address", "")
             store.github_url = github_url
             store.is_public = is_public
@@ -1311,7 +1311,7 @@ async def create_agent_store(
                 icon=icon,
                 description=description,
                 store_type="agent",
-                tags=json.dumps(tags or []),
+                tags=tags or [],
                 content="",
                 creator_id=user.get("id", 0),  # Use the integer user ID
                 author=author or user.get("wallet_address", ""),
@@ -1406,10 +1406,14 @@ DeepCore provides AI Agent services based on MCP (Model Context Protocol), allow
 
 ### 1. Get API Key
 
-First, you need to obtain an API Key from the DeepCore platform:
-1. Log in to the DeepCore platform (https://deepcore.top)
-2. Go to User Center
-3. Create a new API Key in the API Management page
+Step 1: Log in to the DeepCore Platform
+Visit https://deepcore.top and log in to your account.
+
+Step 2: Select Your Agent
+From the dashboard, choose the Agent you want to work with.
+
+Step 3: Find the MCP-Server Address
+Go to the details page of the selected Agent and locate its current MCP-Server address.
 
 ### 2. Configure MCP Client
 

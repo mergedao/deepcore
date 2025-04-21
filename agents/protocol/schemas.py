@@ -150,6 +150,7 @@ class AgentDTO(BaseModel):
     initializeDialogQuestion: Optional[str] = Field(None, description="Question to send when initializing dialog")
     dev: Optional[str] = Field(None, description="Developer wallet address")
     tenant_id: Optional[str] = None
+    enable_mcp: Optional[bool] = Field(False, description="Whether MCP is enabled for this agent")
 
     class Config:
         from_attributes = True

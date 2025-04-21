@@ -193,8 +193,8 @@ class TokenAnalyzer:
         Returns:
             Dict: Twitter search results
         """
-        path = "/api/sm/x/search/posts"
-        params = {
+        path = "/ps/data/tweets_search"
+        body = {
             "query": query,
             "max_results": max_results,
             "cache_enabled": str(cache_enabled).lower()
@@ -202,10 +202,10 @@ class TokenAnalyzer:
         
         async with AsyncHttpClient(headers=self.headers) as client:
             async for response in client.request(
-                method="GET",
+                method="POST",
                 base_url=self.base_url,
                 path=path,
-                params=params,
+                json_data=body,
                 stream=False
             ):
                 return response
