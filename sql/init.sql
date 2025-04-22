@@ -283,10 +283,12 @@ CREATE TABLE `ai_image_templates` (
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Template description',
   `template_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Template image URL',
   `prompt` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Generation prompt',
+  `type` int NOT NULL DEFAULT '1' COMMENT 'Template type: 1-Custom mode, 2-X Link mode',
   `status` int NOT NULL DEFAULT '0' COMMENT 'Template status: 0-draft, 1-active, 2-inactive',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP COMMENT 'Create time',
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
   PRIMARY KEY (`id`),
   KEY `idx_status` (`status`),
+  KEY `idx_type` (`type`),
   KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
