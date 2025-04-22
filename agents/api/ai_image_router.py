@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.common.error_messages import get_error_message
@@ -17,11 +17,13 @@ from agents.services.ai_image_service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+
 @router.post("/ai_image/create_task", summary="Create AI Image Task")
 async def create_ai_image_task(
-    task_info: CreateAIImageTaskDTO = Body(..., description="Task information for creating AI image task"),
-    user: Optional[dict] = Depends(get_optional_current_user),
-    session: AsyncSession = Depends(get_db)
+        background_tasks: BackgroundTasks,
+        task_info: CreateAIImageTaskDTO = Body(..., description="Task information for creating AI image task"),
+        user: Optional[dict] = Depends(get_optional_current_user),
+        session: AsyncSession = Depends(get_db)
 ):
     """
     Create a new AI image task
@@ -39,16 +41,16 @@ async def create_ai_image_task(
                 error_code=ErrorCode.UNAUTHORIZED,
                 message="User authentication required"
             )
-            
+
         tenant_id = user.get("tenant_id")
         if not tenant_id:
             raise CustomAgentException(
                 error_code=ErrorCode.INVALID_PARAMETERS,
                 message="Tenant ID not found in user information"
             )
-            
+
         ai_image_service = AIImageService(session)
-        result = await ai_image_service.create_ai_image_task(task_info, tenant_id)
+        result = await ai_image_service.create_ai_image_task(task_info, tenant_id, background_tasks)
         return RestResponse(data=result)
     except CustomAgentException as e:
         logger.error(f"Error creating AI image task: {str(e)}", exc_info=True)
@@ -60,11 +62,12 @@ async def create_ai_image_task(
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
         )
 
+
 @router.post("/ai_image/query_task_list", summary="Query AI Image Task List")
 async def query_ai_image_task_list(
-    query_params: AIImageTaskQueryDTO = Body(..., description="Query parameters for AI image tasks"),
-    user: Optional[dict] = Depends(get_optional_current_user),
-    session: AsyncSession = Depends(get_db)
+        query_params: AIImageTaskQueryDTO = Body(..., description="Query parameters for AI image tasks"),
+        user: Optional[dict] = Depends(get_optional_current_user),
+        session: AsyncSession = Depends(get_db)
 ):
     """
     Query AI image task list
@@ -82,14 +85,14 @@ async def query_ai_image_task_list(
                 error_code=ErrorCode.UNAUTHORIZED,
                 message="User authentication required"
             )
-            
+
         tenant_id = user.get("tenant_id")
         if not tenant_id:
             raise CustomAgentException(
                 error_code=ErrorCode.INVALID_PARAMS,
                 message="Tenant ID not found in user information"
             )
-            
+
         ai_image_service = AIImageService(session)
         result = await ai_image_service.query_ai_image_task_list(query_params, tenant_id)
         return RestResponse(data=result)
@@ -103,11 +106,12 @@ async def query_ai_image_task_list(
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)
         )
 
+
 @router.post("/ai_template/list", summary="Query AI Template List")
 async def query_template_list(
-    query_params: AITemplateQueryDTO = Body(..., description="Query parameters for AI templates"),
-    user: Optional[dict] = Depends(get_optional_current_user),
-    session: AsyncSession = Depends(get_db)
+        query_params: AITemplateQueryDTO = Body(..., description="Query parameters for AI templates"),
+        user: Optional[dict] = Depends(get_optional_current_user),
+        session: AsyncSession = Depends(get_db)
 ):
     """
     Query AI template list with pagination
@@ -125,7 +129,7 @@ async def query_template_list(
                 error_code=ErrorCode.UNAUTHORIZED,
                 message="User authentication required"
             )
-            
+
         ai_image_service = AIImageService(session)
         result = await ai_image_service.query_template_list(query_params)
         return RestResponse(data=result)

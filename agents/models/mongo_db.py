@@ -58,7 +58,7 @@ class AigcImgTaskStatus(StrEnum):
 
 class AigcImgTask(BaseModel):
     tenant_id: str
-    category: str
+    mode: int
     prompt: Optional[str] = ""
     base64_image_list: List[str] = Field(default_factory=list,
                                          description="List of base64 encoded images, use url_to_base64 function to convert them to base64")

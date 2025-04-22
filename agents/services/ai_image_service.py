@@ -1,18 +1,24 @@
+import json
 import logging
 from typing import Dict, Any, List, Optional
 
 import httpx
-from fastapi import Depends
+from fastapi import Depends, BackgroundTasks
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.common.config import SETTINGS
+from agents.common.http_utils import url_to_base64
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import AIImageTemplate
+from agents.models.mongo_db import AigcImgTask
+from agents.services.aigc_image_service import backgroud_run_aigc_img_task
+from twitter_service import get_twitter_user_by_username
 
 logger = logging.getLogger(__name__)
+
 
 class CreateAIImageTaskDTO(BaseModel):
     """
@@ -60,6 +66,7 @@ class CreateAIImageTaskDTO(BaseModel):
                 message="Invalid mode, must be 1 or 2"
             )
 
+
 class AIImageTaskQueryDTO(BaseModel):
     """
     Data transfer object for querying AI image tasks
@@ -68,11 +75,13 @@ class AIImageTaskQueryDTO(BaseModel):
     page_size: int = 20
     type: Optional[int] = None  # 1-Custom mode, 2-X Link mode
 
+
 class AITemplateQueryDTO(BaseModel):
     """Query parameters for AI templates"""
     page: int = 1
     page_size: int = 20
     type: Optional[int] = None  # 1-Custom mode, 2-X Link mode
+
 
 class AITemplateListResponse(BaseModel):
     """Response model for template list"""
@@ -81,6 +90,7 @@ class AITemplateListResponse(BaseModel):
     description: Optional[str]
     type: int
 
+
 class AIImageService:
     def __init__(self, session: AsyncSession = Depends(get_db)):
         self.db_session = session
@@ -88,61 +98,67 @@ class AIImageService:
         self.api_base = SETTINGS.DATA_API_BASE
         self.api_key = SETTINGS.DATA_API_KEY
 
-    async def create_ai_image_task(self, task_info: CreateAIImageTaskDTO, tenant_id: str) -> Dict[str, Any]:
+    async def create_ai_image_task(self,
+                                   task_req: CreateAIImageTaskDTO,
+                                   tenant_id: str,
+                                   background_tasks: BackgroundTasks) -> Dict[str, Any]:
         """
         Create a new AI image task
         
-        :param task_info: Task information including template_id and mode-specific fields
+        :param task_req: Task information including template_id and mode-specific fields
         :param tenant_id: Tenant ID from user information
         :return: API response data
         """
         # Validate fields based on mode
-        task_info.validate_fields()
-        
-        url = f"{self.api_base}/ps/bnb_img/create_img_task"
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key
-        }
-        
+        task_req.validate_fields()
+
         # Get template information
-        template = await self.get_template(task_info.template_id)
+        template = await self.get_template(task_req.template_id)
         if not template:
             raise CustomAgentException(
                 error_code=ErrorCode.RESOURCE_NOT_FOUND,
                 message="Template not found"
             )
-        
-        # Prepare payload based on mode
-        payload = {
-            "tenant_id": tenant_id,
-            "template_id": task_info.template_id,
-            "mode": task_info.mode
-        }
-        
-        if task_info.mode == 1:
-            payload.update({
-                "prompt": task_info.prompt,
-                "image_url": task_info.image_url
-            })
+
+        task = AigcImgTask(
+            tenant_id=tenant_id,
+            mode=task_req.mode,
+        )
+
+        if task_req.mode == 1:
+            prompt_tpl = template.prompt
+            assert prompt_tpl
+            # TODO template of mode 1 add {custom}
+            task.prompt = prompt_tpl.format(
+                custom=task_req.prompt
+            )
         else:  # mode 2
-            twitter_username = task_info.get_twitter_username()
-            payload.update({
-                "twitter_username": twitter_username,
-                "x_link": task_info.x_link
-            })
-        
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=httpx.Timeout(30.0))
-                response.raise_for_status()
-                return response.json()
-            except httpx.RequestError as e:
-                logger.error(f"Request error for create_ai_image_task: {str(e)}", exc_info=True)
-                raise CustomAgentException(
-                    error_code=ErrorCode.API_CALL_ERROR,
-                    message=f"Failed to create AI image task: {str(e)}"
-                )
+            prompt_tpl = template.prompt
+            assert prompt_tpl
+            twitter_username = task_req.get_twitter_username()
+            twitter_user_info = get_twitter_user_by_username(twitter_username)
+            if twitter_user_info:
+                #  TODO llm summary posts
+                twitter_user_info.recent_posts = []
+                task.profile_image_url = twitter_user_info.profile_image_url
+                json_twitter_user_info = json.dumps(twitter_user_info.model_dump(), ensure_ascii=False)
+            else:
+                json_twitter_user_info = ""
+
+            # TODO template of mode 1 add {json_twitter_user_info}
+            task.prompt = prompt_tpl.format(
+                json_twitter_user_info=json_twitter_user_info
+            )
+
+        base64_img_list = []
+        # TODO template add base64_template_img
+        if template.base64_template_img:
+            base64_img_list.append(template.base64_template_img)
+        if task_req.image_url:
+            base64_img_list.append(await url_to_base64(task_req.image_url))
+        task.base64_image_list = base64_img_list
+
+        background_tasks.add_task(backgroud_run_aigc_img_task, task)
 
     async def query_ai_image_task_list(self, query_params: AIImageTaskQueryDTO, tenant_id: str) -> Dict[str, Any]:
         """
@@ -157,7 +173,7 @@ class AIImageService:
             "Content-Type": "application/json",
             "x-api-key": self.api_key
         }
-        
+
         payload = {
             "tenant_id": tenant_id,
             "page": query_params.page,
@@ -167,7 +183,7 @@ class AIImageService:
         # Add type to payload if specified
         if query_params.type is not None:
             payload["type"] = query_params.type
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, headers=headers, json=payload, timeout=httpx.Timeout(30.0))
@@ -190,19 +206,19 @@ class AIImageService:
         try:
             # Start with base query for active templates
             query = select(AIImageTemplate).where(AIImageTemplate.status == 1)
-            
+
             # Add type filter if specified
             if query_params.type is not None:
                 query = query.where(AIImageTemplate.type == query_params.type)
-            
+
             # Add pagination
             offset = (query_params.page - 1) * query_params.page_size
             query = query.offset(offset).limit(query_params.page_size)
-            
+
             # Execute query
             result = await self.db_session.execute(query)
             templates = result.scalars().all()
-            
+
             # Format response
             return [
                 AITemplateListResponse(
@@ -232,11 +248,11 @@ class AIImageService:
                 )
             )
             template = result.scalars().first()
-            
+
             if not template:
                 return None
-                
+
             return template
         except Exception as e:
             logger.error(f"Error getting template: {e}", exc_info=True)
-            raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e)) 
+            raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e))
