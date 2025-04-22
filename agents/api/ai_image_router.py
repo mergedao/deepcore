@@ -9,7 +9,10 @@ from agents.common.response import RestResponse
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.middleware.auth_middleware import get_optional_current_user
 from agents.models.db import get_db
-from agents.services.ai_image_service import AIImageService, CreateAIImageTaskDTO, AIImageTaskQueryDTO
+from agents.services.ai_image_service import (
+    AIImageService, CreateAIImageTaskDTO, AIImageTaskQueryDTO,
+    AITemplateQueryDTO
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -95,6 +98,85 @@ async def query_ai_image_task_list(
         return RestResponse(code=e.error_code, msg=str(e))
     except Exception as e:
         logger.error(f"Unexpected error querying AI image task list: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+@router.post("/ai_template/list", summary="Query AI Template List")
+async def query_template_list(
+    query_params: AITemplateQueryDTO = Body(..., description="Query parameters for AI templates"),
+    user: Optional[dict] = Depends(get_optional_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Query AI template list with pagination
+    
+    Parameters:
+        - query_params: Query parameters including page, page_size and status
+        - user: Current user information
+    
+    Returns:
+        - List of templates with basic information
+    """
+    try:
+        if not user:
+            raise CustomAgentException(
+                error_code=ErrorCode.UNAUTHORIZED,
+                message="User authentication required"
+            )
+            
+        ai_image_service = AIImageService(session)
+        result = await ai_image_service.query_template_list(query_params)
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error querying template list: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error querying template list: {str(e)}", exc_info=True)
+        return RestResponse(
+            code=ErrorCode.INTERNAL_ERROR,
+            msg=get_error_message(ErrorCode.INTERNAL_ERROR)
+        )
+
+@router.get("/ai_template/{template_id}", summary="Get AI Template")
+async def get_template(
+    template_id: str,
+    user: Optional[dict] = Depends(get_optional_current_user),
+    session: AsyncSession = Depends(get_db)
+):
+    """
+    Get single AI template by ID
+    
+    Parameters:
+        - template_id: Template ID to retrieve
+        - user: Current user information
+    
+    Returns:
+        - Template basic information
+    """
+    try:
+        if not user:
+            raise CustomAgentException(
+                error_code=ErrorCode.UNAUTHORIZED,
+                message="User authentication required"
+            )
+            
+        ai_image_service = AIImageService(session)
+        result = await ai_image_service.get_template(template_id)
+        
+        if not result:
+            raise CustomAgentException(
+                error_code=ErrorCode.RESOURCE_NOT_FOUND,
+                message="Template not found"
+            )
+            
+        return RestResponse(data=result)
+    except CustomAgentException as e:
+        logger.error(f"Error getting template {template_id}: {str(e)}", exc_info=True)
+        return RestResponse(code=e.error_code, msg=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error getting template {template_id}: {str(e)}", exc_info=True)
         return RestResponse(
             code=ErrorCode.INTERNAL_ERROR,
             msg=get_error_message(ErrorCode.INTERNAL_ERROR)

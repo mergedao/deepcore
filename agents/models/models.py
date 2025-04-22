@@ -377,3 +377,18 @@ class MCPStore(Base):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "agent_id": self.agent_id
         }
+
+
+class AIImageTemplate(Base):
+    """AI Image Template Model"""
+    __tablename__ = 'ai_image_templates'
+
+    id = Column(String(36), primary_key=True)
+    name = Column(String(255), nullable=False, comment='Template name')
+    preview_url = Column(String(255), nullable=False, comment='Preview image URL')
+    description = Column(Text, nullable=True, comment='Template description')
+    template_url = Column(String(255), nullable=True, comment='Template image URL')
+    prompt = Column(Text, nullable=True, comment='Generation prompt')
+    status = Column(Integer, nullable=False, default=0, comment='Template status: 0-draft, 1-active, 2-inactive')
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), comment='Create time')
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), comment='Update time')
