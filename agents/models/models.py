@@ -388,6 +388,7 @@ class AIImageTemplate(Base):
     preview_url = Column(String(255), nullable=False, comment='Preview image URL')
     description = Column(Text, nullable=True, comment='Template description')
     template_url = Column(String(255), nullable=True, comment='Template image URL')
+    base64_template_img = Column(String(1000), nullable=True, comment='Template image URL')
     prompt = Column(Text, nullable=True, comment='Generation prompt')
     type = Column(Integer, nullable=False, default=1, comment='Template type: 1-Custom mode, 2-X Link mode')
     status = Column(Integer, nullable=False, default=0, comment='Template status: 0-draft, 1-active, 2-inactive')
