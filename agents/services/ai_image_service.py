@@ -66,17 +66,20 @@ class AIImageTaskQueryDTO(BaseModel):
     """
     page: int = 1
     page_size: int = 20
+    type: Optional[int] = None  # 1-Custom mode, 2-X Link mode
 
 class AITemplateQueryDTO(BaseModel):
     """Query parameters for AI templates"""
     page: int = 1
     page_size: int = 20
+    type: Optional[int] = None  # 1-Custom mode, 2-X Link mode
 
 class AITemplateListResponse(BaseModel):
     """Response model for template list"""
     name: str
     preview_url: str
     description: Optional[str]
+    type: int
 
 class AIImageService:
     def __init__(self, session: AsyncSession = Depends(get_db)):
@@ -145,7 +148,7 @@ class AIImageService:
         """
         Query AI image task list
         
-        :param query_params: Query parameters including page and page_size
+        :param query_params: Query parameters including page, page_size and type
         :param tenant_id: Tenant ID from user information
         :return: API response data
         """
@@ -160,6 +163,10 @@ class AIImageService:
             "page": query_params.page,
             "page_size": query_params.page_size
         }
+
+        # Add type to payload if specified
+        if query_params.type is not None:
+            payload["type"] = query_params.type
         
         async with httpx.AsyncClient() as client:
             try:
@@ -177,12 +184,16 @@ class AIImageService:
         """
         Query active AI image template list
         
-        :param query_params: Query parameters including page and page_size
+        :param query_params: Query parameters including page, page_size and type
         :return: List of active templates with basic information
         """
         try:
-            # Query only active templates (status = 1)
+            # Start with base query for active templates
             query = select(AIImageTemplate).where(AIImageTemplate.status == 1)
+            
+            # Add type filter if specified
+            if query_params.type is not None:
+                query = query.where(AIImageTemplate.type == query_params.type)
             
             # Add pagination
             offset = (query_params.page - 1) * query_params.page_size
@@ -197,7 +208,8 @@ class AIImageService:
                 AITemplateListResponse(
                     name=template.name,
                     preview_url=template.preview_url,
-                    description=template.description
+                    description=template.description,
+                    type=template.type
                 ).dict()
                 for template in templates
             ]
@@ -205,7 +217,7 @@ class AIImageService:
             logger.error(f"Error querying template list: {e}", exc_info=True)
             raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e))
 
-    async def get_template(self, template_id: str) -> Optional[Dict]:
+    async def get_template(self, template_id: str) -> Optional[AIImageTemplate]:
         """
         Get single template by ID
         
@@ -214,19 +226,17 @@ class AIImageService:
         """
         try:
             result = await self.db_session.execute(
-                select(AIImageTemplate).where(AIImageTemplate.id == template_id, AIImageTemplate.status == 1)
+                select(AIImageTemplate).where(
+                    AIImageTemplate.id == template_id,
+                    AIImageTemplate.status == 1
+                )
             )
             template = result.scalars().first()
             
             if not template:
                 return None
                 
-            return AITemplateListResponse(
-                name=template.name,
-                preview_url=template.preview_url,
-                description=template.description,
-                status=template.status
-            ).dict()
+            return template
         except Exception as e:
             logger.error(f"Error getting template: {e}", exc_info=True)
             raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e)) 
