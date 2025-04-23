@@ -24,14 +24,14 @@ async def backgroud_run_aigc_img_task(task: AigcImgTask):
 
     save_aigc_img_task(task)
 
-    img_url = await _tuzi_gen_img(task)
+    img_url = await _aigc_gen_img(task)
     if img_url:
-        logging.info("tuzi_img_task finish")
+        logging.info("aigc_img_task finish")
         task.result_img_url = img_url
-        task.process_msg.append(f"tuzi_img_task success")
+        task.process_msg.append(f"aigc_img_task success")
         task.status = AigcImgTaskStatus.DONE
     else:
-        task.process_msg.append(f"tuzi_img_task failed")
+        task.process_msg.append(f"aigc_img_task failed")
         task.status = AigcImgTaskStatus.FAILED
 
     task.gen_timestamp = int(time.time())
@@ -40,7 +40,7 @@ async def backgroud_run_aigc_img_task(task: AigcImgTask):
     save_aigc_img_task(task)
 
 
-async def _tuzi_gen_img(task: AigcImgTask):
+async def _aigc_gen_img(task: AigcImgTask):
     try:
         content = [
             {"type": "text", "text": task.prompt},
@@ -61,18 +61,18 @@ async def _tuzi_gen_img(task: AigcImgTask):
         }
 
         headers = {
-            "Authorization": f"Bearer {SETTINGS.TUZI_API_KEY}",
+            "Authorization": f"Bearer {SETTINGS.IMGAI_API_KEY}",
             "Content-Type": "application/json",
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post("https://api.tu-zi.com/v1/chat/completions", json=data, headers=headers,
+            async with session.post(SETTINGS.IMGAI_URL, json=data, headers=headers,
                                     timeout=1200) as response:
                 if response.status != 200:
-                    logging.warning(f'tuzi_gen_img: {task.task_id}, http status: {response.status}')
+                    logging.warning(f'aigc_gen_img: {task.task_id}, http status: {response.status}')
                     return None
                 response_text = await response.text()
-                logging.info(f'tuzi_gen_img: {task.task_id}, response: {response_text}')
+                logging.info(f'aigc_gen_img: {task.task_id}, response: {response_text}')
                 result = await response.json()
                 if "error" in result:
                     return None
@@ -86,8 +86,8 @@ async def _tuzi_gen_img(task: AigcImgTask):
                                 if image_url:
                                     ret_img = await download_and_upload_image(image_url, "deepweb3")
                                     if ret_img:
-                                        logging.info(f"tuzi_gen_img {task.task_id} successful!")
+                                        logging.info(f"aigc_gen_img {task.task_id} successful!")
                                         return ret_img
     except Exception as e:
-        logging.error(f"tuzi_gen_img {task.task_id} error: {e}", exc_info=True)
+        logging.error(f"aigc_gen_img {task.task_id} error: {e}", exc_info=True)
     return None
