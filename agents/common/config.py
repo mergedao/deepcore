@@ -76,7 +76,8 @@ class Settings(BaseSettings):
     COINMARKETCAP_API_KEY: str = ""
 
     MONGO_STRING: str = ""
-    TUZI_API_KEY: str = ""
+    IMGAI_API_KEY: str = ""
+    IMGAI_URL: str = ""
 
 
 

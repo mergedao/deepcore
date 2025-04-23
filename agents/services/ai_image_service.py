@@ -125,10 +125,15 @@ class AIImageService:
             mode=task_req.mode,
         )
 
+        base64_img_list = []
+        if template.base64_template_img:
+            base64_img_list.append(template.base64_template_img)
+        if task_req.image_url:
+            base64_img_list.append(await url_to_base64(task_req.image_url))
+
         if task_req.mode == 1:
             prompt_tpl = template.prompt
             assert prompt_tpl
-            # TODO template of mode 1 add {custom}
             task.prompt = prompt_tpl.format(
                 custom=task_req.prompt
             )
@@ -138,26 +143,17 @@ class AIImageService:
             twitter_username = task_req.get_twitter_username()
             twitter_user_info = get_twitter_user_by_username(twitter_username)
             if twitter_user_info:
-                #  TODO llm summary posts
                 twitter_user_info.recent_posts = []
-                task.profile_image_url = twitter_user_info.profile_image_url
+                base64_img_list.append(await url_to_base64(twitter_user_info.profile_image_url))
                 json_twitter_user_info = json.dumps(twitter_user_info.model_dump(), ensure_ascii=False)
             else:
                 json_twitter_user_info = ""
 
-            # TODO template of mode 1 add {json_twitter_user_info}
             task.prompt = prompt_tpl.format(
                 json_twitter_user_info=json_twitter_user_info
             )
 
-        base64_img_list = []
-        # TODO template add base64_template_img
-        if template.base64_template_img:
-            base64_img_list.append(template.base64_template_img)
-        if task_req.image_url:
-            base64_img_list.append(await url_to_base64(task_req.image_url))
         task.base64_image_list = base64_img_list
-
         background_tasks.add_task(backgroud_run_aigc_img_task, task)
 
     async def query_ai_image_task_list(self, query_params: AIImageTaskQueryDTO, tenant_id: str) -> Dict[str, Any]:
