@@ -9,13 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agents.common.config import SETTINGS
-from agents.common.http_utils import url_to_base64
+from agents.common.http_utils import url_to_base64, fetch_image_as_base64
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import AIImageTemplate
 from agents.models.mongo_db import AigcImgTask
 from agents.services.aigc_image_service import backgroud_run_aigc_img_task
-from twitter_service import get_twitter_user_by_username
+from agents.services.twitter_service import get_twitter_user_by_username
 
 logger = logging.getLogger(__name__)
 
@@ -126,8 +126,8 @@ class AIImageService:
         )
 
         base64_img_list = []
-        if template.base64_template_img:
-            base64_img_list.append(template.base64_template_img)
+        if template.template_url:
+            base64_img_list.append(await fetch_image_as_base64(template.template_url))
         if task_req.image_url:
             base64_img_list.append(await url_to_base64(task_req.image_url))
 
@@ -153,7 +153,6 @@ class AIImageService:
                 json_twitter_user_info=json_twitter_user_info
             )
 
-        task.base64_image_list = base64_img_list
         background_tasks.add_task(backgroud_run_aigc_img_task, task)
 
     async def query_ai_image_task_list(self, query_params: AIImageTaskQueryDTO, tenant_id: str) -> Dict[str, Any]:

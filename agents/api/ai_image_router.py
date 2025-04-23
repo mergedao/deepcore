@@ -50,8 +50,8 @@ async def create_ai_image_task(
             )
 
         ai_image_service = AIImageService(session)
-        result = await ai_image_service.create_ai_image_task(task_info, tenant_id, background_tasks)
-        return RestResponse(data=result)
+        await ai_image_service.create_ai_image_task(task_info, tenant_id, background_tasks)
+        return RestResponse(data=True)
     except CustomAgentException as e:
         logger.error(f"Error creating AI image task: {str(e)}", exc_info=True)
         return RestResponse(code=e.error_code, msg=str(e))
