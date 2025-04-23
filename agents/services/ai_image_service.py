@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Any, List, Optional
 
 import httpx
+import pymongo
 from fastapi import Depends, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -13,7 +14,7 @@ from agents.common.http_utils import url_to_base64, fetch_image_as_base64
 from agents.exceptions import CustomAgentException, ErrorCode
 from agents.models.db import get_db
 from agents.models.models import AIImageTemplate
-from agents.models.mongo_db import AigcImgTask
+from agents.models.mongo_db import AigcImgTask, aigc_img_tasks_col
 from agents.services.aigc_image_service import backgroud_run_aigc_img_task
 from agents.services.twitter_service import get_twitter_user_by_username
 
@@ -157,39 +158,53 @@ class AIImageService:
 
     async def query_ai_image_task_list(self, query_params: AIImageTaskQueryDTO, tenant_id: str) -> Dict[str, Any]:
         """
-        Query AI image task list
-        
+        Query AI image task list from MongoDB
+
         :param query_params: Query parameters including page, page_size and type
         :param tenant_id: Tenant ID from user information
-        :return: API response data
+        :return: Task list with pagination information
         """
-        url = f"{self.api_base}/ps/bnb_img/query_img_task_list"
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": self.api_key
-        }
+        try:
+            # Build query filter
+            query_filter = {"tenant_id": tenant_id}
+            if query_params.type is not None:
+                query_filter["mode"] = query_params.type
 
-        payload = {
-            "tenant_id": tenant_id,
-            "page": query_params.page,
-            "page_size": query_params.page_size
-        }
+            # Calculate skip and limit for pagination
+            skip = (query_params.page - 1) * query_params.page_size
+            limit = query_params.page_size
 
-        # Add type to payload if specified
-        if query_params.type is not None:
-            payload["type"] = query_params.type
+            # Query tasks with pagination
+            tasks = list(aigc_img_tasks_col.find(query_filter)
+                         .sort("timestamp", pymongo.DESCENDING)
+                         .skip(skip)
+                         .limit(limit))
 
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, headers=headers, json=payload, timeout=httpx.Timeout(30.0))
-                response.raise_for_status()
-                return response.json()
-            except httpx.RequestError as e:
-                logger.error(f"Request error for query_ai_image_task_list: {str(e)}", exc_info=True)
-                raise CustomAgentException(
-                    error_code=ErrorCode.API_CALL_ERROR,
-                    message=f"Failed to query AI image task list: {str(e)}"
-                )
+            # Get total count for pagination
+            total = aigc_img_tasks_col.count_documents(query_filter)
+
+            # Format response
+            return {
+                "total": total,
+                "page": query_params.page,
+                "page_size": query_params.page_size,
+                "items": [
+                    {
+                        "task_id": task["task_id"],
+                        "mode": task["mode"],
+                        "status": task["status"],
+                        "prompt": task["prompt"],
+                        "result_img_url": task.get("result_img_url", ""),
+                        "timestamp": task["timestamp"],
+                        "gen_cost_s": task.get("gen_cost_s", 0),
+                        "process_msg": task.get("process_msg", [])
+                    }
+                    for task in tasks
+                ]
+            }
+        except Exception as e:
+            logger.error(f"Error querying AI image task list: {e}", exc_info=True)
+            raise CustomAgentException(ErrorCode.API_CALL_ERROR, str(e))
 
     async def query_template_list(self, query_params: AITemplateQueryDTO) -> List[Dict]:
         """
