@@ -50,10 +50,10 @@ class CreateAIImageTaskDTO(BaseModel):
     def validate_fields(self):
         """Validate fields based on mode"""
         if self.mode == 1:
-            if not self.prompt or not self.image_url:
+            if not self.image_url:
                 raise CustomAgentException(
                     error_code=ErrorCode.INVALID_PARAMETERS,
-                    message="Mode 1 requires prompt and image_url"
+                    message="Mode 1 requires image_url"
                 )
         elif self.mode == 2:
             if not self.x_link:
@@ -86,6 +86,7 @@ class AITemplateQueryDTO(BaseModel):
 
 class AITemplateListResponse(BaseModel):
     """Response model for template list"""
+    id: str
     name: str
     preview_url: str
     description: Optional[str]
@@ -136,7 +137,7 @@ class AIImageService:
             prompt_tpl = template.prompt
             assert prompt_tpl
             task.prompt = prompt_tpl.format(
-                custom=task_req.prompt
+                custom= task_req.prompt or "",
             )
         else:  # mode 2
             prompt_tpl = template.prompt
@@ -232,6 +233,7 @@ class AIImageService:
             # Format response
             return [
                 AITemplateListResponse(
+                    id=template.id,
                     name=template.name,
                     preview_url=template.preview_url,
                     description=template.description,
