@@ -14,7 +14,7 @@
   <a href="#技术架构">技术架构</a> •
   <a href="#快速开始">快速开始</a> •
   <a href="#应用场景">应用场景</a> •
-  <a href="#未来规划">未来规划</a>
+  <a href="#未来规划">未来规划</a> •
   <a href="README.md">English</a>
 </p>
 
