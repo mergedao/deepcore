@@ -74,7 +74,8 @@ def generate_schema_model(schema: Dict[str, Any]) -> Dict:
             field_definition['default'] = prop_spec['default']
         if prop_spec.get('required'):
             field_definition['required'] = prop_spec['required']
-
+        if prop_spec.get("enum"):
+            field_definition['enum'] = prop_spec['enum']
         if field_definition['type'] == 'array' and 'items' in prop_spec:
             field_definition['items'] = generate_schema_model(prop_spec['items'])
         elif field_definition['type'] == 'object' and 'properties' in prop_spec:
@@ -289,6 +290,8 @@ def transform_body_schema(schema: Any) -> Any:
         result["default"] = schema["default"]
     if "required" in schema and schema["required"]:
         result["required"] = schema["required"]
+    if "enum" in schema and schema["enum"]:
+        result["enum"] = schema["enum"]
 
     if schema_type == "object":
         props = schema.get("properties", {})
